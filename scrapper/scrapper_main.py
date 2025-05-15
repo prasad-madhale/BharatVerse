@@ -1,26 +1,44 @@
-import os
+import os, json
 import asyncio
+from dotenv import load_dotenv
 
-from crawl4ai import AsyncWebCrawler, LLMExtractionStrategy, BrowserConfig, LLMConfig
+# Load environment variables from .env file
+load_dotenv()
+
+from crawl4ai import (
+    AsyncWebCrawler,
+    LLMExtractionStrategy,
+    BrowserConfig,
+    LLMConfig,
+    CrawlerRunConfig,
+    CacheMode,
+)
 
 from model.article import Article
 
-URL = "https://en.wikipedia.org/wiki/Shivaji"
-LLM_API_KEY = os.getenv("GROQ_API_KEY")
-LLM_MODEL = "deepseek/deepseek-chat"
+URL = "https://en.wikipedia.org/wiki/Neha_Mehta"
+LLM_API_KEY = os.getenv("ANTHROPIC_CLAUDE_API_KEY")
+LLM_MODEL = "anthropic/claude-3-5-sonnet-20240620"
 
 
 async def crawl_article():
+    print(LLM_API_KEY)
     browser_config = get_browser_config()
+    crawl_config = CrawlerRunConfig(
+        extraction_strategy=get_llm_strategy(), cache_mode=CacheMode.ENABLED
+    )
 
     print("Starting the web crawler...")
     async with AsyncWebCrawler(config=browser_config) as crawler:
-        result = await crawler.arun(
-            url=URL,
-            extraction_strategy=get_llm_strategy(),
-        )
+        result = await crawler.arun(url=URL, config=crawl_config)
         print("Web crawler finished.")
-    print("Result:", result)
+
+        if result.success:
+            # The extracted content is presumably JSON
+            data = json.loads(result.extracted_content)
+            print("Extracted items:", data)
+        else:
+            print("Error:", result.error_message)
     return result
 
 
@@ -36,7 +54,7 @@ def get_llm_strategy() -> LLMExtractionStrategy:
         llm_config=LLMConfig(provider=LLM_MODEL, api_token=LLM_API_KEY),
         schema=Article.model_json_schema(),
         extraction_type="schema",
-        instruction="Extract a list of items from the text with 'name' and 'price' fields.",
+        instruction=get_instruction(),
         chunk_token_threshold=1200,
         overlap_rate=0.1,
         apply_chunking=True,

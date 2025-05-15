@@ -58,6 +58,7 @@ __pycache__/       # Python cache directory
 env/               # Alternative virtual environment directory
 venv/              # Alternative virtual environment directory
 **/venv/          # Alternative virtual environment directory
+scrapper/.env  
 scrapper/venv/  # Specific virtual environment directory
 scrapper/.env/  # Specific virtual environment directory
 
