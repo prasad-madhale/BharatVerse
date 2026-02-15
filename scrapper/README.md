@@ -6,18 +6,38 @@ This directory contains the content generation pipeline for BharatVerse MVP.
 
 The content pipeline scrapes historical content from authoritative sources (Wikipedia, archive.org), uses AI (Anthropic Claude) to generate curated 10-15 minute read articles, validates quality, and stores them for the mobile app.
 
+## Prerequisites
+
+- Python 3.12+
+- Virtual environment activated
+- Environment variables configured
+
 ## Setup
 
-### 1. Create Virtual Environment
+### 1. Verify Python Version
+
+```bash
+python3 --version  # Must be 3.12.0 or higher
+```
+
+If you have an older version, see the [main README](../README.md#python-setup) for installation instructions.
+
+### 2. Create Virtual Environment
 
 From the project root (`BharatVerse/`):
 
 ```bash
-python -m venv .venv
+# Use Python 3.12 explicitly
+python3.12 -m venv .venv
+# OR if using pyenv: python -m venv .venv
+
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Verify Python version
+python --version  # Should show 3.12+
 ```
 
-### 2. Install Dependencies
+### 3. Install Dependencies
 
 ```bash
 pip install -r scrapper/requirements.txt
@@ -34,7 +54,7 @@ playwright install
 Create a `.env` file in the project root (`BharatVerse/.env`) with:
 
 ```env
-ANTHROPIC_CLAUDE_API_KEY=your_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 ## Usage

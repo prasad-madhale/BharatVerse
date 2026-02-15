@@ -28,9 +28,17 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./bharatverse.db"
     database_path: str = "./bharatverse.db"
     
-    # LLM APIs
-    anthropic_api_key: str
+    # LLM APIs (choose one)
+    llm_provider: str = "gemini"  # Options: "gemini", "anthropic", "openai", "groq"
+    
+    # API Keys (provide based on llm_provider)
+    gemini_api_key: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
+    groq_api_key: Optional[str] = None
+    
+    # LLM Model Configuration
+    llm_model: Optional[str] = None  # Auto-selected based on provider if not specified
     
     # Authentication
     jwt_secret_key: str

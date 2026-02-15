@@ -18,9 +18,64 @@ BharatVerse/
 
 ### Prerequisites
 
-- **Python 3.12+** (for scrapper and backend)
+- **Python 3.12+** (required - see [Python Setup](#python-setup) below)
 - **Flutter SDK 3.x** (for mobile app)
 - **Node.js 18+** (optional, for tooling)
+
+### Python Setup
+
+This project requires Python 3.12 or higher. Here's how to install it:
+
+#### macOS (using Homebrew)
+
+```bash
+# Install Python 3.12
+brew install python@3.12
+
+# Verify installation
+python3.12 --version
+
+# Set as default (optional)
+brew link python@3.12
+```
+
+#### macOS (using pyenv - Recommended)
+
+```bash
+# Install pyenv
+brew install pyenv
+
+# Add to shell profile (~/.zshrc or ~/.bash_profile)
+echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+source ~/.zshrc
+
+# Install Python 3.12
+pyenv install 3.12.0
+pyenv global 3.12.0
+
+# Verify
+python --version  # Should show Python 3.12.0
+```
+
+#### Ubuntu/Debian
+
+```bash
+# Add deadsnakes PPA
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt update
+
+# Install Python 3.12
+sudo apt install python3.12 python3.12-venv python3.12-dev
+
+# Verify
+python3.12 --version
+```
+
+#### Windows
+
+Download and install from [python.org](https://www.python.org/downloads/) (version 3.12+)
 
 ### 1. Clone Repository
 
@@ -39,7 +94,9 @@ cp .env.example .env
 ```
 
 Required environment variables:
-- `ANTHROPIC_API_KEY` - For article generation
+- `GEMINI_API_KEY` - For article generation (FREE - get from https://makersuite.google.com/app/apikey)
+  - Alternative: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GROQ_API_KEY`
+- `LLM_PROVIDER` - Which LLM to use: `gemini` (default), `anthropic`, `openai`, or `groq`
 - `JWT_SECRET_KEY` - For authentication (generate with `openssl rand -hex 32`)
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` - For Google OAuth (optional)
 - `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET` - For Facebook OAuth (optional)
@@ -49,9 +106,17 @@ Required environment variables:
 #### Content Pipeline (scrapper)
 
 ```bash
-# Create virtual environment
-python -m venv .venv
+# Ensure you're using Python 3.12+
+python3 --version  # Should be 3.12.0 or higher
+
+# Create virtual environment with Python 3.12
+python3.12 -m venv .venv
+# OR if using pyenv: python -m venv .venv
+
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Verify Python version in venv
+python --version  # Should show 3.12+
 
 # Install dependencies
 pip install -r scrapper/requirements.txt

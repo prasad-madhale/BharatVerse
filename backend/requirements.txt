@@ -11,8 +11,10 @@ pydantic==2.5.3
 pydantic-settings==2.1.0
 
 # LLM and AI
-anthropic==0.18.1
-openai==1.12.0
+google-generativeai==0.3.2  # Google Gemini (FREE - default)
+anthropic==0.18.1           # Anthropic Claude (optional)
+openai==1.12.0              # OpenAI (optional)
+groq==0.4.1                 # Groq (optional)
 
 # Web scraping
 playwright==1.41.2
@@ -31,7 +33,7 @@ python-jose[cryptography]==3.3.0
 httpx==0.26.0
 
 # Testing
-pytest==8.0.0
+pytest==7.4.4
 pytest-asyncio==0.23.4
 hypothesis==6.98.3
 

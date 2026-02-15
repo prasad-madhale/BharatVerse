@@ -4,9 +4,10 @@ This document provides essential information for AI agents working within the Bh
 
 ## Project Overview
 
-The BharatVerse repository contains two primary sub-projects:
+The BharatVerse repository is a monorepo containing three primary services:
 1.  **`bharatverse_app`**: A cross-platform mobile application developed using Flutter.
-2.  **`scrapper`**: A Python-based web scraping application.
+2.  **`backend`**: A FastAPI-based REST API server.
+3.  **`scrapper`**: A Python-based content generation pipeline.
 
 ## `bharatverse_app` (Flutter Application)
 
@@ -47,66 +48,150 @@ The codebase adheres to standard Dart and Flutter naming conventions:
 ### Testing Approach
 Widget testing is implemented using the `flutter_test` package. Tests are located in the `test/` directory.
 
-## `scrapper` (Python Scraper)
+## Testing
+
+### Backend and Scrapper Tests
+From the project root with virtual environment activated:
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=backend --cov=scrapper
+
+# Run property-based tests only
+pytest -m property_test
+```
+
+### Mobile Tests
+From the `bharatverse_app` directory:
+```bash
+flutter test
+
+# With coverage
+flutter test --coverage
+```
+
+## `scrapper` (Python Content Pipeline)
 
 ### Overview
-This project contains a Python-based web scraper.
+This project contains the content generation pipeline that scrapes historical content and uses LLM to generate curated articles.
 
 ### Essential Commands
 
 **Setup:**
 1.  **Create a virtual environment:** From the project root (`BharatVerse/`):
     ```bash
-    python -m venv .venv
-    source .venv/bin/activate
+    python3.12 -m venv .venv
+    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
     ```
-2.  **Install dependencies:** From the project root, ensure virtual environment is active, then install required packages:
+2.  **Install dependencies:** From the project root, ensure virtual environment is active:
     ```bash
     pip install -r scrapper/requirements.txt
     ```
-3.  **Install browser binaries:** The `crawl4ai` library (used indirectly via `playwright`) requires browser binaries. Run:
+3.  **Install browser binaries:** The scraper uses `playwright` for web scraping:
     ```bash
     playwright install
     ```
 
 **Run the scraper:**
-To run the main scraper logic, from the project root (`BharatVerse/`):
+From the project root (`BharatVerse/`):
 ```bash
 python scrapper/scrapper_main.py
 ```
 
-**Run agent-specific logic:** (If `agent_main.py` is intended as a separate entry point)
-From the project root (`BharatVerse/`):
-```bash
-python scrapper/agent_main.py
+### Environment Variables
+The scraper requires an LLM API key. Create a `.env` file in the `BharatVerse/` root directory:
+```
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=your_api_key_here
 ```
 
-### Environment Variables
-The scraper requires an API key for the Anthropic Claude LLM.
-1.  Create a `.env` file in the `BharatVerse/` root directory.
-2.  Add the API key:
-    ```
-    ANTHROPIC_CLAUDE_API_KEY=your_api_key_here
-    ```
+Supported providers: `gemini` (FREE, default), `anthropic`, `openai`, `groq`
 
 ### Code Organization
-*   `scrapper_main.py`: Main script for the scraping logic.
-*   `agent_main.py`: Possibly an alternative or agent-specific entry point for scraping.
+*   `scrapper_main.py`: Main script for the content pipeline.
 *   `model/`: Contains Pydantic models for data structures, e.g., `article.py` defines the `Article` model.
-*   `data/web-sources.yaml`: Likely configuration file for defining web sources to scrape.
+*   `data/web-sources.yaml`: Configuration file for defining web sources to scrape.
 
 ### Naming Conventions and Style
-The Python code generally follows PEP 8 conventions:
+The Python code follows PEP 8 conventions:
 *   Functions and variables use `snake_case`.
 *   Classes use `CamelCase` (e.g., `Article`).
+
+## `backend` (FastAPI REST API)
+
+### Overview
+FastAPI-based REST API that serves articles to the mobile app, handles authentication, search, and user likes.
+
+### Essential Commands
+
+**Setup:**
+1.  **Activate virtual environment:** (same as scrapper)
+    ```bash
+    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+    ```
+2.  **Install dependencies:**
+    ```bash
+    pip install -r backend/requirements.txt
+    ```
+3.  **Initialize database:**
+    ```bash
+    python backend/init_db.py
+    ```
+
+**Run the API server:**
+Development mode with hot reload:
+```bash
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Production mode:
+```bash
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
+```
+
+**API Documentation:**
+When running, visit:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+### Environment Variables
+Add to `.env` file in project root:
+```
+JWT_SECRET_KEY=your_secret_key_here
+DATABASE_PATH=./bharatverse.db
+ARTICLES_STORAGE_PATH=./articles
+```
+
+Generate JWT secret: `openssl rand -hex 32`
+
+### Code Organization
+*   `main.py`: FastAPI application entry point.
+*   `api/`: API routers and endpoints (articles, auth, search, likes).
+*   `services/`: Business logic layer.
+*   `models/`: Data models and Pydantic schemas.
+*   `database/`: Database operations and queries.
+*   `utils/`: Utility functions (JWT, password hashing, validation).
+*   `config.py`: Configuration management.
+
+### Naming Conventions and Style
+Follows PEP 8 conventions:
+*   Functions and variables use `snake_case`.
+*   Classes use `CamelCase`.
+*   Async functions preferred for I/O operations.
 
 ### Testing Approach
 No explicit testing framework or test files were observed within the `scrapper` directory.
 
 ## General Gotchas and Patterns
 
-*   **Virtual Environments:** Python projects (`scrapper`) utilize virtual environments for dependency management. Always activate the virtual environment before installing packages or running scripts.
+*   **Python Version:** This project requires Python 3.12+. Use `python3.12 -m venv .venv` when creating the virtual environment.
+*   **Shared Virtual Environment:** Backend and scrapper share the same `.venv` at the project root.
+*   **Virtual Environments:** Always activate the virtual environment before installing packages or running Python scripts.
 *   **Environment Variables:** Sensitive information like API keys are loaded via `.env` files using `python-dotenv`. Ensure the `.env` file is set up correctly in the project root.
-*   **Asynchronous Operations:** The Python scraper uses `asyncio` for asynchronous operations.
-*   **Web Interaction:** The Python scraper uses `playwright` for browser automation and `langchain_community` for integrating with external APIs like Wikipedia.
-*   **Data Models:** Pydantic is used in the Python scraper for data validation and serialization of models like `Article`.
+*   **Database Location:** SQLite database (`bharatverse.db`) and article storage (`articles/`) are at the project root.
+*   **Asynchronous Operations:** The Python backend uses `asyncio` for asynchronous operations.
+*   **Web Interaction:** The scraper uses `playwright` for browser automation and `langchain_community` for Wikipedia integration.
+*   **Data Models:** Pydantic is used throughout for data validation and serialization.
+*   **API Documentation:** When backend is running, interactive API docs are available at `/docs` and `/redoc` endpoints.

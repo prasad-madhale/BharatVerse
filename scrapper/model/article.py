@@ -1,4 +1,5 @@
 from datetime import datetime, date
+from typing import Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -63,15 +64,15 @@ class Article(BaseModel):
         ...,
         description="The full article content in Markdown format",
     )
-    sections: list[Section] = Field(
+    sections: List[Section] = Field(
         default_factory=list,
         description="Structured sections of the article",
     )
-    citations: list[Citation] = Field(
+    citations: List[Citation] = Field(
         default_factory=list,
         description="Citations and references used in the article",
     )
-    date: date = Field(
+    publication_date: date = Field(
         ...,
         description="Publication date of the article",
     )
@@ -83,11 +84,11 @@ class Article(BaseModel):
         default="BharatVerse AI",
         description="The author of the article",
     )
-    tags: list[str] = Field(
+    tags: List[str] = Field(
         default_factory=list,
         description="Tags/keywords for categorization (e.g., ['ancient-india', 'mauryan-empire'])",
     )
-    image_url: str | None = Field(
+    image_url: Optional[str] = Field(
         default=None,
         description="URL of the featured image for the article",
     )
@@ -117,7 +118,7 @@ class ScrapedContent(BaseModel):
         ...,
         description="The raw text content extracted",
     )
-    images: list[dict] = Field(
+    images: List[dict] = Field(
         default_factory=list,
         description="List of images with URLs and metadata",
     )

@@ -29,11 +29,12 @@ async def main():
     print("=" * 50)
     
     # Check for required environment variables
-    anthropic_api_key = os.getenv("ANTHROPIC_CLAUDE_API_KEY")
-    if not anthropic_api_key:
-        print("ERROR: ANTHROPIC_CLAUDE_API_KEY not found in environment variables")
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_api_key:
+        print("ERROR: GEMINI_API_KEY not found in environment variables")
         print("Please create a .env file in the project root with:")
-        print("ANTHROPIC_CLAUDE_API_KEY=your_api_key_here")
+        print("GEMINI_API_KEY=your_api_key_here")
+        print("\nGet your free API key from: https://makersuite.google.com/app/apikey")
         return
     
     print("✓ Environment variables loaded")

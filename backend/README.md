@@ -19,16 +19,30 @@ The backend provides:
 
 ## Setup
 
-### 1. Create Virtual Environment
+### 1. Verify Python Version
+
+```bash
+python3 --version  # Must be 3.12.0 or higher
+```
+
+If you have an older version, see the [main README](../README.md#python-setup) for installation instructions.
+
+### 2. Create Virtual Environment
 
 From the project root:
 
 ```bash
-python -m venv .venv
+# Use Python 3.12 explicitly
+python3.12 -m venv .venv
+# OR if using pyenv: python -m venv .venv
+
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Verify Python version
+python --version  # Should show 3.12+
 ```
 
-### 2. Install Dependencies
+### 3. Install Dependencies
 
 ```bash
 pip install -r backend/requirements.txt
@@ -39,8 +53,13 @@ pip install -r backend/requirements.txt
 Create a `.env` file in the project root with:
 
 ```env
-# Required
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
+# Required - LLM Provider
+LLM_PROVIDER=gemini  # Options: gemini (FREE), anthropic, openai, groq
+
+# Required - API Key (choose based on provider)
+GEMINI_API_KEY=your_gemini_api_key_here  # Get from: https://makersuite.google.com/app/apikey
+
+# Required - JWT Secret
 JWT_SECRET_KEY=your_secret_key_here  # Generate with: openssl rand -hex 32
 
 # Optional (for OAuth)
