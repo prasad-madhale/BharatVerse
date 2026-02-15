@@ -17,12 +17,9 @@ migrate_working_dir/
 *.ipr
 *.iws
 .idea/
-.vscode/           # VS Code settings
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# VS Code
+.vscode/
 
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -46,24 +43,97 @@ app.*.map.json
 /android/app/release
 
 # Python-related
-*.py[cod]          # Compiled Python files
-__pycache__/       # Python cache directory
-*.pyo              # Optimized Python files
-*.pyd              # Windows compiled Python files
+*.py[cod]
+__pycache__/
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
 
-# Environment-related
-.env               # Environment variables file
-**/.env            # Environment variables file in any directory
-.venv/             # Virtual environment directory
-env/               # Alternative virtual environment directory
-venv/              # Alternative virtual environment directory
-**/venv/          # Alternative virtual environment directory
-scrapper/.env  
-scrapper/venv/  # Specific virtual environment directory
-scrapper/.env/  # Specific virtual environment directory
+# Virtual environments
+.env
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Environment variables
+**/.env
+.env.local
+.env.*.local
 
 # Logs and debugging
-*.log              # Log files
-*.out              # Output files
-*.err              # Error files
-debug.log          # Debug log files
+*.log
+*.out
+*.err
+debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+bharatverse.db
+
+# Generated articles and content
+articles/
+*.json
+
+# Playwright browsers
+.playwright/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Backup files
+*.bak
+*.backup
+*~
