@@ -6,8 +6,8 @@ FastAPI-based REST API for the BharatVerse mobile application.
 
 The backend provides:
 - REST API endpoints for articles, search, authentication, and likes
-- SQLite database with FTS5 full-text search
-- User authentication (email/password + OAuth)
+- Supabase PostgreSQL database with full-text search and pgvector
+- User authentication via Supabase Auth (email/password + OAuth)
 - Article search with autocomplete and semantic similarity
 - Rate limiting and security features
 
@@ -53,36 +53,56 @@ pip install -r backend/requirements.txt
 Create a `.env` file in the project root with:
 
 ```env
+# Required - Supabase Configuration
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+
 # Required - LLM Provider
 LLM_PROVIDER=gemini  # Options: gemini (FREE), anthropic, openai, groq
 
 # Required - API Key (choose based on provider)
 GEMINI_API_KEY=your_gemini_api_key_here  # Get from: https://makersuite.google.com/app/apikey
 
-# Required - JWT Secret
-JWT_SECRET_KEY=your_secret_key_here  # Generate with: openssl rand -hex 32
-
-# Optional (for OAuth)
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-FACEBOOK_APP_ID=your_facebook_app_id
-FACEBOOK_APP_SECRET=your_facebook_app_secret
+# Optional (for OAuth - configured in Supabase dashboard)
+# GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET configured in Supabase
+# FACEBOOK_APP_ID and FACEBOOK_APP_SECRET configured in Supabase
 
 # Optional (defaults provided)
-DATABASE_PATH=./bharatverse.db
-ARTICLES_STORAGE_PATH=./articles
 API_HOST=0.0.0.0
 API_PORT=8000
 DEBUG=false
 ```
 
-### 4. Initialize Database
+See `.env.example` for a complete template.
 
-```bash
-python backend/init_db.py
-```
+### 4. Set Up Supabase Database
 
-This creates the SQLite database with all required tables and indexes.
+1. **Create Supabase Project**:
+   - Go to https://supabase.com and create a new project
+   - Note your project URL and API keys from Settings > API
+
+2. **Deploy Database Schema**:
+   - Open the SQL Editor in your Supabase dashboard
+   - Copy the contents of `backend/database/schema.sql`
+   - Execute the SQL to create all tables, indexes, and triggers
+
+3. **Create Storage Bucket**:
+   - Go to Storage in Supabase dashboard
+   - Create a new bucket named `articles`
+   - Set it to public for read access
+
+4. **Verify Setup**:
+   ```bash
+   python backend/database/test_supabase.py
+   ```
+   
+   This will verify:
+   - Connection to Supabase
+   - All tables exist
+   - Insert/query operations work
+   - Full-text search is functional
+   - Storage bucket is accessible
 
 ## Running the API
 
@@ -122,16 +142,25 @@ backend/
 │   ├── user.py
 │   └── schemas.py
 ├── database/           # Database operations
-│   ├── connection.py
-│   ├── migrations.py
-│   └── queries.py
+│   ├── __init__.py
+│   ├── schema.sql          # PostgreSQL schema for Supabase
+│   ├── supabase_client.py  # Supabase client wrapper
+│   └── test_supabase.py    # Connection verification script
 ├── utils/              # Utility functions
-│   ├── jwt.py
-│   ├── password.py
+│   ├── llm_provider.py # Unified LLM interface
 │   └── validators.py
+├── tests/              # Test suite
+│   ├── conftest.py         # Shared pytest fixtures
+│   ├── test_database/      # Database tests
+│   │   ├── test_supabase.py
+│   │   └── test_article_persistence.py
+│   ├── test_api/           # API endpoint tests
+│   ├── test_services/      # Service layer tests
+│   ├── test_utils/         # Utility function tests
+│   └── integration/        # End-to-end tests
 ├── config.py           # Configuration management
 ├── main.py             # FastAPI application entry point
-├── init_db.py          # Database initialization script
+├── pytest.ini          # Pytest configuration
 ├── requirements.txt    # Python dependencies
 └── README.md           # This file
 ```
@@ -167,65 +196,208 @@ backend/
 
 ## Testing
 
-### Run All Tests
+The backend uses pytest for testing with support for async tests, property-based tests, and integration tests.
 
-```bash
-pytest
+### Test Structure
+
+Tests are organized in `backend/tests/` mirroring the source code structure:
+
+```
+backend/tests/
+├── conftest.py                      # Shared pytest fixtures
+├── test_database/                   # Database and Supabase tests
+│   ├── test_supabase.py            # Connection and basic operations
+│   └── test_article_persistence.py # Property-based persistence tests
+├── test_api/                        # API endpoint tests
+├── test_services/                   # Service layer tests
+├── test_utils/                      # Utility function tests
+└── integration/                     # End-to-end integration tests
 ```
 
-### Run with Coverage
+### Running Tests
 
+**Run all tests:**
 ```bash
-pytest --cov=backend --cov-report=html
+pytest backend/tests/
 ```
 
-### Run Specific Test Types
-
+**Run specific test file:**
 ```bash
-# Unit tests only
-pytest tests/unit/
-
-# Integration tests only
-pytest tests/integration/
-
-# Property-based tests only
-pytest -m property_test
+pytest backend/tests/test_database/test_article_persistence.py
 ```
 
-### Run Tests in Watch Mode
-
+**Run specific test directory:**
 ```bash
-pytest-watch
+pytest backend/tests/test_database/
 ```
+
+**Run with verbose output:**
+```bash
+pytest backend/tests/ -v
+```
+
+**Run with live logs (useful for debugging):**
+```bash
+pytest backend/tests/ -s
+```
+
+**Run quietly (less output):**
+```bash
+pytest backend/tests/ -q
+```
+
+### Test Types
+
+**Unit tests** - Test individual functions and classes:
+```bash
+pytest backend/tests/ -m unit
+```
+
+**Integration tests** - Test end-to-end flows:
+```bash
+pytest backend/tests/integration/
+```
+
+**Property-based tests** - Test universal properties with Hypothesis (100+ iterations):
+```bash
+pytest backend/tests/ -m property
+```
+
+Property-based tests use Hypothesis to generate random test data and verify correctness properties hold across diverse inputs. Example: `test_article_persistence_round_trip` runs 100 iterations with different article data to ensure persistence works correctly.
+
+### Coverage Reports
+
+**Run tests with coverage:**
+```bash
+pytest backend/tests/ --cov=backend --cov-report=term
+```
+
+**Generate HTML coverage report:**
+```bash
+pytest backend/tests/ --cov=backend --cov-report=html
+open htmlcov/index.html  # View in browser
+```
+
+**Coverage with missing lines:**
+```bash
+pytest backend/tests/ --cov=backend --cov-report=term-missing
+```
+
+### Test Configuration
+
+Test configuration is in `backend/pytest.ini`:
+- Async tests run automatically with `asyncio_mode = auto`
+- Test discovery pattern: `test_*.py`
+- Logs displayed during test runs
+- Custom markers for test categorization
+
+### Writing Tests
+
+**Async test example:**
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_supabase_connection(supabase_client):
+    """Test Supabase connection."""
+    client = supabase_client.get_admin_client()
+    response = client.table('articles').select('*').limit(1).execute()
+    assert response is not None
+```
+
+**Property-based test example:**
+```python
+import pytest
+from hypothesis import given, strategies as st
+
+@pytest.mark.asyncio
+@pytest.mark.property
+@given(article_data=article_strategy())
+async def test_article_persistence_round_trip(article_data):
+    """Test that articles can be stored and retrieved correctly."""
+    supabase = get_supabase()
+    client = supabase.get_admin_client()
+    
+    # Store article
+    insert_response = client.table('articles').insert(article_data).execute()
+    assert insert_response.data is not None
+    
+    # Retrieve article
+    select_response = client.table('articles').select('*').eq('id', article_data['id']).execute()
+    retrieved = select_response.data[0]
+    
+    # Verify all fields preserved
+    assert retrieved['title'] == article_data['title']
+    assert retrieved['summary'] == article_data['summary']
+    # ... more assertions
+```
+
+**Using fixtures:**
+```python
+@pytest.mark.asyncio
+async def test_article_insert(supabase_client, clean_test_data):
+    """Test article insertion with automatic cleanup."""
+    client = supabase_client.get_admin_client()
+    
+    test_article = {
+        'id': 'test_article_001',
+        'title': 'Test Article',
+        # ... other fields
+    }
+    
+    # Track for cleanup
+    clean_test_data['article_ids'].append('test_article_001')
+    
+    # Test insertion
+    response = client.table('articles').insert(test_article).execute()
+    assert response.data is not None
+    # Cleanup happens automatically after test
+```
+
+### Continuous Integration
+
+Tests run automatically on:
+- Pull requests
+- Commits to main branch
+- Scheduled daily runs
+
+CI configuration in `.github/workflows/test.yml`
 
 ## Database
 
-### Schema
+### Supabase PostgreSQL
 
-The database uses SQLite with the following tables:
+The backend uses Supabase (managed PostgreSQL) with the following features:
 
-- `articles` - Article metadata
-- `articles_fts` - Full-text search index (FTS5)
-- `users` - User accounts
-- `likes` - Article likes
+**Tables:**
+- `articles` - Article metadata with JSONB content and tsvector for full-text search
+- `users` - User profiles (extends Supabase auth.users)
+- `likes` - Article likes with Row-Level Security
 - `search_suggestions` - Autocomplete suggestions
-- `article_embeddings` - Semantic search embeddings
+- `article_embeddings` - Semantic search embeddings (TEXT format, pgvector optional)
 
-### Migrations
+**Features:**
+- Full-text search using PostgreSQL tsvector and ts_rank
+- Automatic tsvector updates via triggers
+- Row-Level Security (RLS) for user data isolation
+- Supabase Auth for authentication
+- Supabase Storage for article images
 
-```bash
-# Run migrations
-python backend/database/migrations.py
+### Schema Management
 
-# Create new migration
-python backend/database/migrations.py create "migration_name"
-```
+The database schema is defined in `backend/database/schema.sql`. To update:
+
+1. Modify `schema.sql`
+2. Run the updated SQL in Supabase SQL Editor
+3. Test with `python backend/database/test_supabase.py`
 
 ### Backup Database
 
-```bash
-sqlite3 bharatverse.db ".backup bharatverse_backup.db"
-```
+Supabase provides automatic backups. To create manual backup:
+
+1. Go to Supabase Dashboard > Database > Backups
+2. Click "Create Backup"
+3. Download backup file if needed
 
 ## Development
 
@@ -272,11 +444,19 @@ docker-compose up -d
 1. Set up Python 3.12+ on server
 2. Clone repository
 3. Install dependencies: `pip install -r backend/requirements.txt`
-4. Configure environment variables
-5. Initialize database: `python backend/init_db.py`
+4. Configure environment variables (Supabase URL and keys)
+5. Verify Supabase connection: `python backend/database/test_supabase.py`
 6. Run with gunicorn: `gunicorn backend.main:app -w 4 -k uvicorn.workers.UvicornWorker`
 7. Set up nginx as reverse proxy
 8. Configure SSL with Let's Encrypt
+
+### Supabase Configuration
+
+Ensure your Supabase project has:
+- Database schema deployed from `backend/database/schema.sql`
+- Storage bucket `articles` created and configured
+- OAuth providers enabled (if using Google/Facebook login)
+- Row-Level Security policies active
 
 ## Monitoring
 
@@ -303,13 +483,16 @@ API metrics available at:
 
 ## Troubleshooting
 
-### Database Locked Error
+### Supabase Connection Errors
 
 ```bash
-# Check for stale connections
-lsof bharatverse.db
+# Verify environment variables
+cat .env | grep SUPABASE
 
-# Restart API server
+# Test connection
+python backend/database/test_supabase.py
+
+# Check Supabase project status in dashboard
 ```
 
 ### Import Errors
@@ -332,13 +515,25 @@ lsof -i :8000
 kill -9 <PID>
 ```
 
+### Test Failures
+
+```bash
+# Run tests with verbose output
+pytest backend/tests/ -v -s
+
+# Check Supabase connection
+python backend/database/test_supabase.py
+
+# Verify .env file has correct Supabase credentials
+```
+
 ## Performance
 
 ### Optimization Tips
 
-1. **Database**: Add indexes for frequently queried fields
+1. **Database**: Supabase handles indexing automatically, but verify indexes exist for frequently queried fields
 2. **Caching**: Use Redis for session storage and API caching
-3. **Connection Pooling**: Configure SQLite connection pool
+3. **Connection Pooling**: Supabase client handles connection pooling automatically
 4. **Rate Limiting**: Adjust limits based on traffic patterns
 5. **Async Operations**: Use async/await for I/O operations
 
@@ -355,11 +550,12 @@ wrk -t4 -c100 -d30s http://localhost:8000/api/v1/articles/daily
 
 ## Security
 
-- All passwords hashed with bcrypt (cost factor 12)
-- JWT tokens with short expiration (1 hour access, 30 days refresh)
+- All passwords hashed by Supabase Auth (bcrypt)
+- JWT tokens managed by Supabase Auth (short expiration)
+- Row-Level Security (RLS) enforces data access control
 - HTTPS only in production
 - Input validation on all endpoints
-- SQL injection prevention (parameterized queries)
+- SQL injection prevention (Supabase client uses parameterized queries)
 - Rate limiting (100 requests/minute per IP)
 - CORS configured for mobile app origins only
 

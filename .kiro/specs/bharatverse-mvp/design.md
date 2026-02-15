@@ -5,7 +5,7 @@
 BharatVerse MVP is a mobile-first application that delivers daily curated historical articles about Indian history. The system consists of three main components:
 
 1. **Content Pipeline (Python)**: Scrapes historical content from Wikipedia and archive.org, uses LLM (Anthropic Claude) to generate engaging articles with citations
-2. **Backend API (Python/FastAPI)**: Provides REST endpoints for article retrieval, search, user authentication, and likes management
+2. **Backend API (Python/FastAPI)**: Provides REST endpoints for article retrieval, search, user authentication, and likes management, backed by Supabase (PostgreSQL)
 3. **Mobile App (Flutter)**: Cross-platform iOS/Android application for browsing and reading articles
 
 The architecture prioritizes simplicity and rapid iteration for MVP validation while maintaining flexibility for future enhancements.
@@ -14,9 +14,10 @@ The architecture prioritizes simplicity and rapid iteration for MVP validation w
 
 - **Separation of Concerns**: Content generation, API layer, and mobile UI are independent
 - **Async-First**: Python backend uses asyncio for non-blocking operations
-- **Stateless API**: REST API is stateless; authentication via JWT tokens
+- **Stateless API**: REST API is stateless; authentication via Supabase Auth and JWT tokens
 - **Offline-First Mobile**: Flutter app caches articles for offline reading
 - **Data-Driven**: All content decisions based on structured data models
+- **Cloud-Native**: Leverages Supabase for database, authentication, and storage
 
 ## Architecture
 
@@ -37,9 +38,10 @@ graph TB
         LikeService[Like Service]
     end
     
-    subgraph "Data Layer"
-        DB[(SQLite Database)]
-        FileStore[Article JSON Files]
+    subgraph "Supabase (Cloud)"
+        SupabaseDB[(PostgreSQL Database)]
+        SupabaseAuth[Supabase Auth]
+        SupabaseStorage[Supabase Storage]
     end
     
     subgraph "Mobile App (Flutter)"
@@ -52,7 +54,6 @@ graph TB
     subgraph "External Services"
         Wikipedia[Wikipedia API]
         Archive[Archive.org]
-        OAuth[OAuth Providers]
     end
     
     Scheduler -->|Triggers| Scraper
@@ -60,20 +61,20 @@ graph TB
     Scraper -->|Fetches| Archive
     Scraper -->|Raw Content| LLM
     LLM -->|Generated Article| Validator
-    Validator -->|Valid Article| DB
-    Validator -->|Article JSON| FileStore
+    Validator -->|Valid Article| SupabaseDB
+    Validator -->|Article Images| SupabaseStorage
     
     API -->|Queries| ArticleService
     API -->|Authenticates| Auth
     API -->|Searches| SearchService
     API -->|Manages| LikeService
     
-    ArticleService -->|Reads| DB
-    ArticleService -->|Reads| FileStore
-    SearchService -->|Queries| DB
-    Auth -->|Validates| OAuth
-    Auth -->|Stores| DB
-    LikeService -->|Stores| DB
+    ArticleService -->|Reads/Writes| SupabaseDB
+    ArticleService -->|Reads/Writes| SupabaseStorage
+    SearchService -->|Queries| SupabaseDB
+    Auth -->|Validates| SupabaseAuth
+    Auth -->|Manages Users| SupabaseDB
+    LikeService -->|Stores| SupabaseDB
     
     HTTP -->|Requests| API
     UI -->|Updates| State
@@ -81,83 +82,82 @@ graph TB
     Cache -->|Reads| HTTP
 ```
 
-### Database Choice: SQLite vs Supabase
+### Database Choice: Supabase (PostgreSQL)
 
-**For MVP, we're using SQLite** for the following reasons:
+**For MVP, we're using Supabase** for the following reasons:
 
-**SQLite Advantages for MVP**:
-1. **Zero Configuration**: No separate database server to set up, manage, or pay for
-2. **Simplicity**: Single file database, easy to backup and migrate
-3. **Cost**: Completely free, no monthly fees
-4. **Performance**: Excellent for read-heavy workloads with low write concurrency (perfect for MVP)
-5. **Portability**: Easy to develop locally and deploy anywhere
-6. **Low Complexity**: Fewer moving parts means faster MVP development
+**Supabase Advantages for MVP**:
+1. **Built-in Authentication**: Supabase Auth handles Google and Facebook OAuth out of the box, eliminating custom auth implementation
+2. **PostgreSQL Power**: Full-featured relational database with excellent full-text search, JSON support, and scalability
+3. **Auto-generated REST API**: Supabase automatically generates REST endpoints from database schema
+4. **Real-time Capabilities**: Built-in real-time subscriptions for future features (comments, notifications)
+5. **Supabase Storage**: Integrated file storage for article images and content
+6. **Row-Level Security**: Built-in security policies for data access control
+7. **Admin Dashboard**: Web-based dashboard for database management and monitoring
+8. **Free Tier**: Generous free tier suitable for MVP development and early users
+9. **Cloud-Native**: No server management, automatic backups, and scaling
+10. **Developer Experience**: Excellent documentation, SDKs for Python and Dart/Flutter
 
-**SQLite Limitations** (acceptable for MVP):
-- Limited concurrent writes (not an issue with daily batch article generation)
-- No built-in replication (not needed for MVP scale)
-- Single server only (acceptable for MVP traffic)
+**Supabase Features We'll Use**:
+- **PostgreSQL Database**: Store articles, users, likes, search data
+- **Supabase Auth**: Handle user registration, login, OAuth (Google, Facebook)
+- **Supabase Storage**: Store article images and optional full-text content files
+- **Full-Text Search**: PostgreSQL's built-in full-text search with tsvector
+- **PostgREST**: Auto-generated REST API (we'll use selectively alongside FastAPI)
+- **Row-Level Security (RLS)**: Ensure users can only access their own likes
 
-**Supabase Considerations**:
+**Why Supabase Over SQLite**:
 
-Supabase is an excellent choice for production, but adds complexity for MVP:
+SQLite was initially considered but has limitations for a cloud-deployed MVP:
+- **No Built-in Auth**: Would require custom OAuth implementation
+- **Limited Concurrency**: Single-writer limitation problematic for multi-user apps
+- **No Cloud Integration**: Requires custom file storage and backup solutions
+- **No Real-time**: Would need custom WebSocket implementation
+- **Deployment Complexity**: File-based database harder to manage in cloud environments
 
-**Supabase Advantages** (more valuable post-MVP):
-- Built-in authentication (Google, Facebook OAuth)
-- Real-time subscriptions (useful for future social features)
-- Row-level security policies
-- Auto-generated REST API
-- Built-in storage for images/files
-- PostgreSQL scalability
-- Admin dashboard for content management
+**Architecture Benefits**:
+- Supabase handles authentication, reducing backend code by ~40%
+- Built-in storage eliminates need for separate S3/file storage setup
+- PostgreSQL full-text search more powerful than SQLite FTS5
+- Real-time subscriptions enable future features without major refactoring
+- Admin dashboard provides immediate visibility into data and users
 
-**Supabase Trade-offs for MVP**:
-- Monthly cost ($25+ for production tier)
-- Additional service dependency
-- Learning curve for Supabase-specific features
-- Overkill for simple CRUD operations
-- More complex local development setup
+**Cost Considerations**:
+- Free tier: 500MB database, 1GB storage, 50,000 monthly active users
+- Paid tier: $25/month for 8GB database, 100GB storage, unlimited users
+- For MVP, free tier is sufficient; upgrade when approaching limits
 
-**Migration Path**:
-
-The design allows easy migration to Supabase post-MVP:
-1. Replace SQLite with Supabase PostgreSQL
-2. Migrate authentication to Supabase Auth
-3. Move article JSON files to Supabase Storage
-4. Leverage Supabase real-time for future features
-5. Use Supabase admin dashboard for content management
-
-**Recommendation**: Start with SQLite for MVP speed and simplicity, migrate to Supabase when:
-- User base grows beyond 10,000 active users
-- Need real-time features (comments, notifications)
-- Want admin dashboard for content management
-- Require better scalability and replication
-
-This approach follows the "do things that don't scale" principle for MVPs - optimize for learning and iteration speed, not premature scalability.
+This approach follows modern best practices: leverage managed services to focus on core product features rather than infrastructure.
 
 ### Technology Stack
 
 **Backend (Python)**:
 - FastAPI for REST API
-- SQLite for structured data (metadata, users, likes)
+- Supabase Python client for database operations
+- PostgreSQL (via Supabase) for structured data
 - Pydantic for data validation
 - Anthropic Claude API for LLM
 - Playwright for web scraping
 - LangChain for Wikipedia integration
 - python-dotenv for configuration
-- PyJWT for authentication tokens
-- passlib for password hashing
+- asyncpg for async PostgreSQL operations
 
 **Mobile (Flutter/Dart)**:
 - Flutter SDK 3.x
 - Provider or Riverpod for state management
+- supabase_flutter for Supabase integration
 - http package for API calls
 - shared_preferences for local storage
-- sqflite for local database
+- sqflite for local database cache
 - cached_network_image for image caching
-- flutter_secure_storage for token storage
-- google_sign_in for Google OAuth
-- flutter_facebook_auth for Facebook OAuth
+- Supabase Auth for authentication (Google, Facebook OAuth built-in)
+
+**Infrastructure (Supabase)**:
+- PostgreSQL database (managed)
+- Supabase Auth (OAuth providers)
+- Supabase Storage (file storage)
+- Row-Level Security policies
+- Auto-generated REST API (PostgREST)
 
 ## Components and Interfaces
 
@@ -309,11 +309,12 @@ class ArticleScheduler:
 
 #### 2.1 Article Service
 
-**Purpose**: Manage article storage and retrieval
+**Purpose**: Manage article storage and retrieval using Supabase
 
 **Interface**:
 ```python
 class ArticleService:
+    def __init__(self, supabase_client: SupabaseClient)
     async def save_article(self, article: GeneratedArticle) -> Article
     async def get_daily_article(self) -> Article
     async def get_article_by_id(self, article_id: str) -> Article | None
@@ -323,68 +324,81 @@ class ArticleService:
 ```
 
 **Storage Strategy**:
-- Article metadata stored in SQLite (id, title, date, reading_time, etc.)
-- Full article content stored as JSON files (for flexibility)
-- File naming: `articles/{date}/{article_id}.json`
-- Database indexes on: date, title, tags
+- Article metadata and content stored in Supabase PostgreSQL
+- Full article content stored as JSONB column for flexibility
+- Article images stored in Supabase Storage
+- Database indexes on: date, title, tags, full-text search vectors
+- Row-Level Security policies for data access control
 
 #### 2.2 Authentication Service
 
-**Purpose**: Handle user registration, login, and session management
+**Purpose**: Handle user registration, login, and session management using Supabase Auth
 
 **Interface**:
 ```python
 class AuthService:
+    def __init__(self, supabase_client: SupabaseClient)
     async def register_user(self, email: str, password: str) -> User
     async def login_user(self, email: str, password: str) -> AuthToken
-    async def verify_oauth(self, provider: str, token: str) -> User
+    async def oauth_login(self, provider: str, access_token: str) -> User
     async def refresh_token(self, refresh_token: str) -> AuthToken
-    async def logout_user(self, user_id: str) -> None
+    async def logout_user(self, access_token: str) -> None
+    async def get_current_user(self, access_token: str) -> User
 
 class AuthToken:
     access_token: str
     refresh_token: str
     token_type: str
     expires_in: int
+    user: User
 ```
 
 **Authentication Flow**:
 1. **Email/Password Registration**:
-   - Validate email format
-   - Hash password with bcrypt (cost factor 12)
-   - Store user in database
-   - Return JWT tokens
+   - Use Supabase Auth signup method
+   - Supabase handles email validation and password hashing
+   - Returns JWT tokens automatically
+   - User record created in auth.users table
 
 2. **Email/Password Login**:
-   - Verify credentials
-   - Generate JWT access token (expires in 1 hour)
-   - Generate JWT refresh token (expires in 30 days)
-   - Return tokens
+   - Use Supabase Auth signin method
+   - Supabase verifies credentials
+   - Returns JWT access token (expires in 1 hour)
+   - Returns JWT refresh token (expires in 30 days)
 
 3. **OAuth Flow (Google/Facebook)**:
-   - Receive OAuth token from mobile app
-   - Verify token with provider
-   - Create or retrieve user account
-   - Return JWT tokens
+   - Mobile app initiates OAuth with Supabase Auth
+   - Supabase handles OAuth redirect and token exchange
+   - User authenticated via Supabase Auth
+   - Returns JWT tokens
+   - User record automatically created/updated
 
-**JWT Token Structure**:
+**JWT Token Structure** (managed by Supabase):
 ```json
 {
   "sub": "user_id",
   "email": "user@example.com",
   "exp": 1234567890,
   "iat": 1234567890,
-  "type": "access"
+  "role": "authenticated"
 }
 ```
 
+**Benefits of Supabase Auth**:
+- No custom password hashing implementation needed
+- OAuth providers configured in Supabase dashboard
+- Automatic token refresh handling
+- Built-in email verification (optional)
+- Session management handled by Supabase
+
 #### 2.3 Search Service
 
-**Purpose**: Enable full-text search across articles
+**Purpose**: Enable full-text search across articles using PostgreSQL
 
 **Interface**:
 ```python
 class SearchService:
+    def __init__(self, supabase_client: SupabaseClient)
     async def search(self, query: str, filters: SearchFilters) -> SearchResults
     async def autocomplete(self, prefix: str, limit: int = 10) -> list[str]
     async def semantic_search(self, query: str, limit: int = 20) -> list[ArticleSearchResult]
@@ -410,66 +424,69 @@ class ArticleSearchResult:
 **Search Methods**:
 
 1. **Full-Text Search** (`search`):
-   - Uses SQLite FTS5 for primary search
-   - Returns articles ranked by BM25 relevance
+   - Uses PostgreSQL's built-in full-text search with tsvector
+   - Returns articles ranked by ts_rank relevance
    - Highlights matching terms in snippets
+   - More powerful than SQLite FTS5 with better ranking
 
 2. **Autocomplete** (`autocomplete`):
    - Queries `search_suggestions` table with prefix matching
+   - Uses PostgreSQL LIKE or trigram similarity (pg_trgm extension)
    - Returns top suggestions ordered by frequency
    - Example: `autocomplete("maur")` → `["Mauryan Empire", "Mauryan Dynasty", "Mauryan Architecture"]`
 
 3. **Semantic Search** (`semantic_search`):
    - Generates embedding for query using LLM
+   - Uses PostgreSQL pgvector extension for vector similarity
    - Computes cosine similarity with article embeddings
    - Returns semantically similar articles
    - Example: Query "ancient rulers" finds articles about "emperors", "kings", "dynasties"
 
 **Indexing Process**:
 When a new article is added:
-1. Add to FTS5 index (automatic via trigger)
+1. Add to PostgreSQL with automatic tsvector generation (via trigger)
 2. Extract search terms (title words, tags, entities) → add to `search_suggestions`
-3. Generate embedding (optional) → store in `article_embeddings`
+3. Generate embedding (optional) → store in `article_embeddings` using pgvector
 
 **Search Implementation**:
 
-The search system uses a hybrid approach combining three techniques:
+The search system uses PostgreSQL's powerful full-text search capabilities:
 
-1. **Full-Text Search (SQLite FTS5)**:
-   - Primary search mechanism using BM25 ranking algorithm
+1. **Full-Text Search (PostgreSQL tsvector)**:
+   - Primary search mechanism using ts_rank ranking algorithm
    - Search fields: title, content, tags
-   - Supports prefix matching for partial word queries
-   - Fast and efficient for exact and near-exact matches
+   - Supports prefix matching and phrase queries
+   - Better performance and ranking than SQLite FTS5
+   - Automatic stemming and stop word handling
 
 2. **Autocomplete Suggestions**:
    - Pre-computed search suggestions stored in `search_suggestions` table
    - Populated from article titles, tags, person names, event names, and historical periods
-   - Prefix-based matching for instant suggestions as user types
+   - Prefix-based matching using PostgreSQL LIKE or pg_trgm extension
    - Updated automatically when new articles are added
    - Example: User types "maur" → suggests ["Mauryan Empire", "Mauryan Dynasty", "Mauryan Architecture"]
 
 3. **Semantic Similarity Search (Optional)**:
-   - Article embeddings generated using Claude/OpenAI embedding models
-   - Stored as JSON arrays in SQLite (embeddings table)
+   - Article embeddings stored using pgvector extension
    - Enables semantic search: "emperor" finds articles about "kings", "rulers", "monarchs"
    - Computed on-demand: query embedding → cosine similarity with article embeddings
-   - Fallback to FTS5 if embeddings not available
+   - Fallback to tsvector search if embeddings not available
 
 **Search Flow**:
 ```
 User Query → Autocomplete Suggestions (instant)
           ↓
-User Submits → FTS5 Search (primary results)
+User Submits → PostgreSQL Full-Text Search (primary results)
           ↓
-          → Semantic Search (enhanced results, optional)
+          → Semantic Search with pgvector (enhanced results, optional)
           ↓
           → Merge & Rank Results → Return to User
 ```
 
 **Performance**:
 - Autocomplete: < 50ms (indexed prefix search)
-- FTS5 Search: < 200ms (full-text search)
-- Semantic Search: < 500ms (embedding similarity computation)
+- Full-Text Search: < 200ms (tsvector search with GIN index)
+- Semantic Search: < 500ms (pgvector similarity computation)
 
 **Highlight matching terms in results**
 
@@ -480,6 +497,7 @@ User Submits → FTS5 Search (primary results)
 **Interface**:
 ```python
 class LikeService:
+    def __init__(self, supabase_client: SupabaseClient)
     async def like_article(self, user_id: str, article_id: str) -> None
     async def unlike_article(self, user_id: str, article_id: str) -> None
     async def is_liked(self, user_id: str, article_id: str) -> bool
@@ -497,8 +515,10 @@ class Like:
 ```
 
 **Storage**:
-- Stored in SQLite with composite unique index on (user_id, article_id)
+- Stored in Supabase PostgreSQL with composite unique constraint on (user_id, article_id)
+- Row-Level Security policy ensures users can only manage their own likes
 - Enables efficient queries for user likes and article like counts
+- Foreign key constraints ensure referential integrity
 
 #### 2.5 REST API Endpoints
 
@@ -669,7 +689,7 @@ class LikeButton extends StatefulWidget {
 ```dart
 class ApiClient {
   final String baseUrl;
-  final http.Client httpClient;
+  final SupabaseClient supabaseClient;
   
   Future<Article> getDailyArticle();
   Future<Article> getArticle(String id);
@@ -680,7 +700,9 @@ class ApiClient {
   
   Future<AuthResponse> register(String email, String password);
   Future<AuthResponse> login(String email, String password);
-  Future<AuthResponse> oauthLogin(String provider, String token);
+  Future<AuthResponse> signInWithGoogle();
+  Future<AuthResponse> signInWithFacebook();
+  Future<void> signOut();
   
   Future<void> likeArticle(String articleId);
   Future<void> unlikeArticle(String articleId);
@@ -751,90 +773,118 @@ class Like(BaseModel):
 
 ### Database Schema
 
-**SQLite Tables**:
+**PostgreSQL Tables (Supabase)**:
 
 ```sql
--- Articles metadata
+-- Articles table with full-text search
 CREATE TABLE articles (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
     summary TEXT NOT NULL,
+    content JSONB NOT NULL,  -- Full article content as JSONB
+    sections JSONB NOT NULL,  -- Array of sections
+    citations JSONB NOT NULL,  -- Array of citations
     date DATE NOT NULL,
     reading_time_minutes INTEGER NOT NULL,
     author TEXT NOT NULL,
-    tags TEXT NOT NULL,  -- JSON array
+    tags TEXT[] NOT NULL,  -- PostgreSQL array type
     image_url TEXT,
-    content_file_path TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    search_vector tsvector  -- Full-text search vector
 );
 
+-- Indexes for performance
 CREATE INDEX idx_articles_date ON articles(date DESC);
-CREATE INDEX idx_articles_tags ON articles(tags);
+CREATE INDEX idx_articles_tags ON articles USING GIN(tags);
+CREATE INDEX idx_articles_search ON articles USING GIN(search_vector);
 
--- Full-text search index
-CREATE VIRTUAL TABLE articles_fts USING fts5(
-    article_id UNINDEXED,
-    title,
-    content,
-    tags,
-    content=articles
+-- Trigger to automatically update search_vector
+CREATE TRIGGER articles_search_vector_update
+BEFORE INSERT OR UPDATE ON articles
+FOR EACH ROW EXECUTE FUNCTION
+tsvector_update_trigger(search_vector, 'pg_catalog.english', title, content);
+
+-- Users table (managed by Supabase Auth, but we can extend it)
+CREATE TABLE user_profiles (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_login TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Users
-CREATE TABLE users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT,
-    oauth_provider TEXT,
-    oauth_id TEXT,
-    created_at TIMESTAMP NOT NULL,
-    last_login TIMESTAMP NOT NULL
-);
-
-CREATE INDEX idx_users_email ON users(email);
-CREATE UNIQUE INDEX idx_users_oauth ON users(oauth_provider, oauth_id) 
-    WHERE oauth_provider IS NOT NULL;
-
--- Likes
+-- Likes table with Row-Level Security
 CREATE TABLE likes (
-    id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL,
-    article_id TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    article_id TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, article_id)
 );
 
-CREATE UNIQUE INDEX idx_likes_user_article ON likes(user_id, article_id);
 CREATE INDEX idx_likes_user ON likes(user_id);
 CREATE INDEX idx_likes_article ON likes(article_id);
 
+-- Row-Level Security for likes
+ALTER TABLE likes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own likes"
+ON likes FOR SELECT
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own likes"
+ON likes FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own likes"
+ON likes FOR DELETE
+USING (auth.uid() = user_id);
+
 -- Search suggestions for autocomplete
 CREATE TABLE search_suggestions (
-    id TEXT PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     term TEXT NOT NULL,
     category TEXT NOT NULL,  -- 'title', 'tag', 'person', 'event', 'period'
-    frequency INTEGER DEFAULT 1,  -- How often this term appears
-    article_count INTEGER DEFAULT 0,  -- Number of articles with this term
-    created_at TIMESTAMP NOT NULL,
-    updated_at TIMESTAMP NOT NULL
+    frequency INTEGER DEFAULT 1,
+    article_count INTEGER DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_search_suggestions_term ON search_suggestions(term);
 CREATE INDEX idx_search_suggestions_category ON search_suggestions(category);
 CREATE INDEX idx_search_suggestions_frequency ON search_suggestions(frequency DESC);
 
--- Article embeddings for semantic search (optional)
+-- Article embeddings for semantic search (optional, requires pgvector extension)
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE article_embeddings (
-    article_id TEXT PRIMARY KEY,
-    embedding TEXT NOT NULL,  -- JSON array of floats (e.g., 1536 dimensions for OpenAI)
-    model TEXT NOT NULL,  -- 'claude-3-embedding' or 'text-embedding-ada-002'
-    created_at TIMESTAMP NOT NULL,
-    FOREIGN KEY (article_id) REFERENCES articles(id) ON DELETE CASCADE
+    article_id TEXT PRIMARY KEY REFERENCES articles(id) ON DELETE CASCADE,
+    embedding vector(1536),  -- OpenAI ada-002 dimension, adjust as needed
+    model TEXT NOT NULL,  -- 'text-embedding-ada-002' or 'claude-3-embedding'
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_embeddings_article ON article_embeddings(article_id);
+CREATE INDEX idx_embeddings_vector ON article_embeddings 
+USING ivfflat (embedding vector_cosine_ops);
+```
+
+**Supabase Storage Buckets**:
+
+```sql
+-- Create storage bucket for article images
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('article-images', 'article-images', true);
+
+-- Storage policy for article images (public read)
+CREATE POLICY "Public read access for article images"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'article-images');
+
+-- Storage policy for article images (authenticated write)
+CREATE POLICY "Authenticated users can upload article images"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'article-images' AND auth.role() = 'authenticated');
 ```
 
 ## Correctness Properties
@@ -1094,56 +1144,59 @@ async def generate_embedding(text: str) -> list[float]:
     return response.data[0].embedding
 ```
 
-**Cosine Similarity Computation**:
+**Semantic Search with pgvector**:
 ```python
-def cosine_similarity(vec1: list[float], vec2: list[float]) -> float:
-    """Compute cosine similarity between two vectors"""
-    import numpy as np
-    v1 = np.array(vec1)
-    v2 = np.array(vec2)
-    return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-
 async def semantic_search(query: str, limit: int = 20) -> list[ArticleSearchResult]:
+    """Use PostgreSQL pgvector extension for efficient vector similarity search"""
     # Generate query embedding
     query_embedding = await generate_embedding(query)
     
-    # Fetch all article embeddings (or use approximate nearest neighbor for scale)
-    embeddings = await db.execute(
-        "SELECT article_id, embedding FROM article_embeddings"
+    # Use pgvector's cosine similarity operator (<=>)
+    # This is much faster than computing similarity in Python
+    query = """
+        SELECT 
+            a.id, a.title, a.summary, a.content,
+            (e.embedding <=> $1::vector) as distance
+        FROM articles a
+        JOIN article_embeddings e ON a.id = e.article_id
+        ORDER BY e.embedding <=> $1::vector
+        LIMIT $2
+    """
+    
+    results = await supabase.rpc(
+        'semantic_search',
+        {
+            'query_embedding': query_embedding,
+            'match_count': limit
+        }
     )
     
-    # Compute similarities
-    results = []
-    for row in embeddings:
-        article_embedding = json.loads(row['embedding'])
-        similarity = cosine_similarity(query_embedding, article_embedding)
-        results.append((row['article_id'], similarity))
+    # Convert distance to similarity score (1 - distance for cosine)
+    articles = []
+    for row in results:
+        article = Article(**row)
+        article.relevance_score = 1 - row['distance']
+        articles.append(article)
     
-    # Sort by similarity and return top results
-    results.sort(key=lambda x: x[1], reverse=True)
-    top_article_ids = [article_id for article_id, _ in results[:limit]]
-    
-    # Fetch full article data
-    articles = await fetch_articles_by_ids(top_article_ids)
     return articles
 ```
 
 **Hybrid Search Strategy**:
 ```python
 async def hybrid_search(query: str) -> SearchResults:
-    """Combine FTS5 and semantic search for best results"""
+    """Combine PostgreSQL full-text search and pgvector semantic search"""
     
-    # 1. FTS5 search (fast, exact matches)
-    fts_results = await fts5_search(query, limit=15)
+    # 1. PostgreSQL full-text search (fast, exact matches)
+    fts_results = await fulltext_search(query, limit=15)
     
-    # 2. Semantic search (slower, semantic matches)
+    # 2. Semantic search with pgvector (slower, semantic matches)
     semantic_results = await semantic_search(query, limit=10)
     
     # 3. Merge and deduplicate
     seen_ids = set()
     merged_results = []
     
-    # Prioritize FTS5 results (exact matches)
+    # Prioritize full-text results (exact matches)
     for result in fts_results:
         if result.article.id not in seen_ids:
             merged_results.append(result)
@@ -1168,7 +1221,7 @@ User query: "ancient rulers of India"
 ↓
 Generate embedding for query
 ↓
-Compare with article embeddings using cosine similarity
+pgvector computes cosine similarity with article embeddings (using IVFFlat index)
 ↓
 Results include articles about:
 - "Mauryan Empire" (contains "Chandragupta Maurya")
@@ -1189,12 +1242,20 @@ Even though articles don't contain exact phrase "ancient rulers"
 **Indexing Strategy**:
 - Update search suggestions asynchronously after article creation
 - Generate embeddings in background job (not blocking article creation)
-- Batch update FTS5 index for multiple articles
+- PostgreSQL automatically updates tsvector via trigger
 
 **Scaling Considerations**:
-- For MVP: In-memory cosine similarity (acceptable for < 1000 articles)
-- Post-MVP: Use approximate nearest neighbor (ANN) libraries like FAISS or Annoy
-- Future: Migrate to dedicated search engine (Meilisearch, Elasticsearch)
+- For MVP: pgvector with IVFFlat index (excellent for < 100,000 articles)
+- pgvector is much faster than in-memory Python cosine similarity
+- Post-MVP: Tune IVFFlat parameters (lists, probes) for optimal performance
+- Future: Consider HNSW index in pgvector for even better performance
+
+**pgvector Benefits**:
+- Native PostgreSQL extension, no separate service needed
+- Efficient approximate nearest neighbor (ANN) search
+- Supports multiple distance metrics (cosine, L2, inner product)
+- Integrates seamlessly with existing PostgreSQL queries
+- Much faster than computing similarity in application code
 
 ## Error Handling
 
@@ -1382,60 +1443,75 @@ void main() {
 
 ## Deployment Architecture
 
-### MVP Deployment (Simplified)
+### MVP Deployment with Supabase
 
-For MVP, we'll use a simple deployment architecture:
+For MVP, we leverage Supabase's managed infrastructure:
 
 **Backend**:
-- Single Python server (FastAPI) running on a VPS or cloud instance
-- SQLite database (file-based, no separate DB server needed)
-- Article JSON files stored on local filesystem
-- Scheduled cron job for daily article generation
+- Single Python server (FastAPI) running on a VPS or cloud instance (Railway, Render, or DigitalOcean)
+- Supabase PostgreSQL database (managed, no server setup needed)
+- Supabase Storage for article images
+- Supabase Auth for user authentication
+- Scheduled cron job for daily article generation (using cron or cloud scheduler)
 
 **Mobile**:
 - Flutter apps published to Google Play Store and Apple App Store
-- Apps connect directly to backend API via HTTPS
+- Apps connect to FastAPI backend and Supabase directly
+- Supabase Flutter SDK handles auth and real-time features
 
 **Infrastructure**:
-- Domain with SSL certificate (Let's Encrypt)
-- Nginx as reverse proxy
-- Basic monitoring and logging
+- Domain with SSL certificate (Let's Encrypt or cloud provider)
+- Nginx as reverse proxy (optional, many platforms provide this)
+- Supabase dashboard for database management
+- Basic monitoring via Supabase and application logs
+
+**Supabase Configuration**:
+- Project created in Supabase dashboard
+- Database schema deployed via migrations
+- Row-Level Security policies configured
+- OAuth providers (Google, Facebook) configured in Supabase Auth
+- Storage buckets created for article images
+- API keys and connection strings stored in environment variables
 
 ### Future Scalability Considerations
 
-While MVP uses simple architecture, the design allows for future scaling:
+Supabase provides excellent scalability out of the box:
 
-- **Database**: SQLite → PostgreSQL for better concurrency
-- **File Storage**: Local filesystem → S3/Cloud Storage for scalability
-- **API**: Single server → Load-balanced multiple instances
-- **Cache**: In-app cache → Redis for shared caching
-- **Search**: SQLite FTS → Elasticsearch for advanced search
+- **Database**: Supabase PostgreSQL scales vertically (upgrade plan) and horizontally (read replicas)
+- **File Storage**: Supabase Storage scales automatically with usage
+- **API**: Single FastAPI server → Load-balanced multiple instances
+- **Cache**: In-app cache → Redis for shared caching (Supabase compatible)
+- **Search**: PostgreSQL full-text → Keep PostgreSQL or add Meilisearch
 - **Queue**: Direct execution → Celery/RabbitMQ for async tasks
+- **Real-time**: Supabase real-time already available for future features
 
 ## Security Considerations
 
 ### Authentication Security
 
-- Passwords hashed with bcrypt (cost factor 12)
-- JWT tokens with short expiration (1 hour access, 30 days refresh)
-- Secure token storage on mobile (flutter_secure_storage)
-- OAuth tokens validated with provider APIs
-- HTTPS only for all API communication
+- Passwords hashed by Supabase Auth (bcrypt with appropriate cost factor)
+- JWT tokens managed by Supabase with short expiration (1 hour access, 30 days refresh)
+- Secure token storage on mobile via Supabase Flutter SDK
+- OAuth tokens validated by Supabase Auth with provider APIs
+- HTTPS only for all API communication (enforced by Supabase)
+- Row-Level Security policies enforce data access control
 
 ### Data Security
 
-- User data encrypted at rest (database encryption)
-- API rate limiting to prevent abuse
+- User data encrypted at rest by Supabase (AES-256)
+- API rate limiting to prevent abuse (Supabase + FastAPI)
 - Input validation on all endpoints
-- SQL injection prevention (parameterized queries)
+- SQL injection prevention (parameterized queries via Supabase client)
 - XSS prevention (content sanitization)
+- Row-Level Security ensures users can only access their own data
 
 ### Privacy
 
 - Minimal data collection (email, likes only)
 - No tracking or analytics in MVP
-- User data deletion on account deletion
+- User data deletion on account deletion (CASCADE constraints)
 - Compliance with basic privacy standards
+- Supabase is SOC 2 Type 2 compliant
 
 ## Performance Considerations
 

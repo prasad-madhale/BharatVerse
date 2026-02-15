@@ -2,7 +2,7 @@
 
 ## Overview
 
-This implementation plan covers the complete BharatVerse MVP system: backend API (FastAPI), content pipeline (scraping + LLM generation), database (SQLite with FTS5 search), authentication (email/password + OAuth), mobile app (Flutter), and comprehensive testing. The plan includes cleanup of existing code and implementation of all 36 correctness properties through property-based testing.
+This implementation plan covers the complete BharatVerse MVP system: backend API (FastAPI), content pipeline (scraping + LLM generation), database (Supabase PostgreSQL with full-text search), authentication (Supabase Auth with OAuth), mobile app (Flutter), and comprehensive testing. The plan includes cleanup of existing code and implementation of all 36 correctness properties through property-based testing.
 
 ## Tasks
 
@@ -31,35 +31,52 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
   
   - [x] 2.2 Create requirements.txt for backend dependencies
-    - Add FastAPI, uvicorn, SQLAlchemy, pydantic, anthropic, playwright, langchain-community, python-dotenv, PyJWT, passlib, bcrypt, httpx, pytest, hypothesis
+    - Add FastAPI, uvicorn, supabase-py, pydantic, anthropic, playwright, langchain-community, python-dotenv, asyncpg, httpx, pytest, hypothesis
     - _Requirements: All backend requirements_
   
   - [x] 2.3 Set up configuration management
     - Create config.py for loading environment variables
-    - Add settings for API keys, database path, JWT secret, OAuth credentials
+    - Add settings for Supabase URL, Supabase API key, Anthropic API key, OAuth credentials
     - _Requirements: 2.1, 12.2, 12.3_
 
-- [ ] 3. Implement database schema and models
-  - [ ] 3.1 Create SQLite database schema
-    - Create articles table with indexes
-    - Create articles_fts virtual table for full-text search
-    - Create users table with indexes
-    - Create likes table with composite unique index
-    - Create search_suggestions table for autocomplete
-    - Create article_embeddings table for semantic search
-    - _Requirements: 3.1, 3.2, 7.1, 7.2, 12.1, 13.1_
-  
-  - [ ] 3.2 Create database connection and initialization module
-    - Implement async SQLite connection using aiosqlite
-    - Add database initialization function
-    - Add migration support for schema updates
+- [x] 3. Implement database schema and Supabase setup
+  - [x] 3.1 Set up Supabase project and configure environment
+    - Create Supabase project in dashboard
+    - Get Supabase URL and API keys
+    - Configure environment variables in .env
     - _Requirements: 3.1_
   
-  - [ ]* 3.3 Write property test for database schema
+  - [x] 3.2 Create PostgreSQL database schema
+    - Create articles table with JSONB content and tsvector for full-text search
+    - Create user_profiles table (extends Supabase auth.users)
+    - Create likes table with Row-Level Security policies
+    - Create search_suggestions table for autocomplete
+    - Create article_embeddings table with pgvector extension
+    - Add indexes and triggers for automatic tsvector updates
+    - _Requirements: 3.1, 3.2, 7.1, 7.2, 12.1, 13.1_
+  
+  - [x] 3.3 Configure Supabase Storage buckets
+    - Create article-images bucket for storing article images
+    - Set up storage policies (public read, authenticated write)
+    - _Requirements: 3.1_
+  
+  - [ ] 3.4 Configure Supabase Auth providers
+    - Enable Google OAuth in Supabase dashboard
+    - Enable Facebook OAuth in Supabase dashboard
+    - Configure OAuth redirect URLs
+    - _Requirements: 12.2, 12.3_
+  
+  - [x] 3.5 Create Supabase client connection module
+    - Implement async Supabase client initialization
+    - Add connection pooling configuration
+    - Add error handling for connection failures
+    - _Requirements: 3.1_
+  
+  - [x]* 3.6 Write property test for database schema
     - **Property 5: Article persistence round-trip**
     - **Validates: Requirements 3.1, 3.3**
   
-  - [ ]* 3.4 Write property test for query methods
+  - [ ]* 3.7 Write property test for query methods
     - **Property 6: Query method completeness**
     - **Validates: Requirements 3.2**
 
@@ -174,18 +191,21 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
   - Ensure all content pipeline tests pass, ask the user if questions arise.
 
 - [ ] 9. Implement backend API - Article service
-  - [ ] 9.1 Create ArticleService class
-    - Implement save_article method (store metadata in DB, content as JSON file)
+  - [ ] 9.1 Create ArticleService class with Supabase integration
+    - Initialize Supabase client
+    - Implement save_article method (store in PostgreSQL with JSONB content)
     - Implement get_daily_article method
     - Implement get_article_by_id method
     - Implement get_article_by_date method
     - Implement list_articles method with pagination
+    - Upload article images to Supabase Storage
     - _Requirements: 3.1, 3.2, 3.3, 4.1, 4.2, 9.3_
   
-  - [ ] 9.2 Add article file storage management
-    - Create articles/{date}/{article_id}.json file structure
-    - Implement file read/write operations
-    - Handle file system errors gracefully
+  - [ ] 9.2 Add article storage management
+    - Store article content as JSONB in PostgreSQL
+    - Handle image uploads to Supabase Storage
+    - Generate and return public URLs for images
+    - Handle storage errors gracefully
     - _Requirements: 3.1_
   
   - [ ]* 9.3 Write property test for date-based ordering
@@ -204,15 +224,15 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - **Property 10: Daily article updates with date**
     - **Validates: Requirements 4.3**
 
-- [ ] 10. Implement backend API - Search service with FTS5
-  - [ ] 10.1 Create SearchService class with FTS5 integration
-    - Implement search method using SQLite FTS5
-    - Return results ranked by BM25 relevance
+- [ ] 10. Implement backend API - Search service with PostgreSQL full-text search
+  - [ ] 10.1 Create SearchService class with PostgreSQL tsvector integration
+    - Implement search method using PostgreSQL full-text search (tsvector, ts_rank)
+    - Return results ranked by relevance
     - Support multi-field search (title, content, tags)
     - _Requirements: 7.1, 7.2, 7.3, 7.6_
   
   - [ ] 10.2 Implement autocomplete with search suggestions
-    - Implement autocomplete method with prefix matching
+    - Implement autocomplete method with prefix matching using LIKE or pg_trgm
     - Query search_suggestions table
     - Return top 10 suggestions ordered by frequency
     - _Requirements: 7.1_
@@ -224,7 +244,7 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - _Requirements: 7.1, 7.6_
   
   - [ ] 10.4 Add result highlighting and snippets
-    - Highlight matching terms in search results
+    - Highlight matching terms in search results using ts_headline
     - Generate relevant snippets from content
     - _Requirements: 7.4_
   
@@ -252,51 +272,55 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - **Property 36: Search suggestion updates**
     - **Validates: Requirements 7.1**
 
-- [ ] 11. Implement backend API - Semantic search (optional)
-  - [ ] 11.1 Add embedding generation using Claude or OpenAI
+- [ ] 11. Implement backend API - Semantic search with pgvector (optional)
+  - [ ] 11.1 Enable pgvector extension in Supabase
+    - Enable pgvector extension in Supabase dashboard or via SQL
+    - Verify extension is available
+    - _Requirements: 7.2, 7.6_
+  
+  - [ ] 11.2 Add embedding generation using Claude or OpenAI
     - Implement generate_embedding method
     - Support both Claude and OpenAI embedding models
     - _Requirements: 7.2, 7.6_
   
-  - [ ] 11.2 Implement semantic search with cosine similarity
-    - Implement semantic_search method
-    - Compute cosine similarity between query and article embeddings
+  - [ ] 11.3 Implement semantic search with pgvector cosine similarity
+    - Implement semantic_search method using pgvector operators
+    - Use IVFFlat index for efficient similarity search
     - Return semantically similar articles
     - _Requirements: 7.2, 7.6_
   
-  - [ ] 11.3 Add hybrid search combining FTS5 and semantic search
-    - Merge FTS5 and semantic search results
+  - [ ] 11.4 Add hybrid search combining PostgreSQL full-text and pgvector
+    - Merge full-text and semantic search results
     - Deduplicate and rank combined results
     - _Requirements: 7.2, 7.3_
   
-  - [ ]* 11.4 Write property test for semantic search similarity
+  - [ ]* 11.5 Write property test for semantic search similarity
     - **Property 35: Semantic search similarity**
     - **Validates: Requirements 7.2, 7.6**
 
-- [ ] 12. Implement backend API - Authentication service
-  - [ ] 12.1 Create AuthService class with email/password support
-    - Implement register_user method with email validation
-    - Hash passwords using bcrypt (cost factor 12)
-    - Implement login_user method with credential verification
-    - Generate JWT access and refresh tokens
+- [ ] 12. Implement backend API - Authentication service with Supabase Auth
+  - [ ] 12.1 Create AuthService class with Supabase Auth integration
+    - Initialize Supabase client for auth operations
+    - Implement register_user method using Supabase Auth signup
+    - Implement login_user method using Supabase Auth signin
+    - Supabase handles email validation and password hashing automatically
     - _Requirements: 12.1, 12.4, 12.5, 12.6_
   
-  - [ ] 12.2 Add OAuth support for Google
-    - Implement verify_oauth method for Google
-    - Verify OAuth token with Google API
-    - Create or retrieve user account
-    - _Requirements: 12.2_
+  - [ ] 12.2 Add OAuth support via Supabase Auth
+    - Implement oauth_login method for Google (handled by Supabase)
+    - Implement oauth_login method for Facebook (handled by Supabase)
+    - Supabase manages OAuth flow and token exchange
+    - _Requirements: 12.2, 12.3_
   
-  - [ ] 12.3 Add OAuth support for Facebook
-    - Implement verify_oauth method for Facebook
-    - Verify OAuth token with Facebook API
-    - Create or retrieve user account
-    - _Requirements: 12.3_
-  
-  - [ ] 12.4 Implement token refresh and logout
-    - Implement refresh_token method
-    - Implement logout_user method (token invalidation)
+  - [ ] 12.3 Implement token refresh and logout
+    - Implement refresh_token method using Supabase Auth
+    - Implement logout method (Supabase session termination)
     - _Requirements: 12.7_
+  
+  - [ ] 12.4 Add user profile management
+    - Implement get_current_user method
+    - Sync user data with user_profiles table
+    - _Requirements: 12.5_
   
   - [ ]* 12.5 Write property test for email validation
     - **Property 27: Email validation**
@@ -314,13 +338,14 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - **Property 30: Logout session termination**
     - **Validates: Requirements 12.7**
 
-- [ ] 13. Implement backend API - Like service
-  - [ ] 13.1 Create LikeService class
+- [ ] 13. Implement backend API - Like service with Row-Level Security
+  - [ ] 13.1 Create LikeService class with Supabase integration
     - Implement like_article method
     - Implement unlike_article method (toggle behavior)
     - Implement is_liked method
     - Implement get_user_likes method
     - Implement get_article_like_count method
+    - Row-Level Security policies ensure users can only manage their own likes
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6_
   
   - [ ]* 13.2 Write property test for like toggle behavior
@@ -357,11 +382,12 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - POST /api/v1/auth/logout
     - _Requirements: 12.1, 12.2, 12.3, 12.7_
   
-  - [ ] 14.4 Implement like endpoints (authenticated)
+  - [ ] 14.4 Implement like endpoints (authenticated via Supabase Auth)
     - POST /api/v1/articles/{id}/like
     - DELETE /api/v1/articles/{id}/like
     - GET /api/v1/users/me/likes
-    - Add JWT authentication middleware
+    - Add Supabase JWT authentication middleware
+    - Verify user identity from Supabase Auth token
     - _Requirements: 13.1, 13.2, 13.6, 13.7_
   
   - [ ] 14.5 Add error handling and response formatting
@@ -393,12 +419,14 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - _Requirements: 5.1, 5.2, 6.1_
   
   - [ ] 16.2 Add dependencies to pubspec.yaml
-    - Add provider, http, shared_preferences, sqflite, cached_network_image, flutter_secure_storage, google_sign_in, flutter_facebook_auth
+    - Add provider, supabase_flutter, http, shared_preferences, sqflite, cached_network_image
+    - Supabase Flutter SDK includes auth and storage clients
     - _Requirements: 5.1, 8.1, 12.2, 12.3_
   
   - [ ] 16.3 Configure Android and iOS settings
     - Set minimum SDK versions (Android 8.0+, iOS 13.0+)
-    - Configure OAuth credentials for Google and Facebook
+    - Configure Supabase URL and anon key in app
+    - Add deep link configuration for OAuth redirects
     - Add internet permissions
     - _Requirements: 12.2, 12.3_
 
@@ -410,8 +438,14 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - Add JSON serialization/deserialization
     - _Requirements: 3.3, 5.1, 12.5_
   
-  - [ ] 17.2 Create ApiClient class
-    - Implement getDailyArticle method
+  - [ ] 17.2 Initialize Supabase client in Flutter app
+    - Initialize Supabase client with URL and anon key
+    - Configure auth persistence
+    - Set up deep link handling for OAuth
+    - _Requirements: 12.2, 12.3_
+  
+  - [ ] 17.3 Create ApiClient class for custom endpoints
+    - Implement getDailyArticle method (calls FastAPI)
     - Implement getArticle method
     - Implement listArticles method with pagination
     - Implement searchArticles method
@@ -419,19 +453,19 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - Implement semanticSearch method (optional)
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
   
-  - [ ] 17.3 Add authentication API methods
-    - Implement register method
-    - Implement login method
-    - Implement oauthLogin method (Google, Facebook)
-    - Implement refreshToken method
-    - Implement logout method
+  - [ ] 17.4 Add authentication methods using Supabase Auth
+    - Implement register method using Supabase.auth.signUp
+    - Implement login method using Supabase.auth.signInWithPassword
+    - Implement signInWithGoogle using Supabase.auth.signInWithOAuth
+    - Implement signInWithFacebook using Supabase.auth.signInWithOAuth
+    - Implement signOut method
     - _Requirements: 12.1, 12.2, 12.3, 12.7_
   
-  - [ ] 17.4 Add like API methods
-    - Implement likeArticle method
-    - Implement unlikeArticle method
-    - Implement getUserLikes method
-    - Add JWT token to authenticated requests
+  - [ ] 17.5 Add like methods using Supabase client
+    - Implement likeArticle method (direct Supabase insert)
+    - Implement unlikeArticle method (direct Supabase delete)
+    - Implement getUserLikes method (direct Supabase query)
+    - Row-Level Security ensures data access control
     - _Requirements: 13.1, 13.2, 13.6_
 
 - [ ] 18. Implement mobile app - Local cache and storage
@@ -443,10 +477,10 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - Implement clearOldCache method (keep last 7 days)
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
   
-  - [ ] 18.2 Create SecureStorage class for auth tokens
-    - Implement saveAuthToken method using flutter_secure_storage
-    - Implement getAuthToken method
-    - Implement deleteAuthToken method
+  - [ ] 18.2 Use Supabase Auth for token storage
+    - Supabase Flutter SDK handles secure token storage automatically
+    - Tokens persisted across app restarts
+    - No need for flutter_secure_storage (handled by Supabase)
     - _Requirements: 12.5_
   
   - [ ]* 18.3 Write property test for view-triggered caching
@@ -469,7 +503,7 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - **Property 19: Cache synchronization**
     - **Validates: Requirements 8.5**
 
-- [ ] 19. Implement mobile app - State management
+- [ ] 19. Implement mobile app - State management with Supabase
   - [ ] 19.1 Create ArticleState with Provider
     - Implement fetchDailyArticle method
     - Implement fetchArticles method with pagination
@@ -477,20 +511,21 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - Add loading and error state management
     - _Requirements: 4.2, 5.1, 6.1, 7.1_
   
-  - [ ] 19.2 Create AuthState with Provider
-    - Implement register method
-    - Implement login method
-    - Implement loginWithGoogle method
-    - Implement loginWithFacebook method
+  - [ ] 19.2 Create AuthState with Provider and Supabase Auth
+    - Implement register method using Supabase Auth
+    - Implement login method using Supabase Auth
+    - Implement loginWithGoogle method using Supabase OAuth
+    - Implement loginWithFacebook method using Supabase OAuth
     - Implement logout method
-    - Manage authentication state and tokens
+    - Listen to Supabase auth state changes
+    - Manage authentication state automatically
     - _Requirements: 12.1, 12.2, 12.3, 12.7_
   
-  - [ ] 19.3 Create LikeState with Provider
-    - Implement toggleLike method
+  - [ ] 19.3 Create LikeState with Provider and Supabase
+    - Implement toggleLike method (direct Supabase operations)
     - Implement fetchUserLikes method
     - Implement isLiked method
-    - Sync with backend API
+    - Sync with Supabase automatically
     - _Requirements: 13.1, 13.2, 13.3, 13.4_
 
 - [ ] 20. Implement mobile app - UI screens
@@ -518,11 +553,11 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - Handle empty results with suggestions
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
   
-  - [ ] 20.4 Create AuthScreen
+  - [ ] 20.4 Create AuthScreen with Supabase Auth
     - Add email/password login form
     - Add registration link
-    - Add Google OAuth button
-    - Add Facebook OAuth button
+    - Add Google OAuth button (Supabase handles flow)
+    - Add Facebook OAuth button (Supabase handles flow)
     - Handle authentication errors
     - _Requirements: 12.1, 12.2, 12.3, 12.8_
   
@@ -633,24 +668,29 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
   - [ ] 26.1 Create deployment scripts for backend
     - Create Dockerfile for FastAPI app
     - Create docker-compose.yml for local development
-    - Add environment variable templates
+    - Add environment variable templates (.env.example with Supabase keys)
     - _Requirements: All backend requirements_
   
-  - [ ] 26.2 Set up database initialization script
-    - Create script to initialize SQLite database with schema
-    - Add sample data for testing
-    - _Requirements: 3.1_
+  - [ ] 26.2 Document Supabase setup process
+    - Create guide for setting up Supabase project
+    - Document database schema deployment
+    - Document Row-Level Security policy setup
+    - Document OAuth provider configuration
+    - Document Storage bucket setup
+    - _Requirements: 3.1, 12.2, 12.3_
   
   - [ ] 26.3 Configure mobile app for production
     - Set production API endpoint
-    - Configure OAuth credentials for production
+    - Configure Supabase production URL and keys
+    - Set up deep link configuration for OAuth
     - Set up app signing for Android and iOS
     - _Requirements: 9.1, 12.2, 12.3_
   
   - [ ] 26.4 Create documentation
     - API documentation (endpoints, request/response formats)
-    - Setup instructions for local development
+    - Setup instructions for local development with Supabase
     - Deployment guide for backend
+    - Supabase configuration guide
     - Mobile app build and release guide
     - _Requirements: All requirements_
 

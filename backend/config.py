@@ -24,8 +24,7 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_prefix: str = "/api/v1"
     
-    # Database
-    database_url: str = "sqlite+aiosqlite:///./bharatverse.db"
+    # Database (legacy - keeping for reference)
     database_path: str = "./bharatverse.db"
     
     # LLM APIs (choose one)
@@ -52,8 +51,13 @@ class Settings(BaseSettings):
     facebook_app_id: Optional[str] = None
     facebook_app_secret: Optional[str] = None
     
+    # Supabase
+    supabase_url: str
+    supabase_anon_key: str
+    supabase_service_role_key: str
+    
     # Content Pipeline
-    articles_storage_path: str = "./articles"
+    articles_storage_bucket: str = "articles"  # Supabase Storage bucket
     scraping_rate_limit_seconds: int = 2
     max_scraping_retries: int = 3
     

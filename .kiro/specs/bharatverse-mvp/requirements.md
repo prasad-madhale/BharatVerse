@@ -11,7 +11,7 @@ This MVP prioritizes core functionality over advanced features, enabling rapid v
 - **Content_Pipeline**: The backend system responsible for scraping, processing, and generating historical articles
 - **Article**: A curated historical piece containing title, content, images, citations, and metadata
 - **Mobile_App**: The Flutter-based cross-platform application for Android and iOS
-- **Article_Store**: The persistent storage system for generated articles
+- **Article_Store**: The persistent storage system for generated articles using Supabase (PostgreSQL)
 - **LLM**: Large Language Model used for content generation and summarization
 - **Source**: An authoritative website (Wikipedia, archive.org) from which historical content is scraped
 - **Citation**: A reference to the original source material with proper attribution
@@ -19,6 +19,7 @@ This MVP prioritizes core functionality over advanced features, enabling rapid v
 - **User**: An authenticated individual with an account in the system
 - **Like**: A user action indicating appreciation for an article, stored for future personalization
 - **OAuth**: Open Authorization protocol for third-party authentication (Google, Facebook)
+- **Supabase**: PostgreSQL-based backend-as-a-service providing database, authentication, and storage
 
 ## Requirements
 
@@ -53,11 +54,11 @@ This MVP prioritizes core functionality over advanced features, enabling rapid v
 
 #### Acceptance Criteria
 
-1. WHEN an article is generated, THE Article_Store SHALL persist it with a unique identifier, timestamp, and metadata
-2. THE Article_Store SHALL support querying articles by date, identifier, and status
-3. WHEN the Mobile_App requests an article, THE System SHALL return the article data in JSON format
-4. THE Article_Store SHALL maintain article ordering by publication date
-5. WHEN storing articles, THE System SHALL validate data integrity and completeness
+1. WHEN an article is generated, THE Article_Store SHALL persist it to Supabase with a unique identifier, timestamp, and metadata
+2. THE Article_Store SHALL support querying articles by date, identifier, and status using PostgreSQL queries
+3. WHEN the Mobile_App requests an article, THE System SHALL return the article data in JSON format from Supabase
+4. THE Article_Store SHALL maintain article ordering by publication date using PostgreSQL indexes
+5. WHEN storing articles, THE System SHALL validate data integrity and completeness using PostgreSQL constraints
 
 ### Requirement 4: Daily Article Selection
 
