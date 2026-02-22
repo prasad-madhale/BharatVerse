@@ -24,6 +24,11 @@ if [ -f backend/requirements.txt ]; then
 fi
 
 echo ""
+echo "🌐 Installing Playwright browsers..."
+playwright install --with-deps chromium
+echo "  ✓ Chromium installed"
+
+echo ""
 echo "🎨 Auto-formatting code with autopep8..."
 autopep8 --in-place --recursive --aggressive --aggressive --max-line-length=127 backend/ scrapper/
 echo "  ✓ Code formatted"

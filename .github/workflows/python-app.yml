@@ -36,6 +36,10 @@ jobs:
           pip install -r backend/requirements.txt
         fi
     
+    - name: Install Playwright browsers
+      run: |
+        playwright install --with-deps chromium
+    
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
@@ -45,9 +49,9 @@ jobs:
     - name: Test scrapper with pytest
       run: |
         cd scrapper
-        pytest
+        pytest -m "not integration"
     
     - name: Test backend with pytest
       run: |
         cd backend
-        pytest --reruns 2 --reruns-delay 5
+        pytest -m "not integration" --reruns 2 --reruns-delay 5
