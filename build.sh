@@ -29,7 +29,7 @@ playwright install --with-deps chromium
 echo "  ✓ Chromium installed"
 
 echo ""
-echo "🎨 Auto-formatting code with autopep8..."
+echo "�🎨 Auto-formatting code with autopep8..."
 autopep8 --in-place --recursive --aggressive --aggressive --max-line-length=127 backend/ scrapper/
 echo "  ✓ Code formatted"
 
@@ -41,13 +41,13 @@ flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics \
 echo "  ✓ No critical errors found"
 
 echo ""
-echo "🧪 Testing scrapper..."
+echo "🧪 Testing scrapper (all tests)..."
 cd scrapper
-pytest
+pytest --reruns 2 --reruns-delay 5
 cd ..
 
 echo ""
-echo "🧪 Testing backend..."
+echo "🧪 Testing backend (all tests)..."
 cd backend
 pytest --reruns 2 --reruns-delay 5
 cd ..

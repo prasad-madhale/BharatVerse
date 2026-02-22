@@ -8,7 +8,7 @@ Supports multiple LLM providers with a unified interface:
 - Groq
 """
 
-from backend.config import settings
+from backend.config import get_settings
 
 
 class LLMProvider:
@@ -17,12 +17,14 @@ class LLMProvider:
     """
 
     def __init__(self):
+        settings = get_settings()
         self.provider = settings.llm_provider.lower()
         self.client = self._initialize_client()
         self.model = self._get_model()
 
     def _initialize_client(self):
         """Initialize the appropriate LLM client based on provider."""
+        settings = get_settings()
         if self.provider == "gemini":
             import google.generativeai as genai
             genai.configure(api_key=settings.gemini_api_key)
@@ -45,6 +47,7 @@ class LLMProvider:
 
     def _get_model(self) -> str:
         """Get the model name for the provider."""
+        settings = get_settings()
         if settings.llm_model:
             return settings.llm_model
 
@@ -127,6 +130,7 @@ class LLMProvider:
         else:
             # Fallback: use OpenAI for embeddings if provider doesn't support it
             from openai import OpenAI
+            settings = get_settings()
             client = OpenAI(api_key=settings.openai_api_key)
             response = client.embeddings.create(
                 model="text-embedding-ada-002",
@@ -135,5 +139,13 @@ class LLMProvider:
             return response.data[0].embedding
 
 
-# Global LLM provider instance
-llm_provider = LLMProvider()
+# Global LLM provider instance (lazy-loaded)
+_llm_provider = None
+
+
+def get_llm_provider() -> LLMProvider:
+    """Get the global LLM provider instance (lazy-loaded)."""
+    global _llm_provider
+    if _llm_provider is None:
+        _llm_provider = LLMProvider()
+    return _llm_provider

@@ -95,6 +95,7 @@ def check_storage_bucket(client):
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_supabase():
     """Test Supabase connection and basic operations."""
     try:

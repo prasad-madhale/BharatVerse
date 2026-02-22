@@ -6,8 +6,47 @@ that can be used across all test modules.
 """
 
 import pytest
+import os
 
 from backend.database import get_supabase, initialize_supabase
+import backend.config as config_module
+import backend.database.supabase_client as supabase_module
+
+
+@pytest.fixture(scope="function", autouse=True)
+def reset_singletons(request):
+    """
+    Reset global singletons before each test.
+
+    For integration tests, also force reload .env file.
+    """
+    # Check if this is an integration test
+    is_integration = 'integration' in [mark.name for mark in request.node.iter_markers()]
+
+    if is_integration:
+        # Force reload from .env file for integration tests
+        from dotenv import load_dotenv
+
+        # Clear any test environment variables
+        test_vars = ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET_KEY']
+        for var in test_vars:
+            if var in os.environ:
+                del os.environ[var]
+
+        # Force reload from .env file
+        load_dotenv('../.env', override=True)
+
+    # Reset settings singleton
+    config_module._settings = None
+
+    # Reset supabase singleton
+    supabase_module._supabase_instance = None
+
+    yield
+
+    # Cleanup singletons
+    config_module._settings = None
+    supabase_module._supabase_instance = None
 
 
 @pytest.fixture(scope="session")

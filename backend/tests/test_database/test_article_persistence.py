@@ -63,6 +63,7 @@ def article_strategy(draw):
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 @pytest.mark.property
 @given(article_data=article_strategy())
 @settings(deadline=1000)  # 1 second deadline for network requests
@@ -116,6 +117,7 @@ async def test_article_persistence_round_trip(article_data):
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 @pytest.mark.property
 async def test_article_persistence_with_optional_fields():
     """
@@ -163,6 +165,7 @@ async def test_article_persistence_with_optional_fields():
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 @pytest.mark.property
 async def test_article_persistence_null_optional_fields():
     """

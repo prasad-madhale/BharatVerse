@@ -74,15 +74,21 @@ class Settings(BaseSettings):
     )
 
 
-# Global settings instance
-settings = Settings()
+# Global settings instance (lazy-loaded)
+_settings: Optional[Settings] = None
 
 
 def get_settings() -> Settings:
     """
-    Get the global settings instance.
+    Get the global settings instance (lazy-loaded).
+
+    Creates the settings instance on first access, allowing imports
+    to succeed even when .env file is missing (useful for CI/testing).
 
     Returns:
         Settings: The application settings
     """
-    return settings
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
