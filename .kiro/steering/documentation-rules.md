@@ -82,7 +82,7 @@ If the user explicitly requests documentation:
 ### Packaging and Setup
 - **Prefer `requirements.txt`** over complex `pyproject.toml` + `setup.py` + `MANIFEST.in`
 - **Avoid unnecessary packaging files** unless the project needs to be published to PyPI
-- **Use simple scripts** (like `run_tests.sh`) instead of complex build systems
+- **Use built-in tools** (like pytest directly) instead of wrapper scripts
 - **Don't over-engineer** - start simple, add complexity only when needed
 
 ### Examples
@@ -91,7 +91,6 @@ If the user explicitly requests documentation:
 ```
 scrapper/
 ├── requirements.txt       ✓ Simple dependency list
-├── run_tests.sh          ✓ Simple test runner
 └── README.md             ✓ Documentation
 ```
 

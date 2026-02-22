@@ -76,7 +76,6 @@ scrapper/
 │       └── sources/
 │           └── test_sources.py
 ├── requirements.txt            # All dependencies
-├── run_tests.sh               # Test runner script
 └── README.md                  # This file
 ```
 
@@ -87,12 +86,18 @@ scrapper/
 ```bash
 cd scrapper
 
-# Run tests (assumes dependencies already installed)
-./run_tests.sh
+# Run scrapper tests only (from scrapper directory)
+cd scrapper && pytest
 
 # Or run specific test types
-./run_tests.sh -m unit              # Unit tests only
-./run_tests.sh -m integration       # Integration tests only
+cd scrapper && pytest -m unit              # Unit tests only
+cd scrapper && pytest -m integration       # Integration tests only
+
+# Run with custom log level
+cd scrapper && pytest --log-cli-level=DEBUG
+
+# Run all tests (scrapper + backend) from root
+./build.sh
 ```
 
 ### Manual Test Commands
