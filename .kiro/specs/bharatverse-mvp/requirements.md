@@ -29,8 +29,8 @@ This MVP prioritizes core functionality over advanced features, enabling rapid v
 
 #### Acceptance Criteria
 
-1. WHEN the Content_Pipeline initiates a scraping job, THE System SHALL fetch content from configured sources (Wikipedia and archive.org)
-2. WHEN scraping a source page, THE System SHALL extract text content, images, and metadata
+1. WHEN the Content_Pipeline initiates a scraping job, THE System SHALL fetch content from configured sources (Wikipedia and archive.org) using Crawl4AI
+2. WHEN scraping a source page, THE System SHALL extract clean markdown content, images, and metadata optimized for LLM processing
 3. WHEN extraction completes, THE System SHALL preserve source URLs for citation purposes
 4. IF a source is unavailable or returns an error, THEN THE System SHALL log the error and continue with other sources
 5. THE System SHALL respect robots.txt and implement rate limiting to avoid overwhelming sources

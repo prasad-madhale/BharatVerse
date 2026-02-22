@@ -16,11 +16,6 @@ anthropic==0.18.1           # Anthropic Claude (optional)
 openai==1.12.0              # OpenAI (optional)
 groq==0.4.1                 # Groq (optional)
 
-# Web scraping
-playwright==1.41.2
-langchain-community==0.0.20
-beautifulsoup4==4.12.3
-
 # Environment and configuration
 python-dotenv==1.0.1
 

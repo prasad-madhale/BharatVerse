@@ -136,9 +136,8 @@ This approach follows modern best practices: leverage managed services to focus 
 - Supabase Python client for database operations
 - PostgreSQL (via Supabase) for structured data
 - Pydantic for data validation
-- Anthropic Claude API for LLM
-- Playwright for web scraping
-- LangChain for Wikipedia integration
+- Anthropic Claude API or Google Gemini for LLM
+- Crawl4AI for web scraping and content extraction
 - python-dotenv for configuration
 - asyncpg for async PostgreSQL operations
 
@@ -165,14 +164,14 @@ This approach follows modern best practices: leverage managed services to focus 
 
 #### 1.1 Web Scraper
 
-**Purpose**: Fetch historical content from configured sources
+**Purpose**: Fetch historical content from configured sources using Crawl4AI
 
 **Interface**:
 ```python
 class WebScraper:
+    async def scrape_url(self, url: str) -> ScrapedContent
     async def scrape_wikipedia(self, topic: str) -> ScrapedContent
     async def scrape_archive_org(self, url: str) -> ScrapedContent
-    async def fetch_images(self, urls: list[str]) -> list[ImageData]
 ```
 
 **Data Models**:
@@ -180,7 +179,7 @@ class WebScraper:
 class ScrapedContent:
     source_url: str
     title: str
-    raw_text: str
+    markdown_content: str  # Clean markdown from Crawl4AI
     images: list[ImageData]
     metadata: dict
     scraped_at: datetime
@@ -192,9 +191,11 @@ class ImageData:
 ```
 
 **Behavior**:
+- Uses Crawl4AI's AsyncWebCrawler for efficient content extraction
+- Extracts LLM-ready markdown content automatically
 - Respects robots.txt and implements rate limiting (1 request per 2 seconds)
 - Retries failed requests with exponential backoff (max 3 attempts)
-- Extracts text content, images, and metadata
+- Extracts images and metadata alongside content
 - Preserves source URLs for citations
 
 #### 1.2 LLM Article Generator

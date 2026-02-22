@@ -31,7 +31,7 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
   
   - [x] 2.2 Create requirements.txt for backend dependencies
-    - Add FastAPI, uvicorn, supabase-py, pydantic, anthropic, playwright, langchain-community, python-dotenv, asyncpg, httpx, pytest, hypothesis
+    - Add FastAPI, uvicorn, supabase-py, pydantic, anthropic, crawl4ai, python-dotenv, asyncpg, httpx, pytest, hypothesis
     - _Requirements: All backend requirements_
   
   - [x] 2.3 Set up configuration management
@@ -81,15 +81,18 @@ This implementation plan covers the complete BharatVerse MVP system: backend API
     - **Validates: Requirements 3.2**
 
 - [ ] 4. Implement content pipeline - Web scraper
-  - [ ] 4.1 Create WebScraper class with Wikipedia integration
-    - Implement scrape_wikipedia method using langchain-community
-    - Extract text content, images, and metadata
+  - [x] 4.1 Create WebScraper class with Crawl4AI integration
+    - Implement scrape_url method using Crawl4AI's AsyncWebCrawler
+    - Implement scrape_wikipedia method (wrapper for Wikipedia URLs)
+    - Implement scrape_archive_org method (wrapper for archive.org URLs)
+    - Extract markdown content, images, and metadata
     - Preserve source URLs for citations
     - _Requirements: 1.1, 1.2, 1.3_
   
-  - [ ] 4.2 Add archive.org scraping support
-    - Implement scrape_archive_org method using Playwright
-    - Handle different content formats
+  - [ ] 4.2 Add Crawl4AI configuration and optimization
+    - Configure AsyncWebCrawler with appropriate settings
+    - Implement content extraction strategies
+    - Handle different content formats (articles, archives)
     - _Requirements: 1.1, 1.2_
   
   - [ ] 4.3 Implement rate limiting and robots.txt respect

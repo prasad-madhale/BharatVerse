@@ -1,9 +1,18 @@
-python-dotenv
-playwright
-langchain
-langchain-community
-langchain-google-genai
-google-generativeai
-langchainhub
-wikipedia
-google-search-results
+# Core dependencies
+python-dotenv==1.0.1
+pydantic>=2.10.0  # Required by crawl4ai
+
+# Web scraping
+crawl4ai==0.4.24
+
+# Content source APIs
+wikipedia==1.4.0  # Wikipedia search and API wrapper
+internetarchive  # Archive.org search and API wrapper
+
+# LLM providers
+google-generativeai==0.3.2  # Google Gemini (FREE - default)
+anthropic==0.18.1           # Anthropic Claude (optional)
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1

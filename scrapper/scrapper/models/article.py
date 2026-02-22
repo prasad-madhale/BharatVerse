@@ -116,7 +116,7 @@ class ScrapedContent(BaseModel):
     )
     raw_text: str = Field(
         ...,
-        description="The raw text content extracted",
+        description="The raw markdown content extracted (LLM-ready)",
     )
     images: List[dict] = Field(
         default_factory=list,
