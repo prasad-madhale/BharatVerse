@@ -23,19 +23,32 @@ CREATE INDEX IF NOT EXISTS idx_articles_date ON articles(date DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_tags ON articles USING GIN(tags);
 
 -- Users
+-- Authentication (email/password + Google/Facebook OAuth) is handled entirely
+-- by Supabase Auth (auth.users). This table is a slim profile table that
+-- mirrors auth.users for app-specific fields and foreign keys (e.g. likes).
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT,
-    oauth_provider TEXT,
-    oauth_id TEXT,
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     last_login TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_oauth ON users(oauth_provider, oauth_id) 
-    WHERE oauth_provider IS NOT NULL;
+
+-- Automatically create a public.users profile row whenever Supabase Auth
+-- creates a new auth.users row (email/password signup or OAuth signup).
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.users (id, email)
+    VALUES (NEW.id, NEW.email);
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Likes
 CREATE TABLE IF NOT EXISTS likes (
@@ -98,13 +111,11 @@ CREATE POLICY "Articles are updatable by service role"
     USING (auth.role() = 'service_role');
 
 -- RLS Policies for users (users can read their own data)
-CREATE POLICY "Users can view own profile" 
-    ON users FOR SELECT 
+-- Note: rows are inserted automatically by the on_auth_user_created trigger
+-- (SECURITY DEFINER, bypasses RLS), so no INSERT policy is needed here.
+CREATE POLICY "Users can view own profile"
+    ON users FOR SELECT
     USING (auth.uid() = id);
-
-CREATE POLICY "Users are insertable by service role" 
-    ON users FOR INSERT 
-    WITH CHECK (auth.role() = 'service_role');
 
 -- RLS Policies for likes (users can manage their own likes)
 CREATE POLICY "Users can view own likes" 
