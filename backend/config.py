@@ -23,9 +23,6 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_prefix: str = "/api/v1"
 
-    # Database (legacy - keeping for reference)
-    database_path: str = "./bharatverse.db"
-
     # LLM APIs (choose one)
     llm_provider: str = "gemini"  # Options: "gemini", "anthropic", "openai", "groq"
 
@@ -38,19 +35,9 @@ class Settings(BaseSettings):
     # LLM Model Configuration
     llm_model: Optional[str] = None  # Auto-selected based on provider if not specified
 
-    # Authentication
-    jwt_secret_key: str
-    jwt_algorithm: str = "HS256"
-    jwt_access_token_expire_minutes: int = 60
-    jwt_refresh_token_expire_days: int = 30
-
-    # OAuth
-    google_client_id: Optional[str] = None
-    google_client_secret: Optional[str] = None
-    facebook_app_id: Optional[str] = None
-    facebook_app_secret: Optional[str] = None
-
-    # Supabase
+    # Supabase (Supabase Auth handles authentication and OAuth directly;
+    # Google/Facebook OAuth providers are configured in the Supabase dashboard,
+    # not via backend env vars)
     supabase_url: str
     supabase_anon_key: str
     supabase_service_role_key: str

@@ -19,13 +19,11 @@ class TestSettings:
     def test_settings_with_all_required_fields(self):
         """Test Settings can be created with all required fields."""
         settings = Settings(
-            jwt_secret_key="test-secret-key",
             supabase_url="https://test.supabase.co",
             supabase_anon_key="test-anon-key",
             supabase_service_role_key="test-service-role-key"
         )
 
-        assert settings.jwt_secret_key == "test-secret-key"
         assert settings.supabase_url == "https://test.supabase.co"
         assert settings.supabase_anon_key == "test-anon-key"
         assert settings.supabase_service_role_key == "test-service-role-key"
@@ -51,7 +49,6 @@ class TestSettings:
                 errors = exc_info.value.errors()
                 error_fields = {error['loc'][0] for error in errors}
 
-                assert 'jwt_secret_key' in error_fields
                 assert 'supabase_url' in error_fields
                 assert 'supabase_anon_key' in error_fields
                 assert 'supabase_service_role_key' in error_fields
@@ -59,7 +56,6 @@ class TestSettings:
     def test_settings_default_values(self):
         """Test Settings applies correct default values."""
         settings = Settings(
-            jwt_secret_key="test-secret",
             supabase_url="https://test.supabase.co",
             supabase_anon_key="test-anon",
             supabase_service_role_key="test-service"
@@ -79,15 +75,9 @@ class TestSettings:
         assert settings.llm_provider == "gemini"
         assert settings.llm_model is None
 
-        # JWT defaults
-        assert settings.jwt_algorithm == "HS256"
-        assert settings.jwt_access_token_expire_minutes == 60
-        assert settings.jwt_refresh_token_expire_days == 30
-
     def test_settings_optional_fields(self):
         """Test Settings handles optional fields correctly."""
         settings = Settings(
-            jwt_secret_key="test-secret",
             supabase_url="https://test.supabase.co",
             supabase_anon_key="test-anon",
             supabase_service_role_key="test-service",
@@ -103,7 +93,6 @@ class TestSettings:
     def test_settings_cors_origins_default(self):
         """Test CORS origins default to wildcard."""
         settings = Settings(
-            jwt_secret_key="test-secret",
             supabase_url="https://test.supabase.co",
             supabase_anon_key="test-anon",
             supabase_service_role_key="test-service"
@@ -122,14 +111,13 @@ class TestGetSettings:
         backend.config._settings = None
 
         with patch.dict(os.environ, {
-            'JWT_SECRET_KEY': 'test-secret',
             'SUPABASE_URL': 'https://test.supabase.co',
             'SUPABASE_ANON_KEY': 'test-anon',
             'SUPABASE_SERVICE_ROLE_KEY': 'test-service'
         }, clear=True):
             settings = get_settings()
             assert settings is not None
-            assert settings.jwt_secret_key == 'test-secret'
+            assert settings.supabase_url == 'https://test.supabase.co'
 
             # Second call should return same instance
             settings2 = get_settings()
