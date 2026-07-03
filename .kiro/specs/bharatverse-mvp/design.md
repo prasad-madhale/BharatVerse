@@ -325,10 +325,11 @@ class ArticleService:
 ```
 
 **Storage Strategy**:
-- Article metadata and content stored in Supabase PostgreSQL
-- Full article content stored as JSONB column for flexibility
+- Article metadata (title, summary, date, tags, reading time, image URL) stored in Supabase PostgreSQL
+- Full article content (body, sections, citations) stored as a JSON file in Supabase Storage, referenced from
+  the metadata row via `content_file_path` — see `backend/database/schema.sql` for the authoritative schema
 - Article images stored in Supabase Storage
-- Database indexes on: date, title, tags, full-text search vectors
+- Database indexes on: date, tags, full-text search (title/summary)
 - Row-Level Security policies for data access control
 
 #### 2.2 Authentication Service
@@ -528,7 +529,7 @@ class Like:
 GET  /api/v1/articles/daily              - Get today's daily article
 GET  /api/v1/articles/{id}               - Get article by ID
 GET  /api/v1/articles                    - List articles (paginated)
-GET  /api/v1/articles/search?q=...       - Search articles (FTS5)
+GET  /api/v1/articles/search?q=...       - Search articles (PostgreSQL full-text search)
 GET  /api/v1/articles/search/autocomplete?q=... - Get autocomplete suggestions
 GET  /api/v1/articles/search/semantic?q=... - Semantic similarity search (optional)
 ```
@@ -754,14 +755,15 @@ class Article(BaseModel):
 **User**:
 ```python
 class User(BaseModel):
-    id: str  # Format: usr_XXXXX
+    id: str  # UUID, matches Supabase Auth's auth.users.id
     email: str
-    password_hash: str | None  # None for OAuth-only users
-    oauth_provider: str | None  # "google", "facebook", or None
-    oauth_id: str | None
     created_at: datetime
     last_login: datetime
 ```
+Authentication (email/password + Google/Facebook OAuth) is handled entirely
+by Supabase Auth. This model mirrors the app-facing `public.users` profile
+table, not a credentials store — no password hash or OAuth tokens are held
+by this application.
 
 **Like**:
 ```python
@@ -776,99 +778,23 @@ class Like(BaseModel):
 
 **PostgreSQL Tables (Supabase)**:
 
-```sql
--- Articles table with full-text search
-CREATE TABLE articles (
-    id TEXT PRIMARY KEY,
-    title TEXT NOT NULL,
-    summary TEXT NOT NULL,
-    content JSONB NOT NULL,  -- Full article content as JSONB
-    sections JSONB NOT NULL,  -- Array of sections
-    citations JSONB NOT NULL,  -- Array of citations
-    date DATE NOT NULL,
-    reading_time_minutes INTEGER NOT NULL,
-    author TEXT NOT NULL,
-    tags TEXT[] NOT NULL,  -- PostgreSQL array type
-    image_url TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    search_vector tsvector  -- Full-text search vector
-);
+The authoritative schema lives in [`backend/database/schema.sql`](/backend/database/schema.sql) — run it in the
+Supabase SQL Editor to create all tables. Key points where it differs from a naive design (kept in sync here to
+avoid drift):
 
--- Indexes for performance
-CREATE INDEX idx_articles_date ON articles(date DESC);
-CREATE INDEX idx_articles_tags ON articles USING GIN(tags);
-CREATE INDEX idx_articles_search ON articles USING GIN(search_vector);
+- **Article content is not stored inline as JSONB.** `articles` holds metadata only (title, summary, date,
+  reading_time_minutes, tags, image_url) plus a `content_file_path` pointer; the full article body (content,
+  sections, citations) is stored as a JSON file in the `articles` Supabase Storage bucket. This keeps table rows
+  small and full-text search scoped to metadata (see the Search section below for the tradeoff this implies).
+- **`users` is a slim profile table, not a credentials store.** Supabase Auth owns `auth.users` (email, password
+  hash, OAuth identities). `public.users` only holds `id` (FK to `auth.users.id`), `email`, `created_at`,
+  `last_login`, and is populated automatically via an `on_auth_user_created` trigger (`SECURITY DEFINER`) fired
+  on every `auth.users` insert — no backend code creates these rows.
+- **`article_embeddings.embedding` is `TEXT` (JSON-encoded), not `vector`.** pgvector is not assumed to be enabled
+  by default; the table is written defensively so semantic search can be skipped or backfilled once pgvector is
+  confirmed available on the target Supabase tier (see Search Performance Optimization below).
 
--- Trigger to automatically update search_vector
-CREATE TRIGGER articles_search_vector_update
-BEFORE INSERT OR UPDATE ON articles
-FOR EACH ROW EXECUTE FUNCTION
-tsvector_update_trigger(search_vector, 'pg_catalog.english', title, content);
-
--- Users table (managed by Supabase Auth, but we can extend it)
-CREATE TABLE user_profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    email TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_login TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Likes table with Row-Level Security
-CREATE TABLE likes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    article_id TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, article_id)
-);
-
-CREATE INDEX idx_likes_user ON likes(user_id);
-CREATE INDEX idx_likes_article ON likes(article_id);
-
--- Row-Level Security for likes
-ALTER TABLE likes ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view their own likes"
-ON likes FOR SELECT
-USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert their own likes"
-ON likes FOR INSERT
-WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete their own likes"
-ON likes FOR DELETE
-USING (auth.uid() = user_id);
-
--- Search suggestions for autocomplete
-CREATE TABLE search_suggestions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    term TEXT NOT NULL,
-    category TEXT NOT NULL,  -- 'title', 'tag', 'person', 'event', 'period'
-    frequency INTEGER DEFAULT 1,
-    article_count INTEGER DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_search_suggestions_term ON search_suggestions(term);
-CREATE INDEX idx_search_suggestions_category ON search_suggestions(category);
-CREATE INDEX idx_search_suggestions_frequency ON search_suggestions(frequency DESC);
-
--- Article embeddings for semantic search (optional, requires pgvector extension)
-CREATE EXTENSION IF NOT EXISTS vector;
-
-CREATE TABLE article_embeddings (
-    article_id TEXT PRIMARY KEY REFERENCES articles(id) ON DELETE CASCADE,
-    embedding vector(1536),  -- OpenAI ada-002 dimension, adjust as needed
-    model TEXT NOT NULL,  -- 'text-embedding-ada-002' or 'claude-3-embedding'
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_embeddings_vector ON article_embeddings 
-USING ivfflat (embedding vector_cosine_ops);
-```
+See `backend/database/schema.sql` for the full DDL (tables, indexes, RLS policies, and triggers).
 
 **Supabase Storage Buckets**:
 
