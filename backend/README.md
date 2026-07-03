@@ -2,6 +2,12 @@
 
 FastAPI-based REST API for the BharatVerse mobile application.
 
+> **Status**: this document describes the target design. As of now, `backend/main.py` and all of `api/`,
+> `services/`, and most of `models/` are not yet implemented — only `config.py`, the Supabase client wrapper,
+> `database/schema.sql`, and `utils/llm_provider.py` exist. See
+> [.kiro/specs/bharatverse-mvp/roadmap.md](../.kiro/specs/bharatverse-mvp/roadmap.md) for current status and build
+> order (Phase 0 covers standing up `main.py` and the first article endpoints).
+
 ## Overview
 
 The backend provides:
@@ -94,9 +100,9 @@ See `.env.example` for a complete template.
 
 4. **Verify Setup**:
    ```bash
-   python backend/database/test_supabase.py
+   pytest backend/tests/test_database/test_supabase.py
    ```
-   
+
    This will verify:
    - Connection to Supabase
    - All tables exist
@@ -144,8 +150,7 @@ backend/
 ├── database/           # Database operations
 │   ├── __init__.py
 │   ├── schema.sql          # PostgreSQL schema for Supabase
-│   ├── supabase_client.py  # Supabase client wrapper
-│   └── test_supabase.py    # Connection verification script
+│   └── supabase_client.py  # Supabase client wrapper
 ├── utils/              # Utility functions
 │   ├── llm_provider.py # Unified LLM interface
 │   └── validators.py
@@ -357,11 +362,11 @@ async def test_article_insert(supabase_client, clean_test_data):
 ### Continuous Integration
 
 Tests run automatically on:
-- Pull requests
-- Commits to main branch
-- Scheduled daily runs
+- Pull requests to `main`
+- Commits to `main`
 
-CI configuration in `.github/workflows/test.yml`
+Integration tests (Supabase-dependent) are excluded from CI (`pytest -m "not integration"`) and must be run
+locally against a real Supabase project. CI configuration is in `.github/workflows/python-app.yml`.
 
 ## Database
 
@@ -370,18 +375,21 @@ CI configuration in `.github/workflows/test.yml`
 The backend uses Supabase (managed PostgreSQL) with the following features:
 
 **Tables:**
-- `articles` - Article metadata with JSONB content and tsvector for full-text search
-- `users` - User profiles (extends Supabase auth.users)
+- `articles` - Article metadata (title, summary, tags, etc.) plus a `content_file_path` pointer; full article
+  content (body, sections, citations) is stored as a JSON file in the `articles` Supabase Storage bucket, not
+  inline in the row
+- `users` - Slim profile table (`id`, `email`, timestamps) auto-populated from Supabase `auth.users` via a
+  trigger — Supabase Auth remains the source of truth for credentials and OAuth identities
 - `likes` - Article likes with Row-Level Security
 - `search_suggestions` - Autocomplete suggestions
 - `article_embeddings` - Semantic search embeddings (TEXT format, pgvector optional)
 
 **Features:**
-- Full-text search using PostgreSQL tsvector and ts_rank
-- Automatic tsvector updates via triggers
+- Full-text search via a GIN expression index on `to_tsvector('english', title || ' ' || summary)` (metadata
+  only — see note above on where full content lives)
 - Row-Level Security (RLS) for user data isolation
 - Supabase Auth for authentication
-- Supabase Storage for article images
+- Supabase Storage for article content and images
 
 ### Schema Management
 
@@ -389,7 +397,7 @@ The database schema is defined in `backend/database/schema.sql`. To update:
 
 1. Modify `schema.sql`
 2. Run the updated SQL in Supabase SQL Editor
-3. Test with `python backend/database/test_supabase.py`
+3. Test with `pytest backend/tests/test_database/test_supabase.py`
 
 ### Backup Database
 
@@ -423,7 +431,11 @@ All configuration is managed through `backend/config.py` using pydantic-settings
 
 ## Deployment
 
-### Docker
+> A `Dockerfile` and hosting configuration are not yet in the repository (planned for Phase 6 of the
+> [roadmap](../.kiro/specs/bharatverse-mvp/roadmap.md)). The commands below describe the target deployment
+> approach.
+
+### Docker (planned)
 
 ```bash
 # Build image
@@ -433,19 +445,13 @@ docker build -t bharatverse-backend -f backend/Dockerfile .
 docker run -p 8000:8000 --env-file .env bharatverse-backend
 ```
 
-### Docker Compose
-
-```bash
-docker-compose up -d
-```
-
 ### Manual Deployment
 
 1. Set up Python 3.12+ on server
 2. Clone repository
 3. Install dependencies: `pip install -r backend/requirements.txt`
 4. Configure environment variables (Supabase URL and keys)
-5. Verify Supabase connection: `python backend/database/test_supabase.py`
+5. Verify Supabase connection: `pytest backend/tests/test_database/test_supabase.py`
 6. Run with gunicorn: `gunicorn backend.main:app -w 4 -k uvicorn.workers.UvicornWorker`
 7. Set up nginx as reverse proxy
 8. Configure SSL with Let's Encrypt
@@ -469,6 +475,8 @@ Logs are written to stdout in JSON format. Configure log aggregation with:
 
 ### Health Check
 
+Once `backend/main.py` implements a `/health` endpoint (Phase 0 of the roadmap):
+
 ```bash
 curl http://localhost:8000/health
 ```
@@ -490,7 +498,7 @@ API metrics available at:
 cat .env | grep SUPABASE
 
 # Test connection
-python backend/database/test_supabase.py
+pytest backend/tests/test_database/test_supabase.py
 
 # Check Supabase project status in dashboard
 ```
@@ -522,7 +530,7 @@ kill -9 <PID>
 pytest backend/tests/ -v -s
 
 # Check Supabase connection
-python backend/database/test_supabase.py
+pytest backend/tests/test_database/test_supabase.py
 
 # Verify .env file has correct Supabase credentials
 ```
