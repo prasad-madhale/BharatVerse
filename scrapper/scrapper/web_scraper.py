@@ -212,6 +212,7 @@ class WebScraper:
                 scraped_content.extend(result)
 
         logger.info(f"Successfully scraped {len(scraped_content)} page(s) from {len(source_names)} source(s)")
+        logger.debug(f"Scraped content: {scraped_content}")
         return scraped_content
 
     async def search_and_scrape(

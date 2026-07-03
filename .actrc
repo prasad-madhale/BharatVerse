@@ -1,0 +1,6 @@
+# act configuration
+# Use medium-sized image for better compatibility
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+
+# Use Apple Silicon architecture
+--container-architecture linux/arm64
