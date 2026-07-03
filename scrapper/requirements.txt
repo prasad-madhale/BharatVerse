@@ -1,6 +1,7 @@
 # Core dependencies
 python-dotenv==1.0.1
 pydantic>=2.10.0  # Required by crawl4ai
+pydantic-settings>=2.6.0  # Used by common/config.py (shared LLM settings)
 
 # Web scraping
 crawl4ai==0.4.24
@@ -9,9 +10,11 @@ crawl4ai==0.4.24
 wikipedia==1.4.0  # Wikipedia search and API wrapper
 internetarchive  # Archive.org search and API wrapper
 
-# LLM providers
+# LLM providers (used via common/llm_provider.py)
 google-generativeai==0.3.2  # Google Gemini (FREE - default)
 anthropic==0.18.1           # Anthropic Claude (optional)
+openai==1.12.0               # OpenAI (optional)
+groq==0.4.1                  # Groq (optional)
 
 # Testing
 pytest==7.4.3

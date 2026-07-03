@@ -19,10 +19,8 @@ groq==0.4.1                 # Groq (optional)
 # Environment and configuration
 python-dotenv==1.0.1
 
-# Authentication and security
-PyJWT==2.8.0
-passlib[bcrypt]==1.7.4
-python-jose[cryptography]==3.3.0
+# Note: no JWT/password-hashing libraries here -- authentication is handled
+# entirely by Supabase Auth (see backend/database/schema.sql and design.md).
 
 # Testing
 pytest==7.4.4

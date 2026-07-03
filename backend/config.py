@@ -4,8 +4,14 @@ Configuration management for BharatVerse backend.
 Loads settings from environment variables using pydantic-settings.
 """
 
+from pathlib import Path
 from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Resolve relative to this file, not the process's CWD, so `.env` loads
+# correctly regardless of whether the app is started from the repo root,
+# from backend/, or anywhere else.
+_REPO_ROOT_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 
 
 class Settings(BaseSettings):
@@ -23,17 +29,8 @@ class Settings(BaseSettings):
     api_port: int = 8000
     api_prefix: str = "/api/v1"
 
-    # LLM APIs (choose one)
-    llm_provider: str = "gemini"  # Options: "gemini", "anthropic", "openai", "groq"
-
-    # API Keys (provide based on llm_provider)
-    gemini_api_key: Optional[str] = None
-    anthropic_api_key: Optional[str] = None
-    openai_api_key: Optional[str] = None
-    groq_api_key: Optional[str] = None
-
-    # LLM Model Configuration
-    llm_model: Optional[str] = None  # Auto-selected based on provider if not specified
+    # Note: LLM provider/model/API key configuration lives in common.config.LLMSettings,
+    # not here -- it's shared with the scrapper content pipeline (see common/config.py).
 
     # Supabase (Supabase Auth handles authentication and OAuth directly;
     # Google/Facebook OAuth providers are configured in the Supabase dashboard,
@@ -54,7 +51,7 @@ class Settings(BaseSettings):
     rate_limit_requests_per_minute: int = 100
 
     model_config = SettingsConfigDict(
-        env_file="../.env",
+        env_file=_REPO_ROOT_ENV_FILE,
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"

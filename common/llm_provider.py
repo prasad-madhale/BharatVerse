@@ -6,9 +6,12 @@ Supports multiple LLM providers with a unified interface:
 - Anthropic Claude
 - OpenAI
 - Groq
+
+Shared by backend/ (semantic search embeddings) and scrapper/ (article
+generation) -- see common/config.py for where its settings come from.
 """
 
-from backend.config import get_settings
+from common.config import get_llm_settings
 
 
 class LLMProvider:
@@ -17,14 +20,14 @@ class LLMProvider:
     """
 
     def __init__(self):
-        settings = get_settings()
+        settings = get_llm_settings()
         self.provider = settings.llm_provider.lower()
         self.client = self._initialize_client()
         self.model = self._get_model()
 
     def _initialize_client(self):
         """Initialize the appropriate LLM client based on provider."""
-        settings = get_settings()
+        settings = get_llm_settings()
         if self.provider == "gemini":
             import google.generativeai as genai
             genai.configure(api_key=settings.gemini_api_key)
@@ -47,7 +50,7 @@ class LLMProvider:
 
     def _get_model(self) -> str:
         """Get the model name for the provider."""
-        settings = get_settings()
+        settings = get_llm_settings()
         if settings.llm_model:
             return settings.llm_model
 
@@ -60,7 +63,7 @@ class LLMProvider:
         }
         return defaults.get(self.provider, "")
 
-    async def generate_text(self, prompt: str, max_tokens: int = 2000) -> str:
+    async def generate_text(self, prompt: str, max_tokens: int = 4000) -> str:
         """
         Generate text using the configured LLM provider.
 
@@ -130,7 +133,7 @@ class LLMProvider:
         else:
             # Fallback: use OpenAI for embeddings if provider doesn't support it
             from openai import OpenAI
-            settings = get_settings()
+            settings = get_llm_settings()
             client = OpenAI(api_key=settings.openai_api_key)
             response = client.embeddings.create(
                 model="text-embedding-ada-002",

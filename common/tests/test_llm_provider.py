@@ -6,13 +6,13 @@ Tests provider selection, model defaults, and initialization logic with mocked c
 
 import pytest
 from unittest.mock import patch, MagicMock
-from backend.utils.llm_provider import LLMProvider, get_llm_provider
+from common.llm_provider import LLMProvider, get_llm_provider
 
 
 class TestLLMProviderInitialization:
     """Test LLMProvider initialization and provider selection."""
 
-    @patch('backend.utils.llm_provider.get_settings')
+    @patch('common.llm_provider.get_llm_settings')
     @patch('google.generativeai.configure')
     def test_gemini_provider_initialization(self, mock_genai_configure, mock_get_settings):
         """Test Gemini provider initializes correctly."""
@@ -28,7 +28,7 @@ class TestLLMProviderInitialization:
         assert provider.model == "gemini-1.5-flash"
         mock_genai_configure.assert_called_once_with(api_key="test-gemini-key")
 
-    @patch('backend.utils.llm_provider.get_settings')
+    @patch('common.llm_provider.get_llm_settings')
     @patch('anthropic.Anthropic')
     def test_anthropic_provider_initialization(self, mock_anthropic_class, mock_get_settings):
         """Test Anthropic provider initializes correctly."""
@@ -48,7 +48,7 @@ class TestLLMProviderInitialization:
         mock_anthropic_class.assert_called_once_with(api_key="test-anthropic-key")
         assert provider.client == mock_client
 
-    @patch('backend.utils.llm_provider.get_settings')
+    @patch('common.llm_provider.get_llm_settings')
     @patch('openai.OpenAI')
     def test_openai_provider_initialization(self, mock_openai_class, mock_get_settings):
         """Test OpenAI provider initializes correctly."""
@@ -67,7 +67,7 @@ class TestLLMProviderInitialization:
         assert provider.model == "gpt-3.5-turbo"
         mock_openai_class.assert_called_once_with(api_key="test-openai-key")
 
-    @patch('backend.utils.llm_provider.get_settings')
+    @patch('common.llm_provider.get_llm_settings')
     @patch('groq.Groq')
     def test_groq_provider_initialization(self, mock_groq_class, mock_get_settings):
         """Test Groq provider initializes correctly."""
@@ -86,7 +86,7 @@ class TestLLMProviderInitialization:
         assert provider.model == "llama-3.1-70b-versatile"
         mock_groq_class.assert_called_once_with(api_key="test-groq-key")
 
-    @patch('backend.utils.llm_provider.get_settings')
+    @patch('common.llm_provider.get_llm_settings')
     def test_unsupported_provider_raises_error(self, mock_get_settings):
         """Test unsupported provider raises ValueError."""
         mock_settings = MagicMock()
@@ -96,7 +96,7 @@ class TestLLMProviderInitialization:
         with pytest.raises(ValueError, match="Unsupported LLM provider"):
             LLMProvider()
 
-    @patch('backend.utils.llm_provider.get_settings')
+    @patch('common.llm_provider.get_llm_settings')
     @patch('google.generativeai.configure')
     def test_custom_model_override(self, mock_genai_configure, mock_get_settings):
         """Test custom model overrides default."""
@@ -114,7 +114,7 @@ class TestLLMProviderInitialization:
 class TestLLMProviderModelDefaults:
     """Test default model selection for each provider."""
 
-    @patch('backend.utils.llm_provider.get_settings')
+    @patch('common.llm_provider.get_llm_settings')
     @patch('google.generativeai.configure')
     def test_gemini_default_model(self, mock_configure, mock_get_settings):
         """Test Gemini uses correct default model."""
@@ -127,7 +127,7 @@ class TestLLMProviderModelDefaults:
         provider = LLMProvider()
         assert provider.model == "gemini-1.5-flash"
 
-    @patch('backend.utils.llm_provider.get_settings')
+    @patch('common.llm_provider.get_llm_settings')
     @patch('anthropic.Anthropic')
     def test_anthropic_default_model(self, mock_anthropic, mock_get_settings):
         """Test Anthropic uses correct default model."""
@@ -144,13 +144,13 @@ class TestLLMProviderModelDefaults:
 class TestGetLLMProvider:
     """Test get_llm_provider() lazy-loading behavior."""
 
-    @patch('backend.utils.llm_provider.get_settings')
+    @patch('common.llm_provider.get_llm_settings')
     @patch('google.generativeai.configure')
     def test_get_llm_provider_lazy_loads(self, mock_configure, mock_get_settings):
         """Test get_llm_provider() creates instance on first call."""
         # Reset global state
-        import backend.utils.llm_provider
-        backend.utils.llm_provider._llm_provider = None
+        import common.llm_provider
+        common.llm_provider._llm_provider = None
 
         mock_settings = MagicMock()
         mock_settings.llm_provider = "gemini"

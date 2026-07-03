@@ -71,25 +71,6 @@ class TestSettings:
         assert settings.api_port == 8000
         assert settings.api_prefix == "/api/v1"
 
-        # LLM defaults
-        assert settings.llm_provider == "gemini"
-        assert settings.llm_model is None
-
-    def test_settings_optional_fields(self):
-        """Test Settings handles optional fields correctly."""
-        settings = Settings(
-            supabase_url="https://test.supabase.co",
-            supabase_anon_key="test-anon",
-            supabase_service_role_key="test-service",
-            gemini_api_key="test-gemini-key",
-            llm_model="custom-model"
-        )
-
-        assert settings.gemini_api_key == "test-gemini-key"
-        assert settings.llm_model == "custom-model"
-        assert settings.anthropic_api_key is None
-        assert settings.openai_api_key is None
-
     def test_settings_cors_origins_default(self):
         """Test CORS origins default to wildcard."""
         settings = Settings(
