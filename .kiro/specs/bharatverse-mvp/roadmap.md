@@ -10,7 +10,7 @@ This doc governs *sequencing*. `tasks.md` remains the granular reference for pro
 - **common/** (new): `llm_provider.py` + `config.py` (multi-provider LLM abstraction, shared settings) and `models.py` (`Article`/`Section`/`Citation`, shared by scrapper and backend) — extracted so the content pipeline doesn't depend on the backend service and the two don't drift on data shapes.
 - **scrapper/**: `WebScraper`, `ArticleGenerator`, and `scrapper_main.py` — all real, tested, and verified end-to-end against the live Gemini API and real Wikipedia scrapes (~1900 words / 13 min reading time, deduplicated citations). Content validation, topic selection, and scheduling still don't exist (Phase 4).
 - **backend/**: `config.py`, the Supabase client wrapper, `database/schema.sql`, `models/article.py` (`ArticleRecord`), `services/article_service.py`, `api/articles.py`, and `main.py` are all real. **The API now actually boots** (`uvicorn backend.main:app`) and serves `GET /api/v1/articles/daily`, `GET /api/v1/articles/{id}`, and `/health` — verified live with a running server. The Supabase Storage/Postgres calls inside `article_service.py` are unit-tested with a mocked client but **not yet verified against a live Supabase project** (the dev project is currently paused — see Risks below). Auth, search, and likes still don't exist.
-- **bharatverse_app/**: default `flutter create` counter-app template. 0% feature work started — the next piece of Phase 0.
+- **bharatverse_app/**: `lib/models/article.dart`, `lib/services/api_client.dart`, `lib/screens/home_screen.dart`, `lib/screens/article_detail_screen.dart` are real, replacing the counter-app template. `flutter analyze` clean, `flutter test` 10/10 passing (model parsing, `ApiClient` against mocked HTTP responses, widget tests for loading/error/retry/navigation). Not yet visually verified in a running browser/simulator. Auth/search/likes/offline-cache screens still don't exist (later phases).
 
 ### Standing architectural decisions (confirmed with product owner)
 1. **Build order**: vertical slice first — one real article through the whole pipeline before broadening any layer.
@@ -35,10 +35,11 @@ This doc governs *sequencing*. `tasks.md` remains the granular reference for pro
 - `backend/api/articles.py` — `GET /api/v1/articles/daily`, `GET /api/v1/articles/{id}`. Full CRUD/pagination/search is Phase 2.
 - **Blocked on**: the dev Supabase project is paused (DNS for the project host doesn't resolve while paused). Once resumed, still need to confirm `schema.sql` (including the updated `users` table) is applied and the `articles` Storage bucket exists, then re-run `scrapper_main.py` output through `ArticleService.save_article` and hit the live API to close the loop on Phase 0's exit criteria.
 
-### Mobile
-- `pubspec.yaml` — add `supabase_flutter`, `http`, `flutter_markdown`; drop unused `english_words`.
-- `lib/models/article.dart`, `lib/services/api_client.dart`, `lib/screens/home_screen.dart`, `lib/screens/article_detail_screen.dart` — replace the counter-app template in `main.dart`.
-- Build against mock fixture JSON first (matching `backend/models/article.py`'s shape), swap to the real API once backend Phase 0 work lands.
+### Mobile — DONE (code + tests; not yet visually verified)
+- `pubspec.yaml` — added `http` and `flutter_markdown_plus` (the original plan said `flutter_markdown`, but that package is discontinued -- replaced by the community fork); dropped unused `english_words`. `supabase_flutter` deferred to Phase 1 (auth) rather than added now unused.
+- `lib/models/article.dart`, `lib/services/api_client.dart`, `lib/screens/home_screen.dart`, `lib/screens/article_detail_screen.dart` — replace the counter-app template in `main.dart`. `ApiClient` takes an injectable `http.Client` for testability.
+- Tested against mocked HTTP responses (`package:http/testing.dart`), not a live backend, since the dev Supabase project is currently paused and the real API can't serve data yet -- consistent with the original "mock fixture data first" plan, just because the backend genuinely isn't reachable rather than by choice.
+- **Still needed**: visual verification in a running browser/simulator (Chrome and macOS desktop targets are available locally via `flutter run -d chrome` / `-d macos`) once there's real data to point it at.
 
 ### Risks / open questions
 - ~~`llm_provider.py`'s default `max_tokens` (2000) is likely too low~~ — raised to 4000 in `ArticleGenerator.generate_article`. Resolved.
