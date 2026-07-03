@@ -8,6 +8,19 @@ that can be used across all test modules.
 import pytest
 import os
 
+# backend.main builds the FastAPI app at module level, which calls
+# get_settings() on import -- so merely importing it (e.g. in
+# test_api/test_articles.py) requires Supabase credentials to be present,
+# even for tests that never touch Supabase. Locally this is masked by a
+# real .env file with real credentials; CI has no .env at all. Setting
+# harmless placeholders here (before any test module is collected, since
+# conftest.py is always imported first) makes collection succeed
+# regardless. Integration tests below override these with real values
+# loaded from .env.
+os.environ.setdefault('SUPABASE_URL', 'https://test.supabase.co')
+os.environ.setdefault('SUPABASE_ANON_KEY', 'test-anon-key')
+os.environ.setdefault('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key')
+
 from backend.database import get_supabase, initialize_supabase
 import backend.config as config_module
 import backend.database.supabase_client as supabase_module
