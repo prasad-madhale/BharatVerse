@@ -5,9 +5,10 @@ A plugin-based web scraper for historical content.
 """
 
 from .web_scraper import WebScraper, RateLimiter
-from .models import Article, ScrapedContent, Citation, Section
+from .models import ScrapedContent
 from .sources import ContentSource, SourceRegistry, WikipediaSource, ArchiveOrgSource, registry
 from .article_generator import ArticleGenerator, ArticleGenerationError
+from common.models import Article, Citation, Section
 
 __version__ = "0.1.0"
 

@@ -40,13 +40,13 @@ def reset_singletons(request):
     config_module._settings = None
 
     # Reset supabase singleton
-    supabase_module._supabase_instance = None
+    supabase_module._supabase_client = None
 
     yield
 
     # Cleanup singletons
     config_module._settings = None
-    supabase_module._supabase_instance = None
+    supabase_module._supabase_client = None
 
 
 @pytest.fixture(scope="session")

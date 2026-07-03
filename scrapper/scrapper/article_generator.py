@@ -13,7 +13,8 @@ import logging
 from datetime import date, datetime, timezone
 
 from common.llm_provider import LLMProvider, get_llm_provider
-from scrapper.models.article import Article, Citation, ScrapedContent, Section
+from common.models import Article, Citation, Section
+from scrapper.models.article import ScrapedContent
 
 logger = logging.getLogger(__name__)
 
