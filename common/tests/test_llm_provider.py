@@ -25,7 +25,7 @@ class TestLLMProviderInitialization:
         provider = LLMProvider()
 
         assert provider.provider == "gemini"
-        assert provider.model == "gemini-1.5-flash"
+        assert provider.model == "gemini-2.5-flash"
         mock_genai_configure.assert_called_once_with(api_key="test-gemini-key")
 
     @patch('common.llm_provider.get_llm_settings')
@@ -125,7 +125,7 @@ class TestLLMProviderModelDefaults:
         mock_get_settings.return_value = mock_settings
 
         provider = LLMProvider()
-        assert provider.model == "gemini-1.5-flash"
+        assert provider.model == "gemini-2.5-flash"
 
     @patch('common.llm_provider.get_llm_settings')
     @patch('anthropic.Anthropic')

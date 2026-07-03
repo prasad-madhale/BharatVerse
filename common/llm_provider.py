@@ -54,9 +54,13 @@ class LLMProvider:
         if settings.llm_model:
             return settings.llm_model
 
-        # Default models for each provider
+        # Default models for each provider. The gemini-1.x line has been
+        # fully retired by Google; gemini-2.5-flash is confirmed available
+        # (verified against ListModels as of 2026-07). The anthropic/openai/
+        # groq defaults below are unverified against live API keys and may
+        # also be stale -- confirm before relying on them.
         defaults = {
-            "gemini": "gemini-1.5-flash",
+            "gemini": "gemini-2.5-flash",
             "anthropic": "claude-3-haiku-20240307",
             "openai": "gpt-3.5-turbo",
             "groq": "llama-3.1-70b-versatile"
