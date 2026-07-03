@@ -7,10 +7,10 @@ A direct code audit (not just a doc review) found this project earlier-stage tha
 This doc governs *sequencing*. `tasks.md` remains the granular reference for property-test coverage (36 correctness properties) — each phase below cross-references the relevant `tasks.md` sections rather than duplicating them. `design.md` remains the architectural reference.
 
 ### What's actually real today
-- **common/** (new): `llm_provider.py` (multi-provider LLM abstraction: Gemini/Anthropic/OpenAI/Groq) and `config.py` (its settings), shared by backend and scrapper — extracted from `backend/utils/` so the content pipeline doesn't depend on the backend service.
-- **scrapper/**: `WebScraper` (Crawl4AI-based, Wikipedia + archive.org sources, rate limiting) and `ArticleGenerator` (LLM-powered article generation, using `common.llm_provider`) — both real and tested, including a live end-to-end run against the real Gemini API. `scrapper_main.py` is a minimal runner (hardcoded topic, scrape → generate, prints JSON). Content validation, topic selection, scheduling, and persistence still don't exist (Phase 4 / rest of Phase 0).
-- **backend/**: `config.py`, the Supabase client wrapper, and `database/schema.sql` are real. `api/`, `services/`, `models/` are empty stubs. `backend/main.py` does not exist — the API cannot start today.
-- **bharatverse_app/**: default `flutter create` counter-app template. 0% feature work started.
+- **common/** (new): `llm_provider.py` + `config.py` (multi-provider LLM abstraction, shared settings) and `models.py` (`Article`/`Section`/`Citation`, shared by scrapper and backend) — extracted so the content pipeline doesn't depend on the backend service and the two don't drift on data shapes.
+- **scrapper/**: `WebScraper`, `ArticleGenerator`, and `scrapper_main.py` — all real, tested, and verified end-to-end against the live Gemini API and real Wikipedia scrapes (~1900 words / 13 min reading time, deduplicated citations). Content validation, topic selection, and scheduling still don't exist (Phase 4).
+- **backend/**: `config.py`, the Supabase client wrapper, `database/schema.sql`, `models/article.py` (`ArticleRecord`), `services/article_service.py`, `api/articles.py`, and `main.py` are all real. **The API now actually boots** (`uvicorn backend.main:app`) and serves `GET /api/v1/articles/daily`, `GET /api/v1/articles/{id}`, and `/health` — verified live with a running server. The Supabase Storage/Postgres calls inside `article_service.py` are unit-tested with a mocked client but **not yet verified against a live Supabase project** (the dev project is currently paused — see Risks below). Auth, search, and likes still don't exist.
+- **bharatverse_app/**: default `flutter create` counter-app template. 0% feature work started — the next piece of Phase 0.
 
 ### Standing architectural decisions (confirmed with product owner)
 1. **Build order**: vertical slice first — one real article through the whole pipeline before broadening any layer.
@@ -28,12 +28,12 @@ This doc governs *sequencing*. `tasks.md` remains the granular reference for pro
 - `scrapper/scrapper_main.py` — minimal runner: hardcoded topic ("Mauryan Empire") → `WebScraper.search_and_scrape` → `ArticleGenerator.generate_article`. No validator, no scheduling yet.
 - Verified end-to-end against the live Gemini API and real Wikipedia scrapes (1921 words / 13 min reading time, 5 sections, deduplicated citations).
 
-### Backend
-- `backend/main.py` — FastAPI entry point (missing entirely today). Wires config, CORS, `/health`, and routers.
-- `backend/models/article.py` — API response/request Pydantic models (distinct from the scrapper's generation-time models, but structurally similar). Publish this shape early so mobile work can start against it.
-- `backend/services/article_service.py` — implement just `save_article` + `get_article_by_id`/`get_daily_article`. Use the existing `content_file_path` + Supabase Storage pattern already established in `schema.sql` and `backend/tests/test_database/test_article_persistence.py` — do not switch to inline JSONB.
+### Backend — CODE DONE, LIVE VERIFICATION PENDING
+- `backend/main.py` — FastAPI entry point, wires config, CORS, `/health`, and the articles router. Verified live: booted the server, confirmed `/health` returns 200 and `/api/v1/articles/daily` correctly reaches the Supabase client before failing (paused project).
+- `backend/models/article.py` — `ArticleRecord`, the metadata-only DB row shape (`common.models.Article` is used directly as the API response model — no separate response class needed).
+- `backend/services/article_service.py` — `save_article`/`get_article_by_id`/`get_daily_article`, following the `content_file_path` + Supabase Storage pattern from `schema.sql`. Unit-tested with a mocked Supabase client; **not yet verified live**.
 - `backend/api/articles.py` — `GET /api/v1/articles/daily`, `GET /api/v1/articles/{id}`. Full CRUD/pagination/search is Phase 2.
-- **Manual/external dependency**: a live Supabase project with `schema.sql` applied and the `articles` Storage bucket created (one-time dashboard step, not automatable in code).
+- **Blocked on**: the dev Supabase project is paused (DNS for the project host doesn't resolve while paused). Once resumed, still need to confirm `schema.sql` (including the updated `users` table) is applied and the `articles` Storage bucket exists, then re-run `scrapper_main.py` output through `ArticleService.save_article` and hit the live API to close the loop on Phase 0's exit criteria.
 
 ### Mobile
 - `pubspec.yaml` — add `supabase_flutter`, `http`, `flutter_markdown`; drop unused `english_words`.
@@ -45,7 +45,7 @@ This doc governs *sequencing*. `tasks.md` remains the granular reference for pro
 - ~~First-pass strict-JSON parsing from the LLM will need prompt iteration~~ — confirmed in practice: the default Gemini model name was retired (`gemini-1.5-flash` → `gemini-2.5-flash`), and the initial word-count prompt was too weak (a live run produced 4121 words / 27 min against target; strengthened to a strict 1500-2000 word / 4-6 section instruction, now consistently within range). Resolved for gemini; anthropic/openai/groq default model names in `common/llm_provider.py` are unverified against live keys and may also be stale.
 - ~~Confirm `crawl4ai==0.4.24` still installs cleanly~~ — confirmed, live scrapes work.
 - New: Wikipedia search can return the same URL twice as separate scraped pages — citations are now deduplicated by `source_url` in `ArticleGenerator`, but the underlying duplicate-result behavior in `WikipediaSource` itself is still there and may be worth fixing at the source later.
-- Still open: confirm `backend/database/schema.sql` (including the updated `users` table) has been applied to the live Supabase project, and that a public `articles` Storage bucket exists — needed before `backend/services/article_service.py` can be tested end-to-end.
+- **Blocking**: the dev Supabase project (`bvpwlzcertsoqetxpozn.supabase.co`) is paused — DNS for it doesn't resolve. Needs to be resumed from the Supabase dashboard before `article_service.py`'s Storage/Postgres calls can be verified live, `schema.sql` re-confirmed as applied, and the `articles` Storage bucket confirmed to exist.
 
 ### Exit criteria
 One documented sequence takes a hardcoded topic through scrapper → Supabase → backend API → Flutter screen, showing real LLM-generated content on a simulator/device.
