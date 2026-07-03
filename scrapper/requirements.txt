@@ -13,7 +13,7 @@ internetarchive  # Archive.org search and API wrapper
 # LLM providers (used via common/llm_provider.py)
 google-generativeai==0.3.2  # Google Gemini (FREE - default)
 anthropic==0.18.1           # Anthropic Claude (optional)
-openai==1.12.0               # OpenAI (optional)
+openai>=1.55.3               # OpenAI (optional) -- floor set by crawl4ai's litellm dependency
 groq==0.4.1                  # Groq (optional)
 
 # Testing
