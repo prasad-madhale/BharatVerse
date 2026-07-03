@@ -87,6 +87,9 @@ bharatverse.db
 articles/
 *.json
 
+# Scraper scratch/debug output (e.g. manual scraper run dumps)
+scrapper/scrapper/*.md
+
 # Playwright browsers
 .playwright/
 
