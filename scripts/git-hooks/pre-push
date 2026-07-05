@@ -1,0 +1,13 @@
+#!/bin/bash
+# Blocks `git push` unless formatting, linting, tests, and the 85% coverage
+# gate all pass -- the same checks CI runs (see build.sh --check).
+#
+# Enabled via: git config core.hooksPath scripts/git-hooks
+
+set -e
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+echo "Running pre-push checks (./build.sh --check)..."
+./build.sh --check

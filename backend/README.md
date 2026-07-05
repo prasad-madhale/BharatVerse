@@ -272,20 +272,18 @@ Property-based tests use Hypothesis to generate random test data and verify corr
 
 ### Coverage Reports
 
-**Run tests with coverage:**
+Coverage is enforced automatically on every `pytest` run via `backend/pytest.ini`'s `addopts`
+(`--cov=. --cov-config=.coveragerc --cov-report=term-missing --cov-fail-under=85`) -- a run fails
+outright if source coverage (test files themselves excluded) drops below 85%. No extra flags needed:
+
 ```bash
-pytest backend/tests/ --cov=backend --cov-report=term
+cd backend && pytest
 ```
 
-**Generate HTML coverage report:**
+**Generate an HTML coverage report** (in addition to the terminal report above):
 ```bash
-pytest backend/tests/ --cov=backend --cov-report=html
+cd backend && pytest --cov-report=html
 open htmlcov/index.html  # View in browser
-```
-
-**Coverage with missing lines:**
-```bash
-pytest backend/tests/ --cov=backend --cov-report=term-missing
 ```
 
 ### Test Configuration

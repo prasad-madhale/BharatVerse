@@ -213,16 +213,17 @@ See [bharatverse_app/README.md](bharatverse_app/README.md) for detailed instruct
 
 ## 🧪 Testing
 
+Every package (`backend/`, `scrapper/`, `common/`) enforces a minimum of **85% source coverage** on
+every `pytest` run (see each package's `pytest.ini` + `.coveragerc`) — a run fails outright if coverage
+drops below that, not just formatting/lint.
+
 ### Backend Tests
 ```bash
 # Activate virtual environment
 source .venv/bin/activate
 
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=backend --cov=scrapper
+# Run all tests (coverage report + 85% gate enforced automatically)
+cd backend && pytest
 
 # Run property-based tests only
 pytest -m property_test
@@ -231,22 +232,27 @@ pytest -m property_test
 ### Mobile Tests
 ```bash
 cd bharatverse_app
-flutter test
+flutter test --coverage
+../scripts/check_lcov_coverage.sh coverage/lcov.info 85 "lib/main.dart"
 ```
 
 ## 🚢 Deployment
 
 Deployment tooling (Dockerfile, hosting configuration) is not yet in place — see Phase 6 of the
-[roadmap](.kiro/specs/bharatverse-mvp/roadmap.md) for the plan. The root [`build.sh`](build.sh) currently handles
-dependency install, linting/formatting, and running the test suite.
+[roadmap](.kiro/specs/bharatverse-mvp/roadmap.md) for the plan. The root [`build.sh`](build.sh) handles
+dependency install, formatting, linting, and running the full test+coverage suite for every package
+(Python and Flutter). Run `./build.sh` locally to auto-fix formatting, or `./build.sh --check` to verify
+without mutating anything (this is what CI and the pre-push hook run).
 
 ## 🛠️ Development Workflow
 
-1. **Create feature branch**: `git checkout -b feature/your-feature`
-2. **Make changes** and write tests
-3. **Run tests**: `pytest` (backend) or `flutter test` (mobile)
-4. **Commit changes**: `git commit -m "feat: your feature"`
-5. **Push and create PR**: `git push origin feature/your-feature`
+1. **One-time setup**: `git config core.hooksPath scripts/git-hooks` — enables a pre-push hook that runs
+   `./build.sh --check` and blocks the push if formatting, linting, tests, or the 85% coverage gate fail.
+2. **Create feature branch**: `git checkout -b feature/your-feature`
+3. **Make changes** and write tests (aim to keep coverage at or above 85% for any package you touch)
+4. **Run tests**: `./build.sh` (whole repo) or `pytest`/`flutter test` (single package)
+5. **Commit changes**: `git commit -m "feat: your feature"`
+6. **Push and create PR**: `git push origin feature/your-feature` — the pre-push hook runs automatically
 
 ## 📝 Tech Stack
 

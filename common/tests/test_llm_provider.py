@@ -164,3 +164,166 @@ class TestGetLLMProvider:
         # Second call should return same instance
         provider2 = get_llm_provider()
         assert provider1 is provider2
+
+
+class TestGenerateText:
+    """Test generate_text() for each provider branch."""
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('google.generativeai.GenerativeModel')
+    @patch('google.generativeai.configure')
+    async def test_gemini_generate_text(self, mock_configure, mock_model_class, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "gemini"
+        mock_settings.gemini_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_model_instance = MagicMock()
+        mock_model_instance.generate_content.return_value = MagicMock(text="Generated gemini text")
+        mock_model_class.return_value = mock_model_instance
+
+        provider = LLMProvider()
+        result = await provider.generate_text("prompt")
+
+        assert result == "Generated gemini text"
+        mock_model_class.assert_called_once_with("gemini-2.5-flash")
+        mock_model_instance.generate_content.assert_called_once_with("prompt")
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('anthropic.Anthropic')
+    async def test_anthropic_generate_text(self, mock_anthropic_class, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "anthropic"
+        mock_settings.anthropic_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        mock_client.messages.create.return_value = MagicMock(content=[MagicMock(text="Generated anthropic text")])
+        mock_anthropic_class.return_value = mock_client
+
+        provider = LLMProvider()
+        result = await provider.generate_text("prompt", max_tokens=500)
+
+        assert result == "Generated anthropic text"
+        mock_client.messages.create.assert_called_once_with(
+            model="claude-3-haiku-20240307",
+            max_tokens=500,
+            messages=[{"role": "user", "content": "prompt"}],
+        )
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('openai.OpenAI')
+    async def test_openai_generate_text(self, mock_openai_class, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "openai"
+        mock_settings.openai_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        mock_choice = MagicMock(message=MagicMock(content="Generated openai text"))
+        mock_client.chat.completions.create.return_value = MagicMock(choices=[mock_choice])
+        mock_openai_class.return_value = mock_client
+
+        provider = LLMProvider()
+        result = await provider.generate_text("prompt")
+
+        assert result == "Generated openai text"
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('groq.Groq')
+    async def test_groq_generate_text(self, mock_groq_class, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "groq"
+        mock_settings.groq_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        mock_choice = MagicMock(message=MagicMock(content="Generated groq text"))
+        mock_client.chat.completions.create.return_value = MagicMock(choices=[mock_choice])
+        mock_groq_class.return_value = mock_client
+
+        provider = LLMProvider()
+        result = await provider.generate_text("prompt")
+
+        assert result == "Generated groq text"
+
+    async def test_unsupported_provider_raises_error(self):
+        """The provider-branch else in generate_text is defensive/unreachable via normal
+        construction (init already raises for unsupported providers) -- bypass __init__
+        via __new__ to exercise it directly."""
+        provider = LLMProvider.__new__(LLMProvider)
+        provider.provider = "unknown"
+        provider.client = MagicMock()
+        provider.model = "some-model"
+
+        with pytest.raises(ValueError, match="Unsupported provider"):
+            await provider.generate_text("prompt")
+
+
+class TestGenerateEmbedding:
+    """Test generate_embedding() for each provider branch."""
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('google.generativeai.embed_content')
+    @patch('google.generativeai.configure')
+    async def test_gemini_generate_embedding(self, mock_configure, mock_embed_content, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "gemini"
+        mock_settings.gemini_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_embed_content.return_value = {'embedding': [0.1, 0.2, 0.3]}
+
+        provider = LLMProvider()
+        result = await provider.generate_embedding("some text")
+
+        assert result == [0.1, 0.2, 0.3]
+        mock_embed_content.assert_called_once_with(model="models/embedding-001", content="some text")
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('openai.OpenAI')
+    async def test_openai_generate_embedding(self, mock_openai_class, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "openai"
+        mock_settings.openai_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        mock_client.embeddings.create.return_value = MagicMock(data=[MagicMock(embedding=[0.4, 0.5])])
+        mock_openai_class.return_value = mock_client
+
+        provider = LLMProvider()
+        result = await provider.generate_embedding("some text")
+
+        assert result == [0.4, 0.5]
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('openai.OpenAI')
+    @patch('groq.Groq')
+    async def test_unsupported_embedding_provider_falls_back_to_openai(
+        self, mock_groq_class, mock_openai_class, mock_get_settings
+    ):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "groq"
+        mock_settings.groq_api_key = "test-groq-key"
+        mock_settings.openai_api_key = "fallback-openai-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_groq_class.return_value = MagicMock()
+
+        mock_fallback_client = MagicMock()
+        mock_fallback_client.embeddings.create.return_value = MagicMock(data=[MagicMock(embedding=[0.7, 0.8])])
+        mock_openai_class.return_value = mock_fallback_client
+
+        provider = LLMProvider()
+        result = await provider.generate_embedding("some text")
+
+        assert result == [0.7, 0.8]
+        mock_openai_class.assert_called_once_with(api_key="fallback-openai-key")

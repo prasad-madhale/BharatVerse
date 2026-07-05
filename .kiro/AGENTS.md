@@ -57,16 +57,19 @@ Widget testing is implemented using the `flutter_test` package. Tests are locate
 
 ## Testing
 
+`backend/`, `scrapper/`, and `common/` each enforce a minimum of 85% source coverage on every `pytest`
+run automatically (via that package's `pytest.ini` addopts + `.coveragerc` -- test files themselves are
+excluded from the measurement). A run fails outright if coverage drops below that.
+
 ### Backend and Scrapper Tests
-From the project root with virtual environment activated:
+From the project root with virtual environment activated, run per-package (not from the repo root --
+each package's `pytest.ini`/`.coveragerc` is relative to its own directory):
 ```bash
-# Run all tests
-pytest
+cd backend && pytest    # coverage report + 85% gate enforced automatically
+cd scrapper && pytest -m "not integration"
+cd common && pytest
 
-# Run with coverage
-pytest --cov=backend --cov=scrapper
-
-# Run property-based tests only
+# Run property-based tests only (backend)
 pytest -m property_test
 ```
 
@@ -75,9 +78,17 @@ From the `bharatverse_app` directory:
 ```bash
 flutter test
 
-# With coverage
+# With coverage + 85% gate (main.dart excluded, it's pure bootstrapping)
 flutter test --coverage
+../scripts/check_lcov_coverage.sh coverage/lcov.info 85 "lib/main.dart"
 ```
+
+### Whole-repo build/format/lint/test
+`./build.sh` (repo root) installs dependencies, formats and lints everything, and runs every package's
+test+coverage suite. `./build.sh --check` runs the same checks non-mutating (fails instead of
+auto-fixing formatting) -- this is what CI and the pre-push hook run.
+
+One-time setup to enable the pre-push hook: `git config core.hooksPath scripts/git-hooks`.
 
 ## `scrapper` (Python Content Pipeline)
 

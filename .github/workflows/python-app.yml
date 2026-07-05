@@ -39,17 +39,22 @@ jobs:
     - name: Install Playwright browsers
       run: |
         playwright install --with-deps chromium
-    
+
+    - name: Check formatting with autopep8
+      run: |
+        # non-mutating: fails if any file would be reformatted
+        autopep8 --recursive --aggressive --aggressive --max-line-length=127 --exit-code --diff backend/ scrapper/ common/
+
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics \
           --exclude=.venv,.git,__pycache__,.pytest_cache,.hypothesis,bharatverse_app,scripts
-    
+
     - name: Test common with pytest
       run: |
         cd common
-        pytest
+        pytest -m "not integration"
 
     - name: Test scrapper with pytest
       run: |
@@ -60,3 +65,31 @@ jobs:
       run: |
         cd backend
         pytest -m "not integration" --reruns 2 --reruns-delay 5
+
+  flutter:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+
+    - name: Install dependencies
+      working-directory: bharatverse_app
+      run: flutter pub get
+
+    - name: Check formatting with dart format
+      working-directory: bharatverse_app
+      run: dart format --output=none --set-exit-if-changed .
+
+    - name: Analyze with flutter analyze
+      working-directory: bharatverse_app
+      run: flutter analyze
+
+    - name: Test with coverage
+      working-directory: bharatverse_app
+      run: flutter test --coverage
+
+    - name: Enforce coverage gate
+      run: ./scripts/check_lcov_coverage.sh bharatverse_app/coverage/lcov.info 85 "lib/main.dart"

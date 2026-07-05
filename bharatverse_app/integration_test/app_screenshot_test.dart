@@ -33,7 +33,8 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightGreen)),
+        theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightGreen)),
         home: HomeScreen(apiClient: apiClient),
       ),
     );
@@ -46,12 +47,14 @@ void main() {
     await binding.takeScreenshot('home_screen');
   });
 
-  testWidgets('ArticleDetailScreen renders the real generated article', (tester) async {
+  testWidgets('ArticleDetailScreen renders the real generated article',
+      (tester) async {
     final article = Article.fromJson(articleJson);
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightGreen)),
+        theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightGreen)),
         home: ArticleDetailScreen(article: article),
       ),
     );

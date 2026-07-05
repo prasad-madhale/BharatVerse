@@ -36,7 +36,8 @@ class ApiClient {
 
   Future<Article> getDailyArticle() => _getArticle('$baseUrl/articles/daily');
 
-  Future<Article> getArticleById(String id) => _getArticle('$baseUrl/articles/$id');
+  Future<Article> getArticleById(String id) =>
+      _getArticle('$baseUrl/articles/$id');
 
   Future<Article> _getArticle(String url) async {
     final http.Response response;

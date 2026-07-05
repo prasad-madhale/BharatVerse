@@ -34,27 +34,32 @@ void main() {
     });
 
     test('throws ApiException on 404', () async {
-      final mockClient = MockClient((request) async => http.Response('{}', 404));
+      final mockClient =
+          MockClient((request) async => http.Response('{}', 404));
       final client = ApiClient(client: mockClient);
 
       expect(
         () => client.getDailyArticle(),
-        throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 404)),
+        throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'statusCode', 404)),
       );
     });
 
     test('throws ApiException on server error', () async {
-      final mockClient = MockClient((request) async => http.Response('error', 500));
+      final mockClient =
+          MockClient((request) async => http.Response('error', 500));
       final client = ApiClient(client: mockClient);
 
       expect(
         () => client.getDailyArticle(),
-        throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500)),
+        throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500)),
       );
     });
 
     test('throws ApiException when the network request fails', () async {
-      final mockClient = MockClient((request) async => throw Exception('network down'));
+      final mockClient =
+          MockClient((request) async => throw Exception('network down'));
       final client = ApiClient(client: mockClient);
 
       expect(() => client.getDailyArticle(), throwsA(isA<ApiException>()));

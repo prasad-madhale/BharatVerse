@@ -44,7 +44,8 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
-  testWidgets('shows an error state with retry when the request fails', (tester) async {
+  testWidgets('shows an error state with retry when the request fails',
+      (tester) async {
     var callCount = 0;
     final mockClient = MockClient((request) async {
       callCount++;

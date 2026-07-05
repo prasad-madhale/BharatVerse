@@ -5,6 +5,9 @@ This file is automatically loaded by pytest and provides fixtures
 that can be used across all test modules.
 """
 
+import backend.database.supabase_client as supabase_module
+import backend.config as config_module
+from backend.database import get_supabase, initialize_supabase
 import pytest
 import os
 
@@ -20,10 +23,6 @@ import os
 os.environ.setdefault('SUPABASE_URL', 'https://test.supabase.co')
 os.environ.setdefault('SUPABASE_ANON_KEY', 'test-anon-key')
 os.environ.setdefault('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key')
-
-from backend.database import get_supabase, initialize_supabase
-import backend.config as config_module
-import backend.database.supabase_client as supabase_module
 
 
 @pytest.fixture(scope="function", autouse=True)

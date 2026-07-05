@@ -31,7 +31,8 @@ class ArticleCitation {
     required this.accessedDate,
   });
 
-  factory ArticleCitation.fromJson(Map<String, dynamic> json) => ArticleCitation(
+  factory ArticleCitation.fromJson(Map<String, dynamic> json) =>
+      ArticleCitation(
         text: json['text'] as String,
         sourceUrl: json['source_url'] as String,
         sourceName: json['source_name'] as String,
