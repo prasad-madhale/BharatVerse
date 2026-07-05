@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../models/article.dart';
@@ -13,18 +14,25 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Android emulator's alias for the host machine's localhost -- only
+/// resolves from inside the emulator, not on web/desktop/iOS simulator.
+const _androidEmulatorHostUrl = 'http://10.0.2.2:8000/api/v1';
+
+/// Real localhost, needed on web/desktop/iOS simulator since those run
+/// directly on the host machine (or in the host's browser).
+const _localhostUrl = 'http://localhost:8000/api/v1';
+
 class ApiClient {
-  /// Defaults to the Android emulator's alias for the host machine's
-  /// localhost (10.0.2.2), since that's the most common local dev target.
-  /// Override for iOS simulator/desktop/web (use 'http://localhost:8000/api/v1')
-  /// or a real device/deployed backend (LAN IP or public URL).
+  /// Defaults per-platform to the local dev backend. Override for a real
+  /// device or deployed backend (LAN IP or public URL).
   final String baseUrl;
   final http.Client _client;
 
   ApiClient({
-    this.baseUrl = 'http://10.0.2.2:8000/api/v1',
+    String? baseUrl,
     http.Client? client,
-  }) : _client = client ?? http.Client();
+  })  : baseUrl = baseUrl ?? (kIsWeb ? _localhostUrl : _androidEmulatorHostUrl),
+        _client = client ?? http.Client();
 
   Future<Article> getDailyArticle() => _getArticle('$baseUrl/articles/daily');
 
