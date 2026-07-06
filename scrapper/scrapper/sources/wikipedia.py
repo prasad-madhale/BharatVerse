@@ -7,6 +7,7 @@ Uses Wikipedia API for search/discovery + Crawl4AI for content extraction.
 import wikipedia
 import logging
 from typing import List, Dict, Optional
+from crawl4ai import CrawlerRunConfig, CacheMode
 from .base import ContentSource
 
 logger = logging.getLogger(__name__)
@@ -21,6 +22,21 @@ class WikipediaSource(ContentSource):
         super().__init__()
         wikipedia.set_user_agent('BharatVerse/1.0 (https://github.com/bharatverse)')
         wikipedia.set_lang('en')
+
+    def get_crawler_config(self) -> CrawlerRunConfig:
+        """
+        Scope extraction to Wikipedia's actual article content, excluding the
+        navigation chrome (sidebar, search box, language links, tool boxes)
+        that would otherwise dominate the first several thousand characters
+        of the extracted markdown -- #mw-content-text is MediaWiki's stable
+        content-area id, present on every Wikipedia article page.
+        """
+        return CrawlerRunConfig(
+            cache_mode=CacheMode.BYPASS,
+            page_timeout=30000,
+            word_count_threshold=100,
+            css_selector="#mw-content-text",
+        )
 
     def search_topic(
         self,

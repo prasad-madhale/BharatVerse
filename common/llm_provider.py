@@ -56,14 +56,21 @@ class LLMProvider:
 
         # Default models for each provider. The gemini-1.x line has been
         # fully retired by Google; gemini-2.5-flash is confirmed available
-        # (verified against ListModels as of 2026-07). The anthropic/openai/
-        # groq defaults below are unverified against live API keys and may
-        # also be stale -- confirm before relying on them.
+        # (verified against ListModels as of 2026-07). llama-3.1-70b-versatile
+        # has been retired by Groq; llama-3.3-70b-versatile is its confirmed
+        # available successor (verified against client.models.list() as of
+        # 2026-07), though it undershoots this pipeline's word-count target
+        # badly in practice -- prefer anthropic/gemini when quality matters.
+        # claude-sonnet-5 chosen over Haiku for grounding/instruction-following
+        # quality; article volume is low enough (~1/day) that cost is
+        # negligible either way. The openai default below is unverified
+        # against a live API key and may be stale -- confirm before relying
+        # on it.
         defaults = {
             "gemini": "gemini-2.5-flash",
-            "anthropic": "claude-3-haiku-20240307",
+            "anthropic": "claude-sonnet-5",
             "openai": "gpt-3.5-turbo",
-            "groq": "llama-3.1-70b-versatile"
+            "groq": "llama-3.3-70b-versatile"
         }
         return defaults.get(self.provider, "")
 
@@ -89,7 +96,11 @@ class LLMProvider:
                 max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt}]
             )
-            return response.content[0].text
+            # Extended-thinking-capable models (e.g. claude-sonnet-5) can put a
+            # ThinkingBlock before the actual TextBlock in content -- content[0]
+            # isn't reliably the answer, so find the text block(s) explicitly.
+            text_blocks = [block.text for block in response.content if block.type == "text"]
+            return "".join(text_blocks)
 
         elif self.provider == "openai":
             response = self.client.chat.completions.create(

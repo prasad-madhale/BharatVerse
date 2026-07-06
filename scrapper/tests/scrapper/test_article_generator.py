@@ -113,6 +113,18 @@ class TestGenerateArticle:
         assert article.title == "The Rise of the Mauryan Empire"
 
     @pytest.mark.asyncio
+    async def test_tolerates_literal_newline_inside_json_string_value(self):
+        # Regression test: LLMs sometimes emit a raw newline inside a JSON string
+        # value instead of the properly-escaped \n -- strict JSON parsing rejects
+        # this outright even though the content itself is perfectly usable.
+        response_with_raw_newline = VALID_LLM_RESPONSE.replace("shaped India", "shaped\nIndia")
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(response_with_raw_newline))
+
+        article = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire")
+
+        assert "shaped\nIndia" in article.content
+
+    @pytest.mark.asyncio
     async def test_sequence_number_used_in_id(self):
         generator = ArticleGenerator(llm_provider=FakeLLMProvider(VALID_LLM_RESPONSE))
 

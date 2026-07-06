@@ -30,6 +30,16 @@ class TestGenerateTopics:
 
         assert topics == ["Battle of Plassey"]
 
+    async def test_tolerates_literal_newline_inside_json_string_value(self):
+        # Regression test: LLMs sometimes emit a raw newline inside a JSON string
+        # value instead of the properly-escaped \n -- strict JSON parsing rejects
+        # this outright even though the content itself is perfectly usable.
+        generator = _make_generator('["Battle of\nPlassey"]')
+
+        topics = await generator.generate_topics(count=1, exclude_titles=[])
+
+        assert topics == ["Battle of\nPlassey"]
+
     async def test_truncates_to_requested_count(self):
         generator = _make_generator('["Topic A", "Topic B", "Topic C"]')
 
@@ -57,7 +67,7 @@ class TestGenerateTopics:
     async def test_raises_on_invalid_json(self):
         generator = _make_generator("not json at all")
 
-        with pytest.raises(TopicGenerationError, match="not valid JSON"):
+        with pytest.raises(TopicGenerationError, match="not a JSON array"):
             await generator.generate_topics(count=1, exclude_titles=[])
 
     async def test_raises_when_response_is_not_a_string_array(self):

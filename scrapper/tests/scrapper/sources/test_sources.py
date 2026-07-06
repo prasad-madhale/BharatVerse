@@ -17,6 +17,13 @@ class TestWikipediaSource:
         assert source.browser_config is not None
         assert source.crawler_config is not None
 
+    def test_crawler_config_scopes_to_main_content_area(self):
+        """Regression test: extraction must be scoped to #mw-content-text, not the
+        full page -- otherwise navigation chrome dominates the first several
+        thousand characters of extracted markdown, crowding out real article text."""
+        source = WikipediaSource()
+        assert source.crawler_config.css_selector == "#mw-content-text"
+
     def test_search_topic_returns_results(self):
         """Test that search_topic returns results for valid topic."""
         source = WikipediaSource()

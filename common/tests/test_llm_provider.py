@@ -44,7 +44,7 @@ class TestLLMProviderInitialization:
         provider = LLMProvider()
 
         assert provider.provider == "anthropic"
-        assert provider.model == "claude-3-haiku-20240307"
+        assert provider.model == "claude-sonnet-5"
         mock_anthropic_class.assert_called_once_with(api_key="test-anthropic-key")
         assert provider.client == mock_client
 
@@ -83,7 +83,7 @@ class TestLLMProviderInitialization:
         provider = LLMProvider()
 
         assert provider.provider == "groq"
-        assert provider.model == "llama-3.1-70b-versatile"
+        assert provider.model == "llama-3.3-70b-versatile"
         mock_groq_class.assert_called_once_with(api_key="test-groq-key")
 
     @patch('common.llm_provider.get_llm_settings')
@@ -138,7 +138,7 @@ class TestLLMProviderModelDefaults:
         mock_get_settings.return_value = mock_settings
 
         provider = LLMProvider()
-        assert provider.model == "claude-3-haiku-20240307"
+        assert provider.model == "claude-sonnet-5"
 
 
 class TestGetLLMProvider:
@@ -200,7 +200,8 @@ class TestGenerateText:
         mock_get_settings.return_value = mock_settings
 
         mock_client = MagicMock()
-        mock_client.messages.create.return_value = MagicMock(content=[MagicMock(text="Generated anthropic text")])
+        text_block = MagicMock(type="text", text="Generated anthropic text")
+        mock_client.messages.create.return_value = MagicMock(content=[text_block])
         mock_anthropic_class.return_value = mock_client
 
         provider = LLMProvider()
@@ -208,10 +209,32 @@ class TestGenerateText:
 
         assert result == "Generated anthropic text"
         mock_client.messages.create.assert_called_once_with(
-            model="claude-3-haiku-20240307",
+            model="claude-sonnet-5",
             max_tokens=500,
             messages=[{"role": "user", "content": "prompt"}],
         )
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('anthropic.Anthropic')
+    async def test_anthropic_generate_text_skips_leading_thinking_block(self, mock_anthropic_class, mock_get_settings):
+        """Extended-thinking-capable models can put a ThinkingBlock before the TextBlock."""
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "anthropic"
+        mock_settings.anthropic_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        thinking_block = MagicMock(type="thinking")
+        del thinking_block.text  # ThinkingBlock has no .text attribute
+        text_block = MagicMock(type="text", text="Generated anthropic text")
+        mock_client.messages.create.return_value = MagicMock(content=[thinking_block, text_block])
+        mock_anthropic_class.return_value = mock_client
+
+        provider = LLMProvider()
+        result = await provider.generate_text("prompt")
+
+        assert result == "Generated anthropic text"
 
     @patch('common.llm_provider.get_llm_settings')
     @patch('openai.OpenAI')

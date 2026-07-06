@@ -12,7 +12,7 @@ pydantic-settings>=2.6.0
 
 # LLM and AI
 google-generativeai==0.3.2  # Google Gemini (FREE - default)
-anthropic==0.18.1           # Anthropic Claude (optional)
+anthropic==0.116.0          # Anthropic Claude (optional) -- 0.18.1 predates current model IDs
 openai>=1.55.3              # OpenAI (optional) -- must match scrapper/requirements.txt's floor
                              # (crawl4ai's litellm dependency), since CI installs both into
                              # the same environment sequentially

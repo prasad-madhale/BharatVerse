@@ -1,8 +1,11 @@
 name: Daily article pipeline
 
 on:
-  schedule:
-    - cron: '30 3 * * *'  # 03:30 UTC / ~9AM IST
+  # Schedule trigger intentionally disabled until the pipeline's output quality
+  # is confirmed reliable -- see .kiro/specs/bharatverse-mvp/roadmap.md Phase 4.
+  # Re-enable by uncommenting below once satisfied.
+  # schedule:
+  #   - cron: '30 3 * * *'  # 03:30 UTC / ~9AM IST
   workflow_dispatch: {}
 
 permissions:
@@ -31,8 +34,8 @@ jobs:
     - name: Run the daily content pipeline
       run: python scrapper/scrapper_main.py --count 1
       env:
-        LLM_PROVIDER: gemini
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        LLM_PROVIDER: anthropic
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -6,8 +6,9 @@ Indian history topics, explicitly avoiding anything already published, so
 the daily scheduler doesn't need a hand-curated topic list.
 """
 
-import json
 import logging
+
+import json_repair
 
 from common.llm_provider import LLMProvider, get_llm_provider
 
@@ -90,12 +91,12 @@ class TopicGenerator:
                 text = text[len("json"):]
             text = text.strip()
 
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError as e:
-            raise TopicGenerationError(
-                f"LLM response was not valid JSON: {e}\nResponse was: {raw_response[:500]}"
-            ) from e
+        # json_repair tolerates the malformed-but-recoverable JSON LLMs commonly
+        # produce (unescaped quotes/newlines inside string values, trailing
+        # commas, etc.) instead of failing outright on the first minor escaping
+        # mistake. On genuinely non-JSON input it returns '' rather than
+        # raising, which the isinstance check in the caller below handles.
+        parsed = json_repair.loads(text)
 
         if not isinstance(parsed, list) or not all(isinstance(t, str) and t.strip() for t in parsed):
             raise TopicGenerationError(

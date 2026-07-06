@@ -8,9 +8,10 @@ reading time, content assembly -- directly from the scraped source data
 rather than trusting the LLM to produce it accurately.
 """
 
-import json
 import logging
 from datetime import date, datetime, timezone
+
+import json_repair
 
 from common.llm_provider import LLMProvider, get_llm_provider
 from common.models import Article, Citation, Section
@@ -57,10 +58,14 @@ Transform the scraped source material below (topic: "{topic}") into a structured
 # Structure
 - Compelling, specific title (not generic, not clickbait that oversells beyond the facts)
 - A 2-3 sentence summary that captures the hook, not just a topic restatement
-- 4-6 sections, each with a heading and Markdown-formatted content
-- STRICT LIMIT: the article body (all sections combined) must be between 1500 and 2000 words
-  total. Do not exceed 2000 words under any circumstances -- prioritize depth over breadth of
-  coverage to stay within this limit.
+- 4-6 sections, each with a heading and substantial Markdown-formatted content -- aim for
+  roughly 300-450 words per section, not a couple of short paragraphs each.
+- STRICT LENGTH REQUIREMENT: the article body (all sections combined) must land between 1500
+  and 2000 words total -- this is a hard requirement in BOTH directions, not just a ceiling.
+  Under 1500 words is just as much a failure as over 2000: it will be automatically rejected
+  either way. If you're unsure whether you've written enough, add more concrete detail, examples,
+  or context from the source material to each section rather than stopping early -- do not treat
+  concision as a virtue here. Count roughly as you go and keep expanding sections that are thin.
 - Provide 3-6 relevant lowercase, hyphenated tags (e.g. "mauryan-empire", "ancient-india")
 
 # Source material
@@ -117,7 +122,11 @@ class ArticleGenerator:
             )
 
         prompt = self._build_prompt(scraped_content, topic)
-        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=4000)
+        # Generous ceiling, not a cost driver (billed on actual usage) -- needs
+        # headroom beyond the ~2000-word article itself since extended-thinking
+        # -capable models (e.g. claude-sonnet-5) spend part of this budget on
+        # internal reasoning before producing the final JSON.
+        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=8000)
         parsed = self._parse_llm_response(raw_response)
 
         sections = self._build_sections(parsed)
@@ -158,12 +167,16 @@ class ArticleGenerator:
                 text = text[len("json"):]
             text = text.strip()
 
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError as e:
+        # json_repair tolerates the malformed-but-recoverable JSON LLMs commonly
+        # produce in prose-heavy responses (unescaped quotes/newlines inside
+        # string values, trailing commas, etc.) instead of failing outright on
+        # the first minor escaping mistake. On genuinely non-JSON input it
+        # returns '' rather than raising, hence the explicit dict check below.
+        parsed = json_repair.loads(text)
+        if not isinstance(parsed, dict):
             raise ArticleGenerationError(
-                f"LLM response was not valid JSON: {e}\nResponse was: {raw_response[:500]}"
-            ) from e
+                f"LLM response was not valid JSON: {raw_response[:500]}"
+            )
 
         missing = [
             field for field in ("title", "summary", "sections")
