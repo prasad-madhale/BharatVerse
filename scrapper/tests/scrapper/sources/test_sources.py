@@ -4,6 +4,7 @@ Unit tests for content sources.
 
 from scrapper.sources.wikipedia import WikipediaSource
 from scrapper.sources.archive_org import ArchiveOrgSource
+from scrapper.sources.new_world_encyclopedia import NewWorldEncyclopediaSource
 
 
 class TestWikipediaSource:
@@ -104,6 +105,42 @@ class TestArchiveOrgSource:
         assert len(results) <= 2
 
 
+class TestNewWorldEncyclopediaSource:
+    """Tests for NewWorldEncyclopediaSource."""
+
+    def test_init(self):
+        """Test New World Encyclopedia source initialization."""
+        source = NewWorldEncyclopediaSource()
+        assert source.name == "new_world_encyclopedia"
+        assert source.browser_config is not None
+        assert source.crawler_config is not None
+
+    def test_search_topic_guesses_entry_url(self):
+        """Test that search_topic builds the direct /entry/{Topic} URL guess."""
+        source = NewWorldEncyclopediaSource()
+        results = source.search_topic("Chandragupta Maurya")
+
+        assert results == [{
+            "title": "Chandragupta Maurya",
+            "url": "https://www.newworldencyclopedia.org/entry/Chandragupta_Maurya",
+            "summary": "Chandragupta Maurya",
+        }]
+
+    def test_search_topic_strips_surrounding_whitespace(self):
+        """Test that search_topic normalizes surrounding whitespace before building the URL."""
+        source = NewWorldEncyclopediaSource()
+        results = source.search_topic("  Kalinga War  ")
+
+        assert results[0]["url"] == "https://www.newworldencyclopedia.org/entry/Kalinga_War"
+
+    def test_search_topic_ignores_max_results(self):
+        """Test that search_topic always returns exactly one candidate regardless of max_results."""
+        source = NewWorldEncyclopediaSource()
+        results = source.search_topic("Ashoka", max_results=5)
+
+        assert len(results) == 1
+
+
 class TestSourceRegistry:
     """Tests for SourceRegistry."""
 
@@ -134,11 +171,14 @@ class TestSourceRegistry:
         registry = SourceRegistry()
         wiki = WikipediaSource()
         archive = ArchiveOrgSource()
+        nwe = NewWorldEncyclopediaSource()
 
         registry.register(wiki)
         registry.register(archive)
+        registry.register(nwe)
 
         sources = registry.list_sources()
         assert "wikipedia" in sources
         assert "archive_org" in sources
-        assert len(sources) == 2
+        assert "new_world_encyclopedia" in sources
+        assert len(sources) == 3

@@ -165,6 +165,33 @@ class TestGenerateArticle:
         assert "geographically extensive empire" in llm.last_prompt
 
     @pytest.mark.asyncio
+    async def test_prompt_gives_each_source_a_fair_share_of_the_char_budget(self):
+        # Regression test: a single oversized source used to be able to consume the
+        # entire MAX_SOURCE_CHARS budget via naive concatenate-then-truncate,
+        # silently dropping every other source's content from the prompt.
+        from scrapper.article_generator import MAX_SOURCE_CHARS
+
+        oversized = make_scraped_content(
+            source_url="https://en.wikipedia.org/wiki/Some_Unrelated_Long_Page",
+            source="wikipedia",
+        )
+        oversized.raw_text = "x" * (MAX_SOURCE_CHARS * 2)
+
+        distinctive_marker = "THIS_IS_THE_SECOND_SOURCE_CONTENT"
+        second_source = make_scraped_content(
+            source_url="https://www.newworldencyclopedia.org/entry/Some_Topic",
+            source="new_world_encyclopedia",
+        )
+        second_source.raw_text = distinctive_marker
+
+        llm = FakeLLMProvider(VALID_LLM_RESPONSE)
+        generator = ArticleGenerator(llm_provider=llm)
+
+        await generator.generate_article([oversized, second_source], topic="Some Topic")
+
+        assert distinctive_marker in llm.last_prompt
+
+    @pytest.mark.asyncio
     async def test_defaults_to_shared_llm_provider_singleton(self, monkeypatch):
         fake = FakeLLMProvider(VALID_LLM_RESPONSE)
         monkeypatch.setattr("scrapper.article_generator.get_llm_provider", lambda: fake)

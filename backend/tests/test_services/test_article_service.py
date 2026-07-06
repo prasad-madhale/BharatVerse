@@ -161,6 +161,61 @@ class TestGetArticleById:
         )
 
 
+class TestListRecentTitles:
+    @pytest.mark.asyncio
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_returns_titles_in_response_order(
+        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
+        query.execute.return_value.data = [{"title": "Battle of Plassey"}, {"title": "Rani Lakshmibai"}]
+
+        service = ArticleService()
+        titles = await service.list_recent_titles()
+
+        assert titles == ["Battle of Plassey", "Rani Lakshmibai"]
+
+    @pytest.mark.asyncio
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_passes_limit_and_orders_by_date_descending(
+        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
+        query.execute.return_value.data = []
+
+        service = ArticleService()
+        await service.list_recent_titles(limit=50)
+
+        mock_supabase_client.table.return_value.select.return_value.order.assert_called_once_with(
+            "date", desc=True
+        )
+        mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.assert_called_once_with(
+            50
+        )
+
+    @pytest.mark.asyncio
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_returns_empty_list_when_no_articles(
+        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
+        query.execute.return_value.data = []
+
+        service = ArticleService()
+        titles = await service.list_recent_titles()
+
+        assert titles == []
+
+
 class TestGetDailyArticle:
     @pytest.mark.asyncio
     @patch("backend.services.article_service.get_supabase")

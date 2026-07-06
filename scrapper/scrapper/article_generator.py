@@ -138,11 +138,15 @@ class ArticleGenerator:
         )
 
     def _build_prompt(self, scraped_content: list[ScrapedContent], topic: str) -> str:
+        # Give each source a fair, even share of the character budget rather than
+        # truncating the concatenated whole -- otherwise one oversized source (e.g. a
+        # long but tangential Wikipedia page) can silently crowd out every other
+        # source's content entirely, even when those sources are more on-topic.
+        per_source_budget = max(1, MAX_SOURCE_CHARS // len(scraped_content))
         source_text = "\n\n".join(
-            f"--- Source: {c.source_url} ---\n{c.raw_text}" for c in scraped_content
+            f"--- Source: {c.source_url} ---\n{c.raw_text[:per_source_budget]}"
+            for c in scraped_content
         )
-        if len(source_text) > MAX_SOURCE_CHARS:
-            source_text = source_text[:MAX_SOURCE_CHARS]
         return PROMPT_TEMPLATE.format(topic=topic, source_text=source_text)
 
     def _parse_llm_response(self, raw_response: str) -> dict:

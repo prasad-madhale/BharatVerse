@@ -63,6 +63,23 @@ class ArticleService:
             return None
         return self._load_article(client, response.data[0])
 
+    async def list_recent_titles(self, limit: int = 200) -> list[str]:
+        """
+        Titles of the most recently published articles, most recent first.
+
+        Used by the topic generator to avoid proposing a topic that
+        duplicates something already published.
+        """
+        client = get_supabase().get_client()
+        response = (
+            client.table("articles")
+            .select("title")
+            .order("date", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return [row["title"] for row in response.data]
+
     async def get_daily_article(self) -> Article | None:
         """
         Retrieve the current daily article.
