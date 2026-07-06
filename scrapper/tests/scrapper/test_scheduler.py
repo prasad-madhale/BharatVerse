@@ -10,6 +10,7 @@ orchestration logic only, not any real scraping/LLM/Supabase behavior
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from scrapper import scheduler
+from scrapper.article_generator import ArticleGenerationError
 
 
 def _make_article(article_id="art_20260705_001", title="Some Article"):
@@ -176,3 +177,75 @@ class TestRunDailyPipeline:
 
         assert mock_generator.generate_article.await_count == 2
         mock_service.save_article.assert_not_awaited()
+
+    @patch("scrapper.scheduler.ArticleService")
+    @patch("scrapper.scheduler.TopicGenerator")
+    @patch("scrapper.scheduler.WebScraper")
+    @patch("scrapper.scheduler.ArticleGenerator")
+    @patch("scrapper.scheduler.ContentValidator")
+    async def test_retries_once_on_generation_error_then_publishes(
+        self, mock_validator_cls, mock_generator_cls, mock_scraper_cls,
+        mock_topic_gen_cls, mock_service_cls,
+    ):
+        # Regression test: ArticleGenerationError (e.g. unparseable LLM JSON) used
+        # to propagate uncaught and crash the entire run, not just skip the topic.
+        mock_service = mock_service_cls.return_value
+        mock_service.list_recent_titles = AsyncMock(return_value=[])
+        mock_service.save_article = AsyncMock()
+
+        mock_topic_gen = mock_topic_gen_cls.return_value
+        mock_topic_gen.generate_topics = AsyncMock(return_value=["Topic With Bad JSON Once"])
+
+        mock_scraper = mock_scraper_cls.return_value
+        mock_scraper.search_and_scrape = AsyncMock(return_value=["scraped content"])
+
+        second_attempt = _make_article("art_good")
+        mock_generator = mock_generator_cls.return_value
+        mock_generator.generate_article = AsyncMock(
+            side_effect=[ArticleGenerationError("not valid JSON"), second_attempt]
+        )
+
+        mock_validator = mock_validator_cls.return_value
+        mock_validator.validate.return_value = (True, [])
+
+        await scheduler.run_daily_pipeline(count=1)
+
+        assert mock_generator.generate_article.await_count == 2
+        mock_service.save_article.assert_awaited_once_with(second_attempt)
+
+    @patch("scrapper.scheduler.ArticleService")
+    @patch("scrapper.scheduler.TopicGenerator")
+    @patch("scrapper.scheduler.WebScraper")
+    @patch("scrapper.scheduler.ArticleGenerator")
+    @patch("scrapper.scheduler.ContentValidator")
+    async def test_generation_error_on_one_topic_does_not_abort_the_rest_of_the_batch(
+        self, mock_validator_cls, mock_generator_cls, mock_scraper_cls,
+        mock_topic_gen_cls, mock_service_cls,
+    ):
+        mock_service = mock_service_cls.return_value
+        mock_service.list_recent_titles = AsyncMock(return_value=[])
+        mock_service.save_article = AsyncMock()
+
+        mock_topic_gen = mock_topic_gen_cls.return_value
+        mock_topic_gen.generate_topics = AsyncMock(return_value=["Always Broken Topic", "Fine Topic"])
+
+        mock_scraper = mock_scraper_cls.return_value
+        mock_scraper.search_and_scrape = AsyncMock(return_value=["scraped content"])
+
+        good_article = _make_article("art_good")
+        mock_generator = mock_generator_cls.return_value
+        mock_generator.generate_article = AsyncMock(
+            side_effect=[
+                ArticleGenerationError("not valid JSON"),
+                ArticleGenerationError("still not valid JSON"),
+                good_article,
+            ]
+        )
+
+        mock_validator = mock_validator_cls.return_value
+        mock_validator.validate.return_value = (True, [])
+
+        await scheduler.run_daily_pipeline(count=2)
+
+        assert mock_generator.generate_article.await_count == 3
+        mock_service.save_article.assert_awaited_once_with(good_article)

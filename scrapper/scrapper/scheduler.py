@@ -10,20 +10,26 @@ ContentValidator's automated checks stand in for it for now.
 import logging
 
 from backend.services.article_service import ArticleService
-from scrapper.article_generator import ArticleGenerator
+from common.models import Article
+from scrapper.article_generator import ArticleGenerationError, ArticleGenerator
 from scrapper.content_validator import ContentValidator
+from scrapper.models.article import ScrapedContent
 from scrapper.topic_generator import TopicGenerator
 from scrapper.web_scraper import WebScraper
 
 logger = logging.getLogger(__name__)
 
 SOURCES = ["wikipedia", "archive_org", "new_world_encyclopedia"]
+MAX_GENERATION_ATTEMPTS = 2
 
 
 async def run_daily_pipeline(count: int = 1) -> None:
     """
     Generate and publish `count` new article(s), each on a topic not
     already covered by an existing article.
+
+    A single topic failing (unscrapable, or generation/validation failing
+    twice) is logged and skipped -- it never aborts the rest of the batch.
     """
     article_service = ArticleService()
     topic_generator = TopicGenerator()
@@ -56,16 +62,37 @@ async def _generate_and_publish_one(
         return
     logger.info(f"Scraped {len(scraped)} page(s) for '{topic}'")
 
-    article = await generator.generate_article(scraped, topic=topic, sequence=sequence)
-    valid, issues = validator.validate(article)
-
-    if not valid:
-        logger.warning(f"Validation failed for '{topic}': {issues}. Retrying generation once.")
-        article = await generator.generate_article(scraped, topic=topic, sequence=sequence)
-        valid, issues = validator.validate(article)
-        if not valid:
-            logger.error(f"Still invalid after retry, skipping '{topic}': {issues}")
-            return
+    article = await _generate_valid_article(scraped, topic, sequence, generator, validator)
+    if article is None:
+        logger.error(f"Giving up on '{topic}' after {MAX_GENERATION_ATTEMPTS} attempt(s)")
+        return
 
     await article_service.save_article(article)
     logger.info(f"Published {article.id}: {article.title}")
+
+
+async def _generate_valid_article(
+    scraped: list[ScrapedContent],
+    topic: str,
+    sequence: int,
+    generator: ArticleGenerator,
+    validator: ContentValidator,
+) -> Article | None:
+    """
+    Generate an article and validate it, retrying up to MAX_GENERATION_ATTEMPTS
+    times on either a generation failure (e.g. unparseable LLM output) or a
+    content-validation failure. Returns None if every attempt fails.
+    """
+    for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
+        try:
+            article = await generator.generate_article(scraped, topic=topic, sequence=sequence)
+        except ArticleGenerationError as e:
+            logger.warning(f"Generation failed for '{topic}' (attempt {attempt}): {e}")
+            continue
+
+        valid, issues = validator.validate(article)
+        if valid:
+            return article
+        logger.warning(f"Validation failed for '{topic}' (attempt {attempt}): {issues}")
+
+    return None
