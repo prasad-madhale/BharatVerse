@@ -4,8 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:bharatverse_app/screens/home_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
+import 'package:bharatverse_app/state/auth_state.dart';
+
+class MockGoTrueClient extends Mock implements GoTrueClient {}
 
 Map<String, dynamic> sampleArticleJson() => {
       'id': 'art_20260703_001',
@@ -23,6 +29,21 @@ Map<String, dynamic> sampleArticleJson() => {
       'image_url': null,
     };
 
+/// Wraps HomeScreen with a signed-out AuthState -- HomeScreen's account icon
+/// (a Consumer widget for AuthState) needs a Provider ancestor regardless of
+/// whether a given test cares about auth at all.
+Widget _wrapWithProviders(ApiClient apiClient) {
+  final mockAuthClient = MockGoTrueClient();
+  when(() => mockAuthClient.currentUser).thenReturn(null);
+  when(() => mockAuthClient.onAuthStateChange)
+      .thenAnswer((_) => const Stream.empty());
+
+  return ChangeNotifierProvider(
+    create: (_) => AuthState(authClient: mockAuthClient),
+    child: MaterialApp(home: HomeScreen(apiClient: apiClient)),
+  );
+}
+
 void main() {
   testWidgets('shows the daily article once loaded', (tester) async {
     final mockClient = MockClient((request) async {
@@ -30,9 +51,7 @@ void main() {
     });
     final apiClient = ApiClient(client: mockClient);
 
-    await tester.pumpWidget(
-      MaterialApp(home: HomeScreen(apiClient: apiClient)),
-    );
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
 
     // Loading state first.
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -56,9 +75,7 @@ void main() {
     });
     final apiClient = ApiClient(client: mockClient);
 
-    await tester.pumpWidget(
-      MaterialApp(home: HomeScreen(apiClient: apiClient)),
-    );
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.error_outline), findsOneWidget);
@@ -76,9 +93,7 @@ void main() {
     });
     final apiClient = ApiClient(client: mockClient);
 
-    await tester.pumpWidget(
-      MaterialApp(home: HomeScreen(apiClient: apiClient)),
-    );
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(Card));
@@ -86,5 +101,24 @@ void main() {
 
     // Detail screen renders the markdown section heading.
     expect(find.text('Origins'), findsOneWidget);
+  });
+
+  testWidgets(
+      'shows a sign-in icon when logged out and opens AuthScreen on tap',
+      (tester) async {
+    final mockClient = MockClient((request) async {
+      return http.Response(jsonEncode(sampleArticleJson()), 200);
+    });
+    final apiClient = ApiClient(client: mockClient);
+
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.login), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.login));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sign In'), findsWidgets);
   });
 }

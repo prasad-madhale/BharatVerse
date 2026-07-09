@@ -15,6 +15,7 @@ dependencies:
   provider: ^6.1.2
   http: ^1.6.0
   flutter_markdown_plus: ^1.0.7
+  supabase_flutter: ^2.8.0
 
 dev_dependencies:
   flutter_test:
@@ -24,6 +25,7 @@ dev_dependencies:
     sdk: flutter
 
   flutter_lints: ^5.0.0
+  mocktail: ^1.0.4
 
 flutter:
   uses-material-design: true

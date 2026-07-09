@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/article.dart';
 import '../services/api_client.dart';
+import '../state/auth_state.dart';
 import 'article_detail_screen.dart';
+import 'auth_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final ApiClient apiClient;
@@ -31,7 +34,24 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('BharatVerse')),
+      appBar: AppBar(
+        title: const Text('BharatVerse'),
+        actions: [
+          Consumer<AuthState>(
+            builder: (context, authState, _) => IconButton(
+              icon: Icon(authState.isAuthenticated
+                  ? Icons.account_circle
+                  : Icons.login),
+              tooltip: authState.isAuthenticated ? 'Sign out' : 'Sign in',
+              onPressed: () => authState.isAuthenticated
+                  ? authState.logout()
+                  : Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AuthScreen()),
+                    ),
+            ),
+          ),
+        ],
+      ),
       body: FutureBuilder<Article>(
         future: _dailyArticle,
         builder: (context, snapshot) {

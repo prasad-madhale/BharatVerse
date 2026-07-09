@@ -9,6 +9,7 @@ supabase==2.9.0  # Supabase Python client (includes postgrest and httpx dependen
 # Data validation and serialization
 pydantic>=2.10.0
 pydantic-settings>=2.6.0
+email-validator==2.3.0      # Required for pydantic's EmailStr (used in auth request models)
 
 # LLM and AI
 google-generativeai==0.3.2  # Google Gemini (FREE - default)
