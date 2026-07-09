@@ -69,12 +69,16 @@ One documented sequence takes a hardcoded topic through scrapper → Supabase �
 
 ---
 
-## Phase 1 — Auth (Supabase Auth, backend + mobile)
+## Phase 1 — Auth (Supabase Auth, backend + mobile) — DONE, VERIFIED LIVE
 
-- `backend/services/auth_service.py` — thin wrapper over Supabase Auth calls (`sign_up`, `sign_in_with_password`, `sign_in_with_oauth`, `refresh_session`). No bcrypt/JWT issuance code.
-- JWT-validation middleware dependency for protecting later endpoints (likes).
-- Mobile: `Supabase.initialize(...)` + `lib/screens/auth_screen.dart` using the SDK's built-in sign-up/sign-in/OAuth — no custom token storage needed, the SDK handles session persistence.
-- **Risk**: Google/Facebook OAuth app registration has real external review lead time (days). Start registration in parallel with Phase 0 work. Consider shipping email/password first, OAuth as a fast-follow within this phase.
+Email/password only; OAuth deferred as a fast-follow (real external review lead time, per the risk noted below — not yet started). Anonymous browsing is unchanged; auth is an optional path via an account icon, not a login wall.
+
+- `backend/services/auth_service.py`, `backend/api/auth.py` (`/auth/signup`, `/login`, `/logout`) — thin wrappers over Supabase Auth, no bcrypt/JWT issuance code.
+- `backend/api/deps.py`'s `get_current_user` — the JWT-validation dependency for protecting later endpoints (likes). Verifies via `client.auth.get_user(token)` (network round-trip, no new JWT dependency) rather than local signature verification. Not consumed by any endpoint yet — Phase 3 is the first real consumer.
+- Mobile: `Supabase.initialize(...)` + `lib/state/auth_state.dart` + `lib/screens/auth_screen.dart`, using the SDK's built-in sign-up/sign-in directly (not proxied through our own `/auth/*` endpoints) so session persistence/refresh is handled automatically.
+- Verified live end-to-end: signup, login (incl. wrong-password rejection), the existing `on_auth_user_created` trigger populating `public.users`, token verification (valid + garbage), logout, and the full flow through the real Flutter web UI.
+- **Found via live testing**: the target Supabase project had email confirmation enabled, which silently prevented signup from returning a session (would have broken the mobile flow). Disabled via the dashboard after confirming with the user — a blind `supabase config push` was considered and rejected as too risky (would overwrite other live auth settings not visible locally).
+- **Risk (unchanged, still applies to the OAuth fast-follow)**: Google/Facebook OAuth app registration has real external review lead time (days) — not yet started.
 
 **Reference**: `tasks.md` §12.
 
