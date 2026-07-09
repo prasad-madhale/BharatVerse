@@ -1,16 +1,21 @@
 # BharatVerse MVP: Build Roadmap
 
-## Status as of 2026-07-03
+## Status as of 2026-07-08
 
-A direct code audit (not just a doc review) found this project earlier-stage than `requirements.md`/`design.md`/`tasks.md` suggest. No article has ever gone end-to-end: scrape → LLM-generate → validate → store → serve → display. This roadmap sequences the rebuild as a **vertical slice first**, then broadens phase by phase toward full MVP scope.
+A direct code audit (not just a doc review) found this project earlier-stage than `requirements.md`/`design.md`/`tasks.md` suggest. No article had ever gone end-to-end: scrape → LLM-generate → validate → store → serve → display. This roadmap sequences the rebuild as a **vertical slice first**, then broadens phase by phase toward full MVP scope. That vertical slice, plus Phase 4 (pulled forward out of numeric order at explicit request), are now both done and verified live — see below.
 
 This doc governs *sequencing*. `tasks.md` remains the granular reference for property-test coverage (36 correctness properties) — each phase below cross-references the relevant `tasks.md` sections rather than duplicating them. `design.md` remains the architectural reference.
 
 ### What's actually real today
-- **common/** (new): `llm_provider.py` + `config.py` (multi-provider LLM abstraction, shared settings) and `models.py` (`Article`/`Section`/`Citation`, shared by scrapper and backend) — extracted so the content pipeline doesn't depend on the backend service and the two don't drift on data shapes.
-- **scrapper/**: `WebScraper`, `ArticleGenerator`, and `scrapper_main.py` — all real, tested, and verified end-to-end against the live Gemini API and real Wikipedia scrapes (~1900 words / 13 min reading time, deduplicated citations). Content validation, topic selection, and scheduling still don't exist (Phase 4).
-- **backend/**: `config.py`, the Supabase client wrapper, `database/schema.sql`, `models/article.py` (`ArticleRecord`), `services/article_service.py`, `api/articles.py`, and `main.py` are all real. **Fully verified live end-to-end**: a fresh Supabase project (`jicmqxfqpbtjhwhuiohq`, replacing the dead one) has `schema.sql` applied and the `articles` Storage bucket created; `scrapper_main.py`'s output was saved via `ArticleService.save_article`, read back with matching content, and served over real HTTP via `GET /api/v1/articles/daily`. Auth, search, and likes still don't exist.
-- **bharatverse_app/**: `lib/models/article.dart`, `lib/services/api_client.dart`, `lib/screens/home_screen.dart`, `lib/screens/article_detail_screen.dart` are real, replacing the counter-app template. `flutter analyze` clean, `flutter test` 10/10 passing (model parsing, `ApiClient` against mocked HTTP responses, widget tests for loading/error/retry/navigation). Not yet visually verified in a running browser/simulator. Auth/search/likes/offline-cache screens still don't exist (later phases).
+- **common/**: `llm_provider.py` + `config.py` (multi-provider LLM abstraction, shared settings) and `models.py` (`Article`/`Section`/`Citation`, shared by scrapper and backend). Default provider is now **Claude Sonnet 5** (switched from Gemini after its free daily quota ran out mid-testing; Groq's free tier was tried and rejected — weaker instruction-following on word-count targets).
+- **scrapper/**: `WebScraper`, `ArticleGenerator`, `TopicGenerator`, `ContentValidator`, `scheduler.py`, and three registered sources (`WikipediaSource`, `ArchiveOrgSource`, `NewWorldEncyclopediaSource`) — all real, tested, and verified end-to-end against live Claude Sonnet 5 + real multi-source scrapes. `scrapper_main.py` is now a thin `--count N` CLI wrapper around the scheduler, not a hardcoded topic. Ground rules (85% coverage gate, blocking format/lint) enforced on every commit.
+- **backend/**: `config.py`, the Supabase client wrapper, `database/schema.sql`, `models/article.py` (`ArticleRecord`), `services/article_service.py` (now includes `list_recent_titles` for topic dedup), `api/articles.py`, and `main.py` are all real and verified live end-to-end. Auth, search, and likes still don't exist.
+- **bharatverse_app/**: `lib/models/article.dart`, `lib/services/api_client.dart`, `lib/screens/home_screen.dart`, `lib/screens/article_detail_screen.dart` are real. **Visually verified live**: `flutter run -d web-server` + Firefox renders a real generated article correctly end-to-end (home screen → detail screen, tags, sections, citations all correct). Auth/search/likes/offline-cache screens still don't exist (later phases).
+- **Daily automation**: `.github/workflows/daily-pipeline.yml` exists but its `schedule:` trigger is **intentionally commented out** (`workflow_dispatch` only) until output quality is trusted over more unattended runs — do not re-enable without discussing first.
+
+### Known gaps surfaced by live testing (not yet fixed, low priority)
+- `ArticleService.get_daily_article()` just returns "most recent by `date`, limit 1" — if two articles share a date (e.g. manual testing, or a future >1/day scheduler run), which one shows is arbitrary/tie-broken by Postgres, not deliberate. Fine for real 1-article/day usage; will need real logic if that assumption ever changes.
+- No article browse/list screen exists yet (Phase 5) — any article not returned by `get_daily_article()` is reachable only via direct `GET /api/v1/articles/{id}`, not through the app UI.
 
 ### Standing architectural decisions (confirmed with product owner)
 1. **Build order**: vertical slice first — one real article through the whole pipeline before broadening any layer.
@@ -57,8 +62,8 @@ Clarifying this since it came up: "simulator" isn't a stage after `flutter test`
 3. **Integration tests** (`integration_test/app_screenshot_test.dart`) — real rendering on an actual simulator/emulator/browser/device via `flutter test integration_test/... -d <device>`. This is where real screenshots come from. Not runnable in this environment yet (see limitation above).
 4. **Manual on-device testing** — a human actually using the app on a simulator or device.
 
-### Exit criteria
-One documented sequence takes a hardcoded topic through scrapper → Supabase → backend API → Flutter screen, showing real LLM-generated content on a simulator/device. **scrapper → Supabase → backend API is now fully proven live** (see Backend section above). The only remaining link is rendering on an actual simulator/device/browser -- still blocked by the no-simulator-available environment limitation above, needs either you running `flutter run -d chrome` yourself or Xcode/Android Studio installed.
+### Exit criteria — MET
+One documented sequence takes a hardcoded topic through scrapper → Supabase → backend API → Flutter screen, showing real LLM-generated content on a simulator/device. **Fully proven live end-to-end**, including the Flutter render: `flutter run -d web-server` + Firefox showed a real generated article correctly (home screen and detail screen, tags/sections/citations all correct). No Xcode/Android Studio/native simulator was needed — `web-server` is browser-agnostic and sidesteps that environment limitation entirely.
 
 **Reference**: `tasks.md` §4–9 cover the underlying scraper/generator/storage tasks in more granular (property-test-driven) form.
 
@@ -97,13 +102,18 @@ One documented sequence takes a hardcoded topic through scrapper → Supabase �
 
 ---
 
-## Phase 4 — Content Validator + Scheduler/Daily Automation
+## Phase 4 — Content Validator + Scheduler/Daily Automation — DONE, VERIFIED LIVE
 
-- `scrapper/scrapper/content_validator.py` — word count (≥1500), citations (≥1), structural checks, regenerate-on-failure loop.
-- `scrapper/scrapper/scheduler.py` — replaces Phase 0's hardcoded-topic runner with real topic selection + uniqueness checking against existing articles.
-- Populate a real `scrapper/data/web-sources.yaml` topic list (currently an empty placeholder).
-- Wire daily automation (cron/hosted scheduler — exact mechanism depends on Phase 6 hosting choice).
-- **Risk**: LLM cost/quality tuning is ongoing and easy to underestimate — budget real time here.
+Pulled forward out of numeric order at explicit request (done before Phases 1-3).
+
+- `scrapper/scrapper/topic_generator.py` — `TopicGenerator` asks the LLM for fresh, Wikipedia-title-shaped topics, excluding titles already in Supabase (`ArticleService.list_recent_titles`).
+- `scrapper/scrapper/content_validator.py` — word count (1500-2000, ±200 tolerance), ≥3 sections, ≥1 citation. Not a semantic/factual check (see gaps below).
+- `scrapper/scrapper/scheduler.py` — `run_daily_pipeline(count)` replaces Phase 0's hardcoded-topic runner: topic selection → multi-source scrape → generate → validate → retry once (both generation errors and validation failures) → skip-and-continue on persistent failure, so one bad topic never aborts the rest of the batch.
+- Three sources now registered and used: `WikipediaSource`, `ArchiveOrgSource` (existed, was never wired in), `NewWorldEncyclopediaSource` (new — no search API, guesses the direct `/entry/{Topic}` URL and relies on existing extract() failure-filtering if it 404s).
+- `.github/workflows/daily-pipeline.yml` — daily cron exists but is **commented out** pending more confidence in output quality; `workflow_dispatch` works for manual runs.
+- `scrapper/data/web-sources.yaml` intentionally left as an unused placeholder — the Python source registry is the real source of truth, no code reads the yaml.
+- **Real bugs found and fixed via live testing** (not caught by unit tests alone — see commit history `14fd71b`, `6214f01`, `07c60b1` for full detail): fair per-source character budget (one oversized source was silently crowding out others), Wikipedia's `#mw-content-text` CSS-selector scoping (crawl4ai was including thousands of characters of nav chrome before any real content), Claude's `ThinkingBlock` handling, symmetric word-count floor/ceiling prompt wording, `json-repair` for LLM JSON escaping mistakes, and the scheduler-crash-on-generation-error fix.
+- **Residual risk, as predicted**: LLM cost/quality tuning took real, non-trivial time — five real bugs across ~10 live API calls before a genuinely good article came out reliably.
 
 **Reference**: `tasks.md` §6–7.
 
