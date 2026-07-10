@@ -80,6 +80,18 @@ class ArticleService:
         )
         return [row["title"] for row in response.data]
 
+    async def list_recent_articles(self, limit: int = 5) -> list[Article]:
+        """Full, recently-published articles (metadata + content), most recent first."""
+        client = get_supabase().get_client()
+        response = (
+            client.table("articles")
+            .select("*")
+            .order("date", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return [self._load_article(client, row) for row in response.data]
+
     async def get_daily_article(self) -> Article | None:
         """
         Retrieve the current daily article.

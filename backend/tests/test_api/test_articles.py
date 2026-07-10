@@ -41,6 +41,62 @@ def client():
     return TestClient(app)
 
 
+class TestListArticles:
+    def test_returns_articles_from_service(self, client):
+        with patch("backend.api.articles.ArticleService") as mock_service_class:
+            mock_service_class.return_value.list_recent_articles = AsyncMock(return_value=[make_article()])
+
+            response = client.get("/api/v1/articles")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body) == 1
+        assert body[0]["id"] == "art_20260703_001"
+
+    def test_returns_empty_list_when_no_articles(self, client):
+        with patch("backend.api.articles.ArticleService") as mock_service_class:
+            mock_service_class.return_value.list_recent_articles = AsyncMock(return_value=[])
+
+            response = client.get("/api/v1/articles")
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_defaults_limit_to_5(self, client):
+        with patch("backend.api.articles.ArticleService") as mock_service_class:
+            mock_service_class.return_value.list_recent_articles = AsyncMock(return_value=[])
+
+            client.get("/api/v1/articles")
+
+        mock_service_class.return_value.list_recent_articles.assert_called_once_with(limit=5)
+
+    def test_passes_limit_query_param_through(self, client):
+        with patch("backend.api.articles.ArticleService") as mock_service_class:
+            mock_service_class.return_value.list_recent_articles = AsyncMock(return_value=[])
+
+            client.get("/api/v1/articles?limit=2")
+
+        mock_service_class.return_value.list_recent_articles.assert_called_once_with(limit=2)
+
+    def test_rejects_limit_above_max(self, client):
+        response = client.get("/api/v1/articles?limit=21")
+
+        assert response.status_code == 422
+
+    def test_list_route_not_shadowed_by_id_route(self, client):
+        """Regression guard: bare /articles must resolve to the list endpoint,
+        not be captured by /{article_id}."""
+        with patch("backend.api.articles.ArticleService") as mock_service_class:
+            mock_service_class.return_value.list_recent_articles = AsyncMock(return_value=[])
+            mock_service_class.return_value.get_article_by_id = AsyncMock(return_value=None)
+
+            response = client.get("/api/v1/articles")
+
+        assert response.status_code == 200
+        mock_service_class.return_value.list_recent_articles.assert_called_once()
+        mock_service_class.return_value.get_article_by_id.assert_not_called()
+
+
 class TestGetDailyArticle:
     def test_returns_article_when_available(self, client):
         with patch("backend.api.articles.ArticleService") as mock_service_class:

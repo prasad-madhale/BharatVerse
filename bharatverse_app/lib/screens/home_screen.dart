@@ -17,17 +17,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  late Future<Article> _dailyArticle;
+  late Future<List<Article>> _recentArticles;
 
   @override
   void initState() {
     super.initState();
-    _dailyArticle = widget.apiClient.getDailyArticle();
+    _recentArticles = widget.apiClient.getRecentArticles();
   }
 
   void _retry() {
     setState(() {
-      _dailyArticle = widget.apiClient.getDailyArticle();
+      _recentArticles = widget.apiClient.getRecentArticles();
     });
   }
 
@@ -52,8 +52,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      body: FutureBuilder<Article>(
-        future: _dailyArticle,
+      body: FutureBuilder<List<Article>>(
+        future: _recentArticles,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -68,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Icon(Icons.error_outline, size: 48),
                     const SizedBox(height: 16),
                     Text(
-                      'Could not load today\'s article.\n${snapshot.error}',
+                      'Could not load articles.\n${snapshot.error}',
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
@@ -80,44 +80,65 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
-          final article = snapshot.data!;
+          final articles = snapshot.data!;
+          if (articles.isEmpty) {
+            return RefreshIndicator(
+              onRefresh: () async => _retry(),
+              child: ListView(
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(
+                        child: Text('No articles yet. Check back soon!')),
+                  ),
+                ],
+              ),
+            );
+          }
+
           return RefreshIndicator(
             onRefresh: () async => _retry(),
-            child: ListView(
+            child: ListView.builder(
               padding: const EdgeInsets.all(16),
-              children: [
-                Card(
-                  child: InkWell(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => ArticleDetailScreen(article: article),
+              itemCount: articles.length,
+              itemBuilder: (context, index) {
+                final article = articles[index];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Card(
+                    child: InkWell(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => ArticleDetailScreen(article: article),
+                        ),
                       ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'TODAY\'S ARTICLE',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(article.title,
-                              style: Theme.of(context).textTheme.titleLarge),
-                          const SizedBox(height: 8),
-                          Text(article.summary),
-                          const SizedBox(height: 8),
-                          Text(
-                            '${article.readingTimeMinutes} min read',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (index == 0)
+                              Text(
+                                'TODAY\'S ARTICLE',
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            if (index == 0) const SizedBox(height: 8),
+                            Text(article.title,
+                                style: Theme.of(context).textTheme.titleLarge),
+                            const SizedBox(height: 8),
+                            Text(article.summary),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${article.readingTimeMinutes} min read',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                );
+              },
             ),
           );
         },

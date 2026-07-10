@@ -52,7 +52,19 @@ class ApiClient {
   Future<Article> getArticleById(String id) =>
       _getArticle('$baseUrl/articles/$id');
 
+  Future<List<Article>> getRecentArticles({int limit = 5}) async {
+    final response = await _get('$baseUrl/articles?limit=$limit');
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((a) => Article.fromJson(a as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<Article> _getArticle(String url) async {
+    final response = await _get(url, notFoundMessage: 'Article not found');
+    return Article.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  }
+
+  Future<http.Response> _get(String url, {String? notFoundMessage}) async {
     final http.Response response;
     try {
       response = await _client.get(Uri.parse(url));
@@ -61,7 +73,7 @@ class ApiClient {
     }
 
     if (response.statusCode == 404) {
-      throw ApiException('Article not found', statusCode: 404);
+      throw ApiException(notFoundMessage ?? 'Not found', statusCode: 404);
     }
     if (response.statusCode != 200) {
       throw ApiException(
@@ -70,6 +82,6 @@ class ApiClient {
       );
     }
 
-    return Article.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    return response;
   }
 }

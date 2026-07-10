@@ -5,12 +5,18 @@ Phase 0: just enough to serve one real article end-to-end. Pagination,
 search, and the semantic/autocomplete endpoints are Phase 2.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from backend.services.article_service import ArticleService
 from common.models import Article
 
 router = APIRouter(prefix="/articles", tags=["articles"])
+
+
+@router.get("", response_model=list[Article])
+async def list_articles(limit: int = Query(default=5, ge=1, le=20)) -> list[Article]:
+    """List the most recently published articles, most recent first."""
+    return await ArticleService().list_recent_articles(limit=limit)
 
 
 @router.get("/daily", response_model=Article)

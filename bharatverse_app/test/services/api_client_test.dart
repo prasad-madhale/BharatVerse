@@ -66,6 +66,69 @@ void main() {
     });
   });
 
+  group('ApiClient.getRecentArticles', () {
+    test('returns a list of Articles on 200', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.url.path, '/api/v1/articles');
+        return http.Response(
+          jsonEncode([
+            sampleArticleJson(id: 'art_20260703_001'),
+            sampleArticleJson(id: 'art_20260703_002'),
+          ]),
+          200,
+        );
+      });
+      final client = ApiClient(client: mockClient);
+
+      final articles = await client.getRecentArticles();
+
+      expect(
+          articles.map((a) => a.id), ['art_20260703_001', 'art_20260703_002']);
+    });
+
+    test('defaults limit to 5 in the query string', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.url.queryParameters['limit'], '5');
+        return http.Response('[]', 200);
+      });
+      final client = ApiClient(client: mockClient);
+
+      await client.getRecentArticles();
+    });
+
+    test('passes a custom limit through', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.url.queryParameters['limit'], '2');
+        return http.Response('[]', 200);
+      });
+      final client = ApiClient(client: mockClient);
+
+      await client.getRecentArticles(limit: 2);
+    });
+
+    test('returns an empty list when there are no articles', () async {
+      final mockClient =
+          MockClient((request) async => http.Response('[]', 200));
+      final client = ApiClient(client: mockClient);
+
+      final articles = await client.getRecentArticles();
+
+      expect(articles, isEmpty);
+    });
+
+    test('throws ApiException on server error', () async {
+      final mockClient =
+          MockClient((request) async => http.Response('error', 500));
+      final client = ApiClient(client: mockClient);
+
+      expect(
+        () => client.getRecentArticles(),
+        throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500)),
+      );
+    });
+  });
+
   group('ApiClient.getArticleById', () {
     test('hits the correct path and returns an Article', () async {
       final mockClient = MockClient((request) async {

@@ -13,9 +13,13 @@ import 'package:bharatverse_app/state/auth_state.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
-Map<String, dynamic> sampleArticleJson() => {
-      'id': 'art_20260703_001',
-      'title': 'The Mauryan Empire',
+Map<String, dynamic> sampleArticleJson({
+  String id = 'art_20260703_001',
+  String title = 'The Mauryan Empire',
+}) =>
+    {
+      'id': id,
+      'title': title,
       'summary': 'A summary of the Mauryan Empire.',
       'content': '## Origins\n\nSome content.',
       'sections': [
@@ -47,7 +51,7 @@ Widget _wrapWithProviders(ApiClient apiClient) {
 void main() {
   testWidgets('shows the daily article once loaded', (tester) async {
     final mockClient = MockClient((request) async {
-      return http.Response(jsonEncode(sampleArticleJson()), 200);
+      return http.Response(jsonEncode([sampleArticleJson()]), 200);
     });
     final apiClient = ApiClient(client: mockClient);
 
@@ -63,6 +67,44 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
+  testWidgets('shows up to 5 articles with the label only on the first',
+      (tester) async {
+    // Tall enough that ListView.builder lays out all 5 cards without needing
+    // to scroll -- it only builds what's within the viewport.
+    await tester.binding.setSurfaceSize(const Size(800, 2400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final mockClient = MockClient((request) async {
+      final articles = List.generate(
+        5,
+        (i) => sampleArticleJson(id: 'art_$i', title: 'Article $i'),
+      );
+      return http.Response(jsonEncode(articles), 200);
+    });
+    final apiClient = ApiClient(client: mockClient);
+
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    for (var i = 0; i < 5; i++) {
+      expect(find.text('Article $i'), findsOneWidget);
+    }
+    expect(find.byType(Card), findsNWidgets(5));
+    expect(find.text('TODAY\'S ARTICLE'), findsOneWidget);
+  });
+
+  testWidgets('shows an empty state when there are no articles',
+      (tester) async {
+    final mockClient = MockClient((request) async => http.Response('[]', 200));
+    final apiClient = ApiClient(client: mockClient);
+
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(find.text('No articles yet. Check back soon!'), findsOneWidget);
+    expect(find.byType(Card), findsNothing);
+  });
+
   testWidgets('shows an error state with retry when the request fails',
       (tester) async {
     var callCount = 0;
@@ -71,7 +113,7 @@ void main() {
       if (callCount == 1) {
         return http.Response('error', 500);
       }
-      return http.Response(jsonEncode(sampleArticleJson()), 200);
+      return http.Response(jsonEncode([sampleArticleJson()]), 200);
     });
     final apiClient = ApiClient(client: mockClient);
 
@@ -89,7 +131,7 @@ void main() {
 
   testWidgets('navigates to article detail on tap', (tester) async {
     final mockClient = MockClient((request) async {
-      return http.Response(jsonEncode(sampleArticleJson()), 200);
+      return http.Response(jsonEncode([sampleArticleJson()]), 200);
     });
     final apiClient = ApiClient(client: mockClient);
 
@@ -107,7 +149,7 @@ void main() {
       'shows a sign-in icon when logged out and opens AuthScreen on tap',
       (tester) async {
     final mockClient = MockClient((request) async {
-      return http.Response(jsonEncode(sampleArticleJson()), 200);
+      return http.Response(jsonEncode([sampleArticleJson()]), 200);
     });
     final apiClient = ApiClient(client: mockClient);
 

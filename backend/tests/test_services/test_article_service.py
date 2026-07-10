@@ -216,6 +216,94 @@ class TestListRecentTitles:
         assert titles == []
 
 
+class TestListRecentArticles:
+    @pytest.mark.asyncio
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_returns_full_articles_in_response_order(
+        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+
+        def make_row(article_id, title):
+            return {
+                "id": article_id,
+                "title": title,
+                "summary": "A summary.",
+                "date": "2026-07-03",
+                "reading_time_minutes": 13,
+                "author": "BharatVerse AI",
+                "tags": [],
+                "image_url": None,
+                "content_file_path": f"articles/2026-07-03/{article_id}.json",
+                "created_at": "2026-07-03T00:00:00Z",
+                "updated_at": "2026-07-03T00:00:00Z",
+            }
+
+        query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
+        query.execute.return_value.data = [
+            make_row("art_20260703_001", "Battle of Plassey"),
+            make_row("art_20260703_002", "Rani Lakshmibai"),
+        ]
+
+        def make_blob(article_id):
+            return json.dumps({
+                "content": f"content for {article_id}",
+                "sections": [],
+                "citations": [],
+            }).encode("utf-8")
+
+        mock_supabase_client.storage.from_.return_value.download.side_effect = [
+            make_blob("art_20260703_001"),
+            make_blob("art_20260703_002"),
+        ]
+
+        service = ArticleService()
+        articles = await service.list_recent_articles()
+
+        assert [a.id for a in articles] == ["art_20260703_001", "art_20260703_002"]
+        assert [a.title for a in articles] == ["Battle of Plassey", "Rani Lakshmibai"]
+        assert articles[0].content == "content for art_20260703_001"
+
+    @pytest.mark.asyncio
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_passes_limit_and_orders_by_date_descending(
+        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
+        query.execute.return_value.data = []
+
+        service = ArticleService()
+        await service.list_recent_articles(limit=3)
+
+        mock_supabase_client.table.return_value.select.return_value.order.assert_called_once_with(
+            "date", desc=True
+        )
+        mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.assert_called_once_with(
+            3
+        )
+
+    @pytest.mark.asyncio
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_returns_empty_list_when_no_articles(
+        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
+        query.execute.return_value.data = []
+
+        service = ArticleService()
+        articles = await service.list_recent_articles()
+
+        assert articles == []
+
+
 class TestGetDailyArticle:
     @pytest.mark.asyncio
     @patch("backend.services.article_service.get_supabase")
