@@ -45,37 +45,45 @@ echo ""
 echo "📱 Flutter"
 if command -v flutter >/dev/null 2>&1; then
   ok "$(flutter --version 2>&1 | head -1)"
+
+  # Delegate iOS/Android detection to `flutter doctor` itself rather than
+  # re-implementing it -- it already knows the real default SDK/Xcode
+  # locations, license status, etc. (a hand-rolled env-var-only check here
+  # previously gave a false negative for an Android SDK Flutter could
+  # actually see fine).
+  FLUTTER_DOCTOR_OUTPUT="$(flutter doctor -v 2>&1)"
+
+  extract_flutter_doctor_section() {
+    awk -v cat="$1" '
+      BEGIN { found = 0 }
+      /^\[.\]/ {
+        if (found) exit
+        if (index($0, cat) > 0) found = 1
+      }
+      found { print }
+      /^$/ { if (found) exit }
+    ' <<< "$FLUTTER_DOCTOR_OUTPUT"
+  }
+
+  report_flutter_doctor_section() {
+    local label="$1" category="$2"
+    local section head
+    section="$(extract_flutter_doctor_section "$category")"
+    head="$(echo "$section" | head -1)"
+    echo ""
+    echo "$label"
+    if echo "$head" | grep -q '\[✓\]'; then
+      ok "$head"
+    else
+      fail "$head"
+      echo "$section" | tail -n +2 | sed 's/^/      /'
+    fi
+  }
+
+  report_flutter_doctor_section "🍎 iOS toolchain (needed for \`flutter run -d ios\` / iOS Simulator)" "Xcode"
+  report_flutter_doctor_section "🤖 Android toolchain (needed for \`flutter run -d android\` / emulator)" "Android toolchain"
 else
   fail "flutter not found" "Install: https://docs.flutter.dev/get-started/install"
-fi
-
-echo ""
-echo "🍎 iOS toolchain (needed for \`flutter run -d ios\` / iOS Simulator)"
-if [ -d "/Applications/Xcode.app" ]; then
-  ok "Xcode.app is installed"
-  XCODE_SELECT_PATH="$(xcode-select -p 2>/dev/null || echo "")"
-  if [[ "$XCODE_SELECT_PATH" == *"Xcode.app"* ]]; then
-    ok "xcode-select points at Xcode.app ($XCODE_SELECT_PATH)"
-  else
-    fail "xcode-select points at Command Line Tools only ($XCODE_SELECT_PATH)" \
-      "sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer && sudo xcodebuild -runFirstLaunch"
-  fi
-else
-  fail "Xcode.app not installed (Command Line Tools alone isn't enough for iOS builds)" \
-    "Install Xcode from the App Store, then: sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer && sudo xcodebuild -runFirstLaunch"
-fi
-if command -v pod >/dev/null 2>&1; then
-  ok "CocoaPods installed ($(pod --version 2>/dev/null))"
-else
-  fail "CocoaPods not found (needed for iOS native plugin integration)" "brew install cocoapods"
-fi
-
-echo ""
-echo "🤖 Android toolchain (needed for \`flutter run -d android\` / emulator)"
-if [ -n "$ANDROID_HOME" ] || [ -n "$ANDROID_SDK_ROOT" ]; then
-  ok "Android SDK env var set (ANDROID_HOME=${ANDROID_HOME:-unset}, ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset})"
-else
-  fail "No Android SDK detected" "Install Android Studio: https://developer.android.com/studio (first-run wizard installs the SDK)"
 fi
 
 echo ""
