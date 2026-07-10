@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:http/http.dart' as http;
 
 import '../models/article.dart';
@@ -15,12 +16,24 @@ class ApiException implements Exception {
 }
 
 /// Android emulator's alias for the host machine's localhost -- only
-/// resolves from inside the emulator, not on web/desktop/iOS simulator.
+/// resolves from inside the emulator, not anywhere else.
 const _androidEmulatorHostUrl = 'http://10.0.2.2:8000/api/v1';
 
 /// Real localhost, needed on web/desktop/iOS simulator since those run
-/// directly on the host machine (or in the host's browser).
+/// directly on the host machine (or in the host's browser) rather than
+/// in a separate virtualized network namespace like the Android emulator.
 const _localhostUrl = 'http://localhost:8000/api/v1';
+
+/// Picks the local dev backend URL per-platform. Uses `defaultTargetPlatform`
+/// (not `dart:io`'s `Platform`, which can't be imported in web builds) so
+/// this one function works unconditionally across web/mobile/desktop.
+String _defaultBaseUrl() {
+  if (kIsWeb) return _localhostUrl;
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    return _androidEmulatorHostUrl;
+  }
+  return _localhostUrl;
+}
 
 class ApiClient {
   /// Defaults per-platform to the local dev backend. Override for a real
@@ -31,7 +44,7 @@ class ApiClient {
   ApiClient({
     String? baseUrl,
     http.Client? client,
-  })  : baseUrl = baseUrl ?? (kIsWeb ? _localhostUrl : _androidEmulatorHostUrl),
+  })  : baseUrl = baseUrl ?? _defaultBaseUrl(),
         _client = client ?? http.Client();
 
   Future<Article> getDailyArticle() => _getArticle('$baseUrl/articles/daily');
