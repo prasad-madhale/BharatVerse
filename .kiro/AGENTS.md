@@ -132,7 +132,6 @@ Supported providers: `gemini` (FREE, default), `anthropic`, `openai`, `groq`
 *   `scrapper/sources/`: Pluggable content sources (`wikipedia.py`, `archive_org.py`) via a `ContentSource` ABC.
 *   `scrapper/models/`: Contains Pydantic models for data structures, e.g., `article.py` defines the `Article`,
     `Section`, `Citation`, and `ScrapedContent` models.
-*   `data/web-sources.yaml`: Placeholder config for web sources; not yet populated with a real topic list.
 
 ### Naming Conventions and Style
 The Python code follows PEP 8 conventions:

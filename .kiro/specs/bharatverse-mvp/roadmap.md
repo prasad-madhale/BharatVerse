@@ -115,7 +115,7 @@ Pulled forward out of numeric order at explicit request (done before Phases 1-3)
 - `scrapper/scrapper/scheduler.py` — `run_daily_pipeline(count)` replaces Phase 0's hardcoded-topic runner: topic selection → multi-source scrape → generate → validate → retry once (both generation errors and validation failures) → skip-and-continue on persistent failure, so one bad topic never aborts the rest of the batch.
 - Three sources now registered and used: `WikipediaSource`, `ArchiveOrgSource` (existed, was never wired in), `NewWorldEncyclopediaSource` (new — no search API, guesses the direct `/entry/{Topic}` URL and relies on existing extract() failure-filtering if it 404s).
 - `.github/workflows/daily-pipeline.yml` — daily cron exists but is **commented out** pending more confidence in output quality; `workflow_dispatch` works for manual runs.
-- `scrapper/data/web-sources.yaml` intentionally left as an unused placeholder — the Python source registry is the real source of truth, no code reads the yaml.
+- `scrapper/data/web-sources.yaml` deleted — it was an unused placeholder from before the plugin-based source registry existed; the Python registry (`scrapper/scrapper/sources/__init__.py`) is the real source of truth, no code ever read the yaml.
 - **Real bugs found and fixed via live testing** (not caught by unit tests alone — see commit history `14fd71b`, `6214f01`, `07c60b1` for full detail): fair per-source character budget (one oversized source was silently crowding out others), Wikipedia's `#mw-content-text` CSS-selector scoping (crawl4ai was including thousands of characters of nav chrome before any real content), Claude's `ThinkingBlock` handling, symmetric word-count floor/ceiling prompt wording, `json-repair` for LLM JSON escaping mistakes, and the scheduler-crash-on-generation-error fix.
 - **Residual risk, as predicted**: LLM cost/quality tuning took real, non-trivial time — five real bugs across ~10 live API calls before a genuinely good article came out reliably.
 
@@ -153,6 +153,6 @@ Pulled forward out of numeric order at explicit request (done before Phases 1-3)
 | 1 | Auth | `services/auth_service.py`, `api/auth.py`, `auth_screen.dart` | Google/Facebook OAuth app registration |
 | 2 | Search | `services/search_service.py`, `api/search.py` | pgvector availability (semantic search) |
 | 3 | Likes + offline | `services/like_service.py`, `api/likes.py`, `article_cache.dart` | none |
-| 4 | Validator + scheduler | `content_validator.py`, `scheduler.py`, real `web-sources.yaml` | Hosting/cron choice, LLM cost |
+| 4 | Validator + scheduler | `content_validator.py`, `scheduler.py`, `topic_generator.py` | Hosting/cron choice, LLM cost |
 | 5 | Remaining mobile screens | `search_screen.dart`, `profile_screen.dart` | Phase 2/3 APIs |
 | 6 | Deployment | `Dockerfile`, hosting config | Hosting choice, app store review |

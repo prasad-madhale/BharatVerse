@@ -1,8 +1,0 @@
-sources:
-  - name: "Wikipedia"
-    url: "https://en.wikipedia.org"
-    category: ["General History"]
-    language: ["English"]
-    schema: {
-
-    }
