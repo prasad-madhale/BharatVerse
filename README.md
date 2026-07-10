@@ -246,6 +246,9 @@ without mutating anything (this is what CI and the pre-push hook run).
 
 ## 🛠️ Development Workflow
 
+0. **Check your environment**: `./scripts/doctor.sh` — diagnoses (doesn't auto-fix) whether Xcode/CocoaPods
+   (iOS), Android SDK, `.env`, the pre-push hook, and the Supabase/GitHub CLIs are set up, with exact
+   remediation steps for anything missing.
 1. **One-time setup**: `git config core.hooksPath scripts/git-hooks` — enables a pre-push hook that runs
    `./build.sh --check` and blocks the push if formatting, linting, tests, or the 85% coverage gate fail.
 2. **Create feature branch**: `git checkout -b feature/your-feature`
