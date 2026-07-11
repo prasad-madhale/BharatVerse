@@ -35,8 +35,15 @@ echo "==============================="
 echo ""
 echo "🐍 Python"
 if command -v python3 >/dev/null 2>&1; then
-  PY_VERSION="$(python3 --version 2>&1)"
-  ok "$PY_VERSION found (CI targets 3.12)"
+  PY_VERSION="$(python3 --version 2>&1 | awk '{print $2}')"
+  PY_MAJOR_MINOR="$(echo "$PY_VERSION" | cut -d. -f1,2)"
+  PY_BIN_PATH="$(command -v python3)"
+  if [ "$PY_MAJOR_MINOR" == "3.12" ]; then
+    ok "Python $PY_VERSION ($PY_BIN_PATH) -- matches CI"
+  else
+    fail "python3 resolves to $PY_VERSION ($PY_BIN_PATH) -- CI/this project is tested against 3.12" \
+      "Your shell may be picking up a different install (miniconda/pyenv/homebrew, etc.) than expected. Use a Python 3.12 environment for this project, e.g.: python3.12 -m venv .venv && source .venv/bin/activate. (Found the hard way: autopep8's pinned version imported the stdlib lib2to3 module, removed in Python 3.13, and broke ./build.sh on a 3.13 environment.)"
+  fi
 else
   fail "python3 not found" "Install Python 3.12+: https://www.python.org/downloads/"
 fi

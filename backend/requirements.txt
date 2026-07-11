@@ -33,7 +33,7 @@ pytest-cov==7.1.0
 hypothesis==6.98.3
 
 # Code quality
-autopep8==2.0.4
+autopep8>=2.1.0  # floor, not exact -- 2.0.x imports the stdlib lib2to3 module, removed in Python 3.13
 flake8==7.0.0
 
 # Utilities
