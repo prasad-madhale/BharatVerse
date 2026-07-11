@@ -251,11 +251,13 @@ without mutating anything (this is what CI and the pre-push hook run).
    remediation steps for anything missing.
 1. **One-time setup**: `git config core.hooksPath scripts/git-hooks` — enables a pre-push hook that runs
    `./build.sh --check` and blocks the push if formatting, linting, tests, or the 85% coverage gate fail.
-2. **Create feature branch**: `git checkout -b feature/your-feature`
-3. **Make changes** and write tests (aim to keep coverage at or above 85% for any package you touch)
-4. **Run tests**: `./build.sh` (whole repo) or `pytest`/`flutter test` (single package)
-5. **Commit changes**: `git commit -m "feat: your feature"`
-6. **Push and create PR**: `git push origin feature/your-feature` — the pre-push hook runs automatically
+2. **Run the app locally**: `./scripts/dev.sh` — one command starts both the backend (`127.0.0.1:8000`) and
+   the Flutter web app (`localhost:8765`); Ctrl+C stops both cleanly.
+3. **Create feature branch**: `git checkout -b feature/your-feature`
+4. **Make changes** and write tests (aim to keep coverage at or above 85% for any package you touch)
+5. **Run tests**: `./build.sh` (whole repo) or `pytest`/`flutter test` (single package)
+6. **Commit changes**: `git commit -m "feat: your feature"`
+7. **Push and create PR**: `git push origin feature/your-feature` — the pre-push hook runs automatically
 
 ## 📝 Tech Stack
 
