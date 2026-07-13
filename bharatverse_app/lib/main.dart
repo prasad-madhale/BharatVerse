@@ -8,6 +8,7 @@ import 'config.dart';
 import 'screens/home_screen.dart';
 import 'services/api_client.dart';
 import 'state/auth_state.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,9 +25,7 @@ class BharatVerseApp extends StatelessWidget {
       create: (_) => AuthState(),
       child: MaterialApp(
         title: 'BharatVerse',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.lightGreen),
-        ),
+        theme: AppTheme.theme,
         home: HomeScreen(apiClient: ApiClient()),
       ),
     );

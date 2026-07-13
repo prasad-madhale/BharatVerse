@@ -4,6 +4,10 @@ import 'package:provider/provider.dart';
 import '../models/article.dart';
 import '../services/api_client.dart';
 import '../state/auth_state.dart';
+import '../theme/app_spacing.dart';
+import '../widgets/app_header.dart';
+import '../widgets/article_card.dart';
+import '../widgets/empty_state.dart';
 import 'article_detail_screen.dart';
 import 'auth_screen.dart';
 
@@ -31,26 +35,22 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _openAuth(BuildContext context, AuthState authState) {
+    if (authState.isAuthenticated) {
+      authState.logout();
+    } else {
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const AuthScreen()));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final authState = context.watch<AuthState>();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('BharatVerse'),
-        actions: [
-          Consumer<AuthState>(
-            builder: (context, authState, _) => IconButton(
-              icon: Icon(authState.isAuthenticated
-                  ? Icons.account_circle
-                  : Icons.login),
-              tooltip: authState.isAuthenticated ? 'Sign out' : 'Sign in',
-              onPressed: () => authState.isAuthenticated
-                  ? authState.logout()
-                  : Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const AuthScreen()),
-                    ),
-            ),
-          ),
-        ],
+      appBar: AppHeader(
+        authenticated: authState.isAuthenticated,
+        onAuthClick: () => _openAuth(context, authState),
       ),
       body: FutureBuilder<List<Article>>(
         future: _recentArticles,
@@ -60,22 +60,12 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           if (snapshot.hasError) {
             return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 48),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Could not load articles.\n${snapshot.error}',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                        onPressed: _retry, child: const Text('Retry')),
-                  ],
-                ),
+              child: EmptyState(
+                icon: Icons.error_outline,
+                title: 'Could not load articles',
+                description: '${snapshot.error}',
+                actionLabel: 'Retry',
+                onAction: _retry,
               ),
             );
           }
@@ -86,10 +76,9 @@ class _HomeScreenState extends State<HomeScreen> {
               onRefresh: () async => _retry(),
               child: ListView(
                 children: const [
-                  Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(
-                        child: Text('No articles yet. Check back soon!')),
+                  EmptyState(
+                    title: 'No articles yet',
+                    description: 'Check back soon!',
                   ),
                 ],
               ),
@@ -99,42 +88,21 @@ class _HomeScreenState extends State<HomeScreen> {
           return RefreshIndicator(
             onRefresh: () async => _retry(),
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.space4,
+                vertical: AppSpacing.space2,
+              ),
               itemCount: articles.length,
               itemBuilder: (context, index) {
                 final article = articles[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Card(
-                    child: InkWell(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ArticleDetailScreen(article: article),
-                        ),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (index == 0)
-                              Text(
-                                'TODAY\'S ARTICLE',
-                                style: Theme.of(context).textTheme.labelSmall,
-                              ),
-                            if (index == 0) const SizedBox(height: 8),
-                            Text(article.title,
-                                style: Theme.of(context).textTheme.titleLarge),
-                            const SizedBox(height: 8),
-                            Text(article.summary),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${article.readingTimeMinutes} min read',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                        ),
-                      ),
+                return ArticleCard(
+                  article: article,
+                  size: index == 0
+                      ? ArticleCardSize.featured
+                      : ArticleCardSize.compact,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ArticleDetailScreen(article: article),
                     ),
                   ),
                 );

@@ -34,7 +34,7 @@ void main() {
   testWidgets('starts in sign-in mode', (tester) async {
     await tester.pumpWidget(_wrapWithProvider(mockAuthClient));
 
-    expect(find.widgetWithText(AppBar, 'Sign In'), findsOneWidget);
+    expect(find.text('SIGN IN'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Sign In'), findsOneWidget);
   });
 
@@ -44,7 +44,7 @@ void main() {
     await tester.tap(find.text("Don't have an account? Sign Up"));
     await tester.pump();
 
-    expect(find.widgetWithText(AppBar, 'Sign Up'), findsOneWidget);
+    expect(find.text('SIGN UP'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Sign Up'), findsOneWidget);
   });
 
@@ -52,9 +52,9 @@ void main() {
     await tester.pumpWidget(_wrapWithProvider(mockAuthClient));
 
     await tester.enterText(
-        find.widgetWithText(TextFormField, 'Email'), 'not-an-email');
+        find.byKey(const Key('email-field')), 'not-an-email');
     await tester.enterText(
-        find.widgetWithText(TextFormField, 'Password'), 'password123');
+        find.byKey(const Key('password-field')), 'password123');
     await tester.tap(find.widgetWithText(ElevatedButton, 'Sign In'));
     await tester.pump();
 
@@ -86,9 +86,9 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(
-        find.widgetWithText(TextFormField, 'Email'), 'test@example.com');
+        find.byKey(const Key('email-field')), 'test@example.com');
     await tester.enterText(
-        find.widgetWithText(TextFormField, 'Password'), 'password123');
+        find.byKey(const Key('password-field')), 'password123');
     await tester.tap(find.widgetWithText(ElevatedButton, 'Sign In'));
     await tester.pumpAndSettle();
 
@@ -108,9 +108,9 @@ void main() {
     await tester.pumpWidget(_wrapWithProvider(mockAuthClient));
 
     await tester.enterText(
-        find.widgetWithText(TextFormField, 'Email'), 'test@example.com');
+        find.byKey(const Key('email-field')), 'test@example.com');
     await tester.enterText(
-        find.widgetWithText(TextFormField, 'Password'), 'wrongpassword');
+        find.byKey(const Key('password-field')), 'wrongpassword');
     await tester.tap(find.widgetWithText(ElevatedButton, 'Sign In'));
     await tester.pumpAndSettle();
 

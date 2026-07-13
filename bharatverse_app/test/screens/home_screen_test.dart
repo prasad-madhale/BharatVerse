@@ -10,6 +10,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:bharatverse_app/screens/home_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
+import 'package:bharatverse_app/widgets/article_card.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
@@ -62,7 +63,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('The Mauryan Empire'), findsOneWidget);
+    expect(find.text('THE MAURYAN EMPIRE'), findsOneWidget);
     expect(find.text('A summary of the Mauryan Empire.'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
@@ -87,9 +88,9 @@ void main() {
     await tester.pumpAndSettle();
 
     for (var i = 0; i < 5; i++) {
-      expect(find.text('Article $i'), findsOneWidget);
+      expect(find.text('ARTICLE $i'), findsOneWidget);
     }
-    expect(find.byType(Card), findsNWidgets(5));
+    expect(find.byType(ArticleCard), findsNWidgets(5));
     expect(find.text('TODAY\'S ARTICLE'), findsOneWidget);
   });
 
@@ -101,8 +102,9 @@ void main() {
     await tester.pumpWidget(_wrapWithProviders(apiClient));
     await tester.pumpAndSettle();
 
-    expect(find.text('No articles yet. Check back soon!'), findsOneWidget);
-    expect(find.byType(Card), findsNothing);
+    expect(find.text('NO ARTICLES YET'), findsOneWidget);
+    expect(find.text('Check back soon!'), findsOneWidget);
+    expect(find.byType(ArticleCard), findsNothing);
   });
 
   testWidgets('shows an error state with retry when the request fails',
@@ -126,7 +128,7 @@ void main() {
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
 
-    expect(find.text('The Mauryan Empire'), findsOneWidget);
+    expect(find.text('THE MAURYAN EMPIRE'), findsOneWidget);
   });
 
   testWidgets('navigates to article detail on tap', (tester) async {
@@ -138,11 +140,11 @@ void main() {
     await tester.pumpWidget(_wrapWithProviders(apiClient));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byType(Card));
+    await tester.tap(find.byType(ArticleCard));
     await tester.pumpAndSettle();
 
-    // Detail screen renders the markdown section heading.
-    expect(find.text('Origins'), findsOneWidget);
+    // Detail screen renders the (uppercased) section heading.
+    expect(find.text('ORIGINS'), findsOneWidget);
   });
 
   testWidgets(
