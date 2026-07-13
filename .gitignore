@@ -32,6 +32,21 @@ migrate_working_dir/
 **/build/
 **/coverage/
 
+# Xcode per-developer/machine state -- never commit (e.g. DEVELOPMENT_TEAM,
+# personal signing identifiers, local scheme edits, absolute paths)
+**/ios/**/xcuserdata/
+**/ios/*.xcworkspace/xcuserdata/
+*.xcuserstate
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+DerivedData/
+
+# Android per-developer/machine state and signing secrets -- never commit
+**/android/local.properties
+**/android/key.properties
+*.jks
+*.keystore
+
 # Symbolication related
 app.*.symbols
 
@@ -68,6 +83,21 @@ venv.bak/
 **/.env
 .env.local
 .env.*.local
+
+# Keys, certs, and signing material -- never commit real values
+*.pem
+*.p12
+*.cer
+*.mobileprovision
+GoogleService-Info.plist
+google-services.json
+service-account*.json
+*credentials*.json
+
+# MCP server config can carry API tokens for connected servers -- explicit
+# entry so this stays excluded even if the broader `*.json` rule below is
+# ever narrowed
+.mcp.json
 
 # Logs and debugging
 *.log
