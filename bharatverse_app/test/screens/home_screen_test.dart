@@ -14,7 +14,10 @@ import 'package:bharatverse_app/widgets/article_card.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
-Map<String, dynamic> sampleArticleJson({
+/// Shape of a row returned by Supabase's REST (PostgREST) API for the
+/// `articles` table -- note `date`, not `publication_date`, and no
+/// content/sections/citations (those live in a separate Storage blob).
+Map<String, dynamic> sampleArticleRow({
   String id = 'art_20260703_001',
   String title = 'The Mauryan Empire',
 }) =>
@@ -22,17 +25,34 @@ Map<String, dynamic> sampleArticleJson({
       'id': id,
       'title': title,
       'summary': 'A summary of the Mauryan Empire.',
+      'date': '2026-07-03',
+      'reading_time_minutes': 13,
+      'author': 'BharatVerse AI',
+      'tags': ['mauryan-empire'],
+      'image_url': null,
+      'content_file_path': 'articles/2026-07-03/$id.json',
+    };
+
+/// Shape of the content JSON downloaded from Supabase Storage for a row's
+/// `content_file_path`.
+Map<String, dynamic> sampleArticleContent() => {
       'content': '## Origins\n\nSome content.',
       'sections': [
         {'heading': 'Origins', 'content': 'Some content.', 'order': 1},
       ],
       'citations': [],
-      'publication_date': '2026-07-03',
-      'reading_time_minutes': 13,
-      'author': 'BharatVerse AI',
-      'tags': ['mauryan-empire'],
-      'image_url': null,
     };
+
+/// A MockClient that serves `rows` for ApiClient's PostgREST call and a
+/// fixed content blob for its Storage call, branching on the request path
+/// the same way ApiClient's two calls do.
+MockClient articlesMockClient(List<Map<String, dynamic>> Function() rows) =>
+    MockClient((request) async {
+      if (request.url.path.contains('/storage/')) {
+        return http.Response(jsonEncode(sampleArticleContent()), 200);
+      }
+      return http.Response(jsonEncode(rows()), 200);
+    });
 
 /// Wraps HomeScreen with a signed-out AuthState -- HomeScreen's account icon
 /// (a Consumer widget for AuthState) needs a Provider ancestor regardless of
@@ -51,9 +71,7 @@ Widget _wrapWithProviders(ApiClient apiClient) {
 
 void main() {
   testWidgets('shows the daily article once loaded', (tester) async {
-    final mockClient = MockClient((request) async {
-      return http.Response(jsonEncode([sampleArticleJson()]), 200);
-    });
+    final mockClient = articlesMockClient(() => [sampleArticleRow()]);
     final apiClient = ApiClient(client: mockClient);
 
     await tester.pumpWidget(_wrapWithProviders(apiClient));
@@ -75,13 +93,10 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(800, 2400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    final mockClient = MockClient((request) async {
-      final articles = List.generate(
-        5,
-        (i) => sampleArticleJson(id: 'art_$i', title: 'Article $i'),
-      );
-      return http.Response(jsonEncode(articles), 200);
-    });
+    final mockClient = articlesMockClient(() => List.generate(
+          5,
+          (i) => sampleArticleRow(id: 'art_$i', title: 'Article $i'),
+        ));
     final apiClient = ApiClient(client: mockClient);
 
     await tester.pumpWidget(_wrapWithProviders(apiClient));
@@ -109,13 +124,16 @@ void main() {
 
   testWidgets('shows an error state with retry when the request fails',
       (tester) async {
-    var callCount = 0;
+    var restCallCount = 0;
     final mockClient = MockClient((request) async {
-      callCount++;
-      if (callCount == 1) {
+      if (request.url.path.contains('/storage/')) {
+        return http.Response(jsonEncode(sampleArticleContent()), 200);
+      }
+      restCallCount++;
+      if (restCallCount == 1) {
         return http.Response('error', 500);
       }
-      return http.Response(jsonEncode([sampleArticleJson()]), 200);
+      return http.Response(jsonEncode([sampleArticleRow()]), 200);
     });
     final apiClient = ApiClient(client: mockClient);
 
@@ -132,9 +150,7 @@ void main() {
   });
 
   testWidgets('navigates to article detail on tap', (tester) async {
-    final mockClient = MockClient((request) async {
-      return http.Response(jsonEncode([sampleArticleJson()]), 200);
-    });
+    final mockClient = articlesMockClient(() => [sampleArticleRow()]);
     final apiClient = ApiClient(client: mockClient);
 
     await tester.pumpWidget(_wrapWithProviders(apiClient));
@@ -150,9 +166,7 @@ void main() {
   testWidgets(
       'shows a sign-in icon when logged out and opens AuthScreen on tap',
       (tester) async {
-    final mockClient = MockClient((request) async {
-      return http.Response(jsonEncode([sampleArticleJson()]), 200);
-    });
+    final mockClient = articlesMockClient(() => [sampleArticleRow()]);
     final apiClient = ApiClient(client: mockClient);
 
     await tester.pumpWidget(_wrapWithProviders(apiClient));
