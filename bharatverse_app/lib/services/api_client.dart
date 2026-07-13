@@ -52,8 +52,7 @@ class ApiClient {
   }
 
   Future<List<Article>> getRecentArticles({int limit = 5}) async {
-    final rows =
-        await _fetchRows('select=*&order=date.desc&limit=$limit');
+    final rows = await _fetchRows('select=*&order=date.desc&limit=$limit');
     return Future.wait(rows.map(_loadArticle));
   }
 

@@ -66,7 +66,8 @@ void main() {
     });
 
     test('throws a 404 ApiException when no articles exist', () async {
-      final mockClient = MockClient((request) async => http.Response('[]', 200));
+      final mockClient =
+          MockClient((request) async => http.Response('[]', 200));
       final client = ApiClient(client: mockClient);
 
       expect(
@@ -175,9 +176,9 @@ void main() {
       expect(article.id, 'art_20260703_001');
     });
 
-    test('throws a 404 ApiException when the article does not exist',
-        () async {
-      final mockClient = MockClient((request) async => http.Response('[]', 200));
+    test('throws a 404 ApiException when the article does not exist', () async {
+      final mockClient =
+          MockClient((request) async => http.Response('[]', 200));
       final client = ApiClient(client: mockClient);
 
       expect(
