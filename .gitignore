@@ -39,6 +39,7 @@ migrate_working_dir/
 *.xcuserstate
 **/ios/Flutter/Generated.xcconfig
 **/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/Local.xcconfig
 DerivedData/
 
 # Android per-developer/machine state and signing secrets -- never commit
