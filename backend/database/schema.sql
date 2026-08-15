@@ -148,9 +148,15 @@ CREATE POLICY "Article embeddings are insertable by service role"
     ON article_embeddings FOR INSERT 
     WITH CHECK (auth.role() = 'service_role');
 
--- Create full-text search index using PostgreSQL's built-in text search
-CREATE INDEX IF NOT EXISTS idx_articles_fts ON articles 
-    USING GIN(to_tsvector('english', title || ' ' || summary));
+-- Full-text search over title/summary. A generated, stored column (rather
+-- than an index on a bare to_tsvector(...) expression) is required here
+-- because PostgREST's text_search() filter -- what supabase-py's
+-- .text_search() ultimately sends -- takes a column name, not an
+-- expression; it can't reference an expression index directly.
+ALTER TABLE articles ADD COLUMN IF NOT EXISTS search_vector tsvector
+    GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || summary)) STORED;
+
+CREATE INDEX IF NOT EXISTS idx_articles_search_vector ON articles USING GIN(search_vector);
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

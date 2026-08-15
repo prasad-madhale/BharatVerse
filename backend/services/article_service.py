@@ -61,7 +61,7 @@ class ArticleService:
         response = client.table("articles").select("*").eq("id", article_id).execute()
         if not response.data:
             return None
-        return self._load_article(client, response.data[0])
+        return self.load_article(client, response.data[0])
 
     async def list_recent_titles(self, limit: int = 200) -> list[str]:
         """
@@ -90,7 +90,7 @@ class ArticleService:
             .limit(limit)
             .execute()
         )
-        return [self._load_article(client, row) for row in response.data]
+        return [self.load_article(client, row) for row in response.data]
 
     async def get_daily_article(self) -> Article | None:
         """
@@ -110,7 +110,7 @@ class ArticleService:
         )
         if not response.data:
             return None
-        return self._load_article(client, response.data[0])
+        return self.load_article(client, response.data[0])
 
     def _record_from_article(self, article: Article) -> ArticleRecord:
         return ArticleRecord(
@@ -128,7 +128,13 @@ class ArticleService:
     def _content_file_path(self, article_id: str, publication_date: date_type) -> str:
         return f"articles/{publication_date.isoformat()}/{article_id}.json"
 
-    def _load_article(self, client, row: dict) -> Article:
+    def load_article(self, client, row: dict) -> Article:
+        """Reassemble a full Article from a Postgres row + its Storage content blob.
+
+        Public (not a private helper) because SearchService reuses it to
+        assemble Article objects from its own, differently-filtered query
+        against the same `articles` table.
+        """
         record = ArticleRecord(**row)
         blob_bytes = client.storage.from_(self.settings.articles_storage_bucket).download(
             record.content_file_path
