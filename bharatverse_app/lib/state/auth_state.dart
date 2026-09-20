@@ -18,6 +18,10 @@ class AuthState extends ChangeNotifier {
   User? get currentUser => _authClient.currentUser;
   bool get isAuthenticated => currentUser != null;
 
+  /// The signed-in user's access token, for requests that row-level security
+  /// must attribute to them (see [LikesClient]); null when signed out.
+  String? get accessToken => _authClient.currentSession?.accessToken;
+
   Future<void> register(String email, String password) async {
     await _authClient.signUp(email: email, password: password);
   }

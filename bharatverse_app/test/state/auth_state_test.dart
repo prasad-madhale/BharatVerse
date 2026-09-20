@@ -119,5 +119,30 @@ void main() {
 
       expect(notified, isTrue);
     });
+
+    test('accessToken is the current session token', () {
+      final session = Session(
+        accessToken: 'user-token',
+        tokenType: 'bearer',
+        user: User(
+          id: 'user-123',
+          appMetadata: const {},
+          userMetadata: const {},
+          aud: 'authenticated',
+          createdAt: '2026-07-08T00:00:00Z',
+        ),
+      );
+      when(() => mockAuthClient.currentSession).thenReturn(session);
+      final authState = AuthState(authClient: mockAuthClient);
+
+      expect(authState.accessToken, 'user-token');
+    });
+
+    test('accessToken is null when there is no session', () {
+      when(() => mockAuthClient.currentSession).thenReturn(null);
+      final authState = AuthState(authClient: mockAuthClient);
+
+      expect(authState.accessToken, isNull);
+    });
   });
 }
