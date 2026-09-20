@@ -25,8 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Registered before articles_router: /articles/search would otherwise be captured
-# by its /articles/{article_id} route.
+# Before articles_router, whose /articles/{article_id} would capture /articles/search.
 app.include_router(search_router, prefix=settings.api_prefix)
 app.include_router(articles_router, prefix=settings.api_prefix)
 app.include_router(auth_router, prefix=settings.api_prefix)

@@ -1,9 +1,4 @@
-"""
-Unit tests for the likes API router.
-
-LikeService is mocked and get_current_user is overridden, so no live
-Supabase or network calls happen.
-"""
+"""Unit tests for the likes API router (LikeService mocked, get_current_user overridden)."""
 
 from datetime import date
 from types import SimpleNamespace
@@ -17,8 +12,7 @@ from backend.main import app
 from backend.services.like_service import ArticleNotFoundError
 from common.models import Article
 
-# HTTPBearer answers a missing Authorization header with 403 on the pinned
-# FastAPI 0.109 and with 401 on newer releases. Either means "rejected".
+# HTTPBearer answers a missing Authorization header with 403 on the pinned FastAPI 0.109, 401 on newer ones.
 REJECTED = (401, 403)
 
 

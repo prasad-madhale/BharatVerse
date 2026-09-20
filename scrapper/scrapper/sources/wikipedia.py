@@ -72,9 +72,7 @@ class WikipediaSource(ContentSource):
                 page_info = self._get_page_info(title)
                 if not page_info:
                     continue
-                # Two search hits can resolve to the same article (redirects,
-                # near-duplicate titles). Scraping it twice wastes a slot of the
-                # per-source character budget for no new content.
+                # Two hits can resolve to the same page (redirects); keep the first.
                 if page_info['url'] in seen_urls:
                     logger.debug(f"Skipping duplicate Wikipedia URL: {page_info['url']}")
                     continue
@@ -91,13 +89,9 @@ class WikipediaSource(ContentSource):
 
     def _search_titles(self, topic: str, max_results: int, auto_suggest: bool) -> List[str]:
         """
-        Titles of the pages matching `topic`, best match first.
+        Titles matching `topic`, best first.
 
-        wikipedia.search() returns a plain list of titles normally, but a
-        (titles, suggestion) tuple when called with suggestion=True. The tuple
-        must be unpacked: iterating it as if it were the title list yields the
-        whole list as its first "title" and the suggestion string as its
-        second, which resolves to the wrong pages.
+        With suggestion=True, wikipedia.search() returns a (titles, suggestion) tuple, which must be unpacked.
         """
         if not auto_suggest:
             return wikipedia.search(topic, results=max_results)

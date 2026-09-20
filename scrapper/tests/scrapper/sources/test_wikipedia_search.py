@@ -1,12 +1,9 @@
 """
 Unit tests for WikipediaSource.search_topic.
 
-These run against a fake of the `wikipedia` library that honours its real
-return contract: search() returns a plain list of titles, except with
-suggestion=True, when it returns a (titles, suggestion) tuple. A fake that
-always returned a list would hide the bug these tests exist to prevent --
-iterating that tuple as if it were the title list silently returned the
-wrong pages. No network calls are made.
+The fake `wikipedia` library honours the real return contract: search() returns a list of titles, but a
+(titles, suggestion) tuple with suggestion=True. A fake that always returned a list would hide the bug
+these tests exist to prevent.
 """
 
 from unittest.mock import MagicMock, patch
@@ -24,12 +21,10 @@ URLS = {
 
 
 def fake_wikipedia(hits, did_you_mean=None, suggested_hits=None):
-    """Build fake search/page functions and the patches that install them.
+    """Fake search/page functions and the patches that install them: (search_mock, page_mock, patches).
 
-    hits:           titles returned for the user's own query.
-    did_you_mean:   the suggestion string returned alongside them, if any.
-    suggested_hits: titles returned when the suggestion is searched instead.
-    Returns (search_mock, page_mock, patches); enter both patches to apply them.
+    `hits` answer the user's query, `did_you_mean` rides along as the suggestion, and `suggested_hits`
+    answer a search for that suggestion.
     """
     def search(query, results=10, suggestion=False):
         titles = hits if query == "the query" else (suggested_hits or [])

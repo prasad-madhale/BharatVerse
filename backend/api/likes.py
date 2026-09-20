@@ -1,11 +1,4 @@
-"""
-Article like endpoints.
-
-Every route here requires a valid Supabase session. The user id comes from
-the verified token via get_current_user, never from the request body, so a
-caller cannot act on someone else's behalf. Paths follow design.md:
-POST/DELETE /articles/{id}/like and GET /users/me/likes.
-"""
+"""Article like endpoints; every route requires a Supabase session."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from gotrue.types import User

@@ -61,17 +61,11 @@ class SupabaseClient:
 
     def create_auth_client(self) -> Client:
         """
-        A brand-new anon client, never cached.
+        A fresh, uncached anon client for calls that create a session.
 
-        Signing a user in or up stores that user's session on the client that
-        made the call, and supabase-py then sends the user's token with every
-        later request from that client. Doing that on the shared client from
-        get_client() would make every other request run as the last user to
-        sign in. Use this for calls that create a session, and discard it.
-
-        Auto-refresh is off because after a sign-in supabase-py otherwise
-        starts a timer thread that keeps this client alive, refreshing its
-        session forever. One leaked thread and client per login adds up.
+        supabase-py keeps the session on the client that signed in, so using the shared
+        client would make later requests run as that user. Auto-refresh is off so no
+        refresh timer thread outlives the call.
         """
         return create_client(
             self.url,

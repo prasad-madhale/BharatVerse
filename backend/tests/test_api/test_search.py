@@ -1,9 +1,4 @@
-"""
-Unit tests for the search API router.
-
-Uses FastAPI's TestClient with SearchService mocked out -- no live
-Supabase or network calls.
-"""
+"""Unit tests for the search API router (SearchService mocked)."""
 
 from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, patch
@@ -102,8 +97,7 @@ class TestRouting:
         assert "/api/v1/search" not in paths
 
     def test_search_is_not_captured_by_the_article_by_id_route(self, client):
-        # If articles_router were registered first, its /articles/{article_id} route
-        # would answer this request and treat "search" as an article id.
+        # Registered after articles_router, /articles/{article_id} would answer this and treat "search" as an id.
         with patch("backend.api.search.SearchService") as mock_search_class, \
                 patch("backend.api.articles.ArticleService") as mock_article_class:
             mock_search_class.return_value.search_articles = AsyncMock(return_value=[])

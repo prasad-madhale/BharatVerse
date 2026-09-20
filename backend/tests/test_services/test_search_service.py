@@ -1,52 +1,18 @@
-"""
-Unit tests for SearchService.
+"""Unit tests for SearchService: the query it sends and the articles it reassembles."""
 
-The query-shape tests drive the real service through a real postgrest query
-builder (see backend/tests/wire.py) and assert on the HTTP request that would
-be sent to Supabase. A mock-based test cannot catch a wrong operator name or
-a wrong builder-call order, and both went unnoticed once already.
-"""
+from unittest.mock import patch
 
-import json
-from unittest.mock import MagicMock, patch
-
-import httpx
 import pytest
 
 from backend.services.search_service import SearchService
-from backend.tests.wire import WireClient
-
-
-def make_row(article_id="art_20260703_001", title="The Mauryan Empire"):
-    return {
-        "id": article_id,
-        "title": title,
-        "summary": "A summary.",
-        "date": "2026-07-03",
-        "reading_time_minutes": 13,
-        "author": "BharatVerse AI",
-        "tags": ["mauryan-empire"],
-        "image_url": None,
-        "content_file_path": f"articles/2026-07-03/{article_id}.json",
-        "created_at": "2026-07-03T00:00:00Z",
-        "updated_at": "2026-07-03T00:00:00Z",
-    }
-
-
-def make_blob():
-    return json.dumps({
-        "content": "## Origins\n\nSome content.",
-        "sections": [{"heading": "Origins", "content": "Some content.", "order": 1}],
-        "citations": [],
-    }).encode("utf-8")
+from backend.tests.wire import article_blob, article_row, rows, use_wire
 
 
 class TestSearchArticles:
     @pytest.mark.asyncio
     @patch("backend.services.search_service.get_supabase")
     async def test_sends_websearch_query_ordered_by_date_with_limit(self, mock_get_supabase):
-        wire = WireClient(lambda request: httpx.Response(200, json=[]))
-        mock_get_supabase.return_value.get_client.return_value = wire
+        wire = use_wire(mock_get_supabase, rows())
 
         results = await SearchService().search_articles("Mauryan Empire", limit=7)
 
@@ -54,8 +20,7 @@ class TestSearchArticles:
         (request,) = wire.requests
         assert request.url.path == "/rest/v1/articles"
         assert request.url.params["select"] == "*"
-        # wfts is PostgREST's websearch_to_tsquery operator. The strict fts
-        # operator would reject a two-word query like this one.
+        # wfts is PostgREST's websearch_to_tsquery operator; the strict fts operator rejects a two-word query.
         assert request.url.params["search_vector"] == "wfts(english).Mauryan Empire"
         assert request.url.params["order"] == "date.desc"
         assert request.url.params["limit"] == "7"
@@ -63,8 +28,7 @@ class TestSearchArticles:
     @pytest.mark.asyncio
     @patch("backend.services.search_service.get_supabase")
     async def test_default_limit_is_twenty(self, mock_get_supabase):
-        wire = WireClient(lambda request: httpx.Response(200, json=[]))
-        mock_get_supabase.return_value.get_client.return_value = wire
+        wire = use_wire(mock_get_supabase, rows())
 
         await SearchService().search_articles("Ashoka")
 
@@ -73,10 +37,7 @@ class TestSearchArticles:
     @pytest.mark.asyncio
     @patch("backend.services.search_service.get_supabase")
     async def test_reassembles_full_articles_from_matched_rows(self, mock_get_supabase):
-        wire = WireClient(lambda request: httpx.Response(200, json=[make_row()]))
-        wire.storage = MagicMock()
-        wire.storage.from_.return_value.download.return_value = make_blob()
-        mock_get_supabase.return_value.get_client.return_value = wire
+        use_wire(mock_get_supabase, rows(article_row()), blob=article_blob())
 
         results = await SearchService().search_articles("Ashoka")
 
@@ -88,7 +49,6 @@ class TestSearchArticles:
     @pytest.mark.asyncio
     @patch("backend.services.search_service.get_supabase")
     async def test_returns_empty_list_when_no_matches(self, mock_get_supabase):
-        wire = WireClient(lambda request: httpx.Response(200, json=[]))
-        mock_get_supabase.return_value.get_client.return_value = wire
+        use_wire(mock_get_supabase, rows())
 
         assert await SearchService().search_articles("no such topic") == []

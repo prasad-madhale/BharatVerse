@@ -1,12 +1,8 @@
 """
 Session isolation for the backend's auth calls.
 
-supabase-py stores a user's session on the client that signed them in, and
-then sends that user's token with every later request from that client. The
-backend keeps one shared anonymous client for public reads, so signing users
-in on it would make every later read run as the last user to sign in. These
-tests run the real auth service against real clients, with only the network
-call to Supabase Auth faked, and check that the shared client is left alone.
+supabase-py stores a session on the client that signed in, so signing users in on the shared anonymous client
+would make later public reads run as that user. Real clients are used; only the HTTP call to Supabase Auth is faked.
 """
 
 import threading

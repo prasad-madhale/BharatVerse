@@ -96,10 +96,9 @@ class ArticleService:
         """
         Retrieve the current daily article.
 
-        The most recently published article by date, breaking ties on
-        created_at so the result is stable when two articles share a date.
-        Real daily-selection logic (one designated article per calendar day,
-        topic uniqueness) is a Phase 4 (scheduler) concern.
+        Phase 0: the most recently published article by date (ties broken by
+        created_at). Real daily-selection logic (one designated article per
+        calendar day, topic uniqueness) is a Phase 4 (scheduler) concern.
         """
         client = get_supabase().get_client()
         response = (
@@ -131,12 +130,7 @@ class ArticleService:
         return f"articles/{publication_date.isoformat()}/{article_id}.json"
 
     def load_article(self, client, row: dict) -> Article:
-        """Reassemble a full Article from a Postgres row + its Storage content blob.
-
-        Public (not a private helper) because SearchService reuses it to
-        assemble Article objects from its own, differently-filtered query
-        against the same `articles` table.
-        """
+        """Reassemble an Article from its Postgres row and Storage content blob."""
         record = ArticleRecord(**row)
         blob_bytes = client.storage.from_(self.settings.articles_storage_bucket).download(
             record.content_file_path

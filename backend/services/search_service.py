@@ -1,11 +1,4 @@
-"""
-Full-text search over articles' title/summary, backed by Postgres FTS via
-Supabase PostgREST's text_search().
-
-Phase 2 scope is FTS only -- autocomplete (search_suggestions) and semantic
-search (pgvector) are deferred; see roadmap.md's open product question on
-whether to scope those out of MVP entirely.
-"""
+"""Full-text search over article title/summary via Postgres FTS (autocomplete and semantic search are deferred)."""
 
 import logging
 
@@ -24,21 +17,13 @@ class SearchService:
 
     async def search_articles(self, query: str, limit: int = 20) -> list[Article]:
         """
-        Full-text search articles' title/summary for `query`, most recent
-        match first.
+        Articles matching `query` (websearch syntax: quoted phrases, -exclude), newest first.
 
-        Uses `websearch_to_tsquery` semantics (quoted phrases, `-exclude`,
-        implicit AND between terms) via the `search_vector` generated
-        column. Ordered by publication date rather than text-match rank --
-        relevance ranking would need a Postgres RPC function, out of scope
-        for this FTS-only pass.
+        Not ranked by relevance; that would need a Postgres RPC.
         """
         client = get_supabase().get_client()
-        # text_search() must be the LAST builder call before execute(): it returns
-        # a builder that only has execute(), so order()/limit() after it raise
-        # AttributeError. The option type is "web_search" (postgrest-py's spelling),
-        # which emits PostgREST's wfts operator; any other value falls back to the
-        # strict fts operator and rejects multi-word queries.
+        # text_search() must come last: its builder only has execute(). "web_search" is postgrest-py's name for
+        # the wfts operator; any other type falls back to strict fts, which rejects multi-word queries.
         response = (
             client.table("articles")
             .select("*")

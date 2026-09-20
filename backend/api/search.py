@@ -1,13 +1,4 @@
-"""
-Search endpoint.
-
-Phase 2 scope: full-text search only (title/summary via Postgres FTS).
-Autocomplete and semantic search are deferred -- see roadmap.md.
-
-Mounted at /articles/search, per design.md. main.py must register this router
-before the articles router, whose /articles/{article_id} route would otherwise
-capture the request and treat "search" as an article id.
-"""
+"""Full-text article search. Autocomplete and semantic search are deferred (see roadmap.md)."""
 
 from fastapi import APIRouter, Query
 

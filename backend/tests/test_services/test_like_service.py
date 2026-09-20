@@ -1,60 +1,23 @@
-"""
-Unit tests for LikeService.
-
-LikeService uses the service-role client, which bypasses row-level security,
-so the only thing keeping one user out of another's likes is the user_id
-filter in each query. These tests therefore drive the real service through a
-real postgrest query builder (see backend/tests/wire.py) and assert on the
-HTTP request that would be sent, not on a mock's call list.
-"""
+"""LikeService tests. RLS is bypassed on this path, so each query's user_id filter is asserted on the wire."""
 
 import json
-from unittest.mock import MagicMock, patch
+from functools import partial
+from unittest.mock import patch
 
-import httpx
 import pytest
 from postgrest.exceptions import APIError
 
 from backend.services.like_service import ArticleNotFoundError, LikeService
-from backend.tests.wire import WireClient
+from backend.tests.wire import article_blob, article_row, reply, rows, use_wire
 
-
-def make_row(article_id="art_20260703_001", title="The Mauryan Empire"):
-    return {
-        "id": article_id,
-        "title": title,
-        "summary": "A summary.",
-        "date": "2026-07-03",
-        "reading_time_minutes": 13,
-        "author": "BharatVerse AI",
-        "tags": ["mauryan-empire"],
-        "image_url": None,
-        "content_file_path": f"articles/2026-07-03/{article_id}.json",
-        "created_at": "2026-07-03T00:00:00Z",
-        "updated_at": "2026-07-03T00:00:00Z",
-    }
-
-
-def make_blob():
-    return json.dumps({
-        "content": "## Origins\n\nSome content.",
-        "sections": [{"heading": "Origins", "content": "Some content.", "order": 1}],
-        "citations": [],
-    }).encode("utf-8")
-
-
-def use_wire(mock_get_supabase, handler):
-    """Route LikeService's admin client to a WireClient and return it."""
-    wire = WireClient(handler)
-    mock_get_supabase.return_value.get_admin_client.return_value = wire
-    return wire
+use_admin_wire = partial(use_wire, admin=True)
 
 
 class TestLikeArticle:
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
     async def test_upserts_row_with_conflict_target(self, mock_get_supabase):
-        wire = use_wire(mock_get_supabase, lambda request: httpx.Response(201, json=[]))
+        wire = use_admin_wire(mock_get_supabase, rows())
 
         await LikeService().like_article("user-1", "art_1")
 
@@ -74,7 +37,7 @@ class TestLikeArticle:
             "details": 'Key (article_id)=(art_missing) is not present in table "articles".',
             "hint": None,
         }
-        use_wire(mock_get_supabase, lambda request: httpx.Response(409, json=error))
+        use_admin_wire(mock_get_supabase, reply(409, error))
 
         with pytest.raises(ArticleNotFoundError):
             await LikeService().like_article("user-1", "art_missing")
@@ -88,7 +51,7 @@ class TestLikeArticle:
             "details": 'Key (user_id)=(user-x) is not present in table "users".',
             "hint": None,
         }
-        use_wire(mock_get_supabase, lambda request: httpx.Response(409, json=error))
+        use_admin_wire(mock_get_supabase, reply(409, error))
 
         with pytest.raises(APIError):
             await LikeService().like_article("user-x", "art_1")
@@ -97,7 +60,7 @@ class TestLikeArticle:
     @patch("backend.services.like_service.get_supabase")
     async def test_other_database_errors_propagate(self, mock_get_supabase):
         error = {"code": "42501", "message": "permission denied", "details": None, "hint": None}
-        use_wire(mock_get_supabase, lambda request: httpx.Response(403, json=error))
+        use_admin_wire(mock_get_supabase, reply(403, error))
 
         with pytest.raises(APIError):
             await LikeService().like_article("user-1", "art_1")
@@ -107,7 +70,7 @@ class TestUnlikeArticle:
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
     async def test_deletes_only_this_users_row_for_this_article(self, mock_get_supabase):
-        wire = use_wire(mock_get_supabase, lambda request: httpx.Response(204))
+        wire = use_admin_wire(mock_get_supabase, reply(204))
 
         await LikeService().unlike_article("user-1", "art_1")
 
@@ -122,7 +85,7 @@ class TestIsLiked:
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
     async def test_true_when_row_present_and_query_is_scoped_to_the_user(self, mock_get_supabase):
-        wire = use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[{"article_id": "art_1"}]))
+        wire = use_admin_wire(mock_get_supabase, rows({"article_id": "art_1"}))
 
         assert await LikeService().is_liked("user-1", "art_1") is True
 
@@ -136,7 +99,7 @@ class TestIsLiked:
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
     async def test_false_when_no_row(self, mock_get_supabase):
-        use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[]))
+        use_admin_wire(mock_get_supabase, rows())
 
         assert await LikeService().is_liked("user-1", "art_1") is False
 
@@ -145,13 +108,11 @@ class TestGetUserLikes:
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
     async def test_returns_full_articles_most_recent_first_scoped_to_the_user(self, mock_get_supabase):
-        rows = [
-            {"created_at": "2026-07-05T00:00:00Z", "articles": make_row("art_2", "Second")},
-            {"created_at": "2026-07-04T00:00:00Z", "articles": make_row("art_1", "First")},
+        liked = [
+            {"created_at": "2026-07-05T00:00:00Z", "articles": article_row("art_2", "Second")},
+            {"created_at": "2026-07-04T00:00:00Z", "articles": article_row("art_1", "First")},
         ]
-        wire = use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=rows))
-        wire.storage = MagicMock()
-        wire.storage.from_.return_value.download.return_value = make_blob()
+        wire = use_admin_wire(mock_get_supabase, rows(*liked), blob=article_blob())
 
         articles = await LikeService().get_user_likes("user-1")
 
@@ -168,7 +129,7 @@ class TestGetUserLikes:
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
     async def test_passes_custom_limit(self, mock_get_supabase):
-        wire = use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[]))
+        wire = use_admin_wire(mock_get_supabase, rows())
 
         await LikeService().get_user_likes("user-1", limit=5)
 
@@ -177,7 +138,7 @@ class TestGetUserLikes:
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
     async def test_empty_when_no_likes(self, mock_get_supabase):
-        use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[]))
+        use_admin_wire(mock_get_supabase, rows())
 
         assert await LikeService().get_user_likes("user-1") == []
 
@@ -187,7 +148,7 @@ class TestGetArticleLikeCount:
     @patch("backend.services.like_service.get_supabase")
     async def test_reads_the_total_from_a_count_only_request(self, mock_get_supabase):
         # With limit(0) PostgREST returns an empty list and the total in Content-Range.
-        wire = use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[], headers={"content-range": "*/7"}))
+        wire = use_admin_wire(mock_get_supabase, reply(200, [], {"content-range": "*/7"}))
 
         assert await LikeService().get_article_like_count("art_1") == 7
 
@@ -202,6 +163,6 @@ class TestGetArticleLikeCount:
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
     async def test_zero_when_no_count_is_returned(self, mock_get_supabase):
-        use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[]))
+        use_admin_wire(mock_get_supabase, rows())
 
         assert await LikeService().get_article_like_count("art_1") == 0
