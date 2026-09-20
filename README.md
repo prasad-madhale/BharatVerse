@@ -190,7 +190,7 @@ See [bharatverse_app/README.md](bharatverse_app/README.md) for detailed instruct
 - **[Design](/.kiro/specs/bharatverse-mvp/design.md)** - System design and architecture
 - **[Roadmap](/.kiro/specs/bharatverse-mvp/roadmap.md)** - Current implementation status and phased build order
 - **[Tasks](/.kiro/specs/bharatverse-mvp/tasks.md)** - Granular implementation task list (property-test reference)
-- **[AGENTS.md](/.kiro/AGENTS.md)** - Guide for AI agents working on this codebase
+- **[AGENTS.md](AGENTS.md)** - Guide for AI agents working on this codebase
 
 ## 🏛️ Architecture Overview
 
@@ -274,7 +274,7 @@ without mutating anything (this is what CI and the pre-push hook run).
 
 ## 🤝 Contributing
 
-1. Read the [AGENTS.md](/.kiro/AGENTS.md) guide
+1. Read the [AGENTS.md](AGENTS.md) guide
 2. Check the [roadmap](/.kiro/specs/bharatverse-mvp/roadmap.md) for current priorities
 3. Follow the development workflow above
 4. Write tests for all new features

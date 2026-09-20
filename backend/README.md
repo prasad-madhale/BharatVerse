@@ -573,5 +573,5 @@ wrk -t4 -c100 -d30s http://localhost:8000/api/v1/articles/daily
 
 For issues or questions:
 1. Check the [design document](../.kiro/specs/bharatverse-mvp/design.md)
-2. Review [AGENTS.md](../.kiro/AGENTS.md) for development guidelines
+2. Review [AGENTS.md](../AGENTS.md) for development guidelines
 3. Check existing issues in the repository
