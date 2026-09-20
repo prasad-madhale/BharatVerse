@@ -107,7 +107,7 @@ The code the specs write follows the packages' own patterns, so the diff reads l
   their dependencies in the constructor, like `AuthState`. Services take an injectable `http.Client`, like
   `ApiClient`, and tests assert the requests through `MockClient`. Widgets reuse the design tokens in `lib/theme/`
   and the `App*` components in `lib/widgets/`.
-- **Commits.** Conventional subjects with no scope: `feat:`, `fix:`, `docs:`, `chore:`, `style:`.
+- **Commits.** One-line conventional subjects with no scope and no body: `feat:`, `fix:`, `docs:`, `chore:`, `style:`, `refactor:`.
 - **Docs.** Status lives in the roadmap and the package READMEs, updated as features land. No new markdown files
   outside `.kiro/specs/`.
 
