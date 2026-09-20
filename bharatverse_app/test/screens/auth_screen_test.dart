@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:bharatverse_app/screens/auth_screen.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
+import '../support/layout_fixtures.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
@@ -115,5 +116,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Invalid login credentials'), findsOneWidget);
+  });
+
+  testWidgets('keeps the form to a comfortable width on a wide screen',
+      (tester) async {
+    useWideScreen(tester);
+    await tester.pumpWidget(_wrapWithProvider(mockAuthClient));
+
+    expect(tester.getSize(find.byType(TextFormField).first).width, 420);
   });
 }

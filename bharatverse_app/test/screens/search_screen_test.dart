@@ -15,6 +15,7 @@ import 'package:bharatverse_app/widgets/article_card.dart';
 import '../support/article_fixtures.dart';
 import '../support/highlight_finder.dart';
 import '../support/like_fixtures.dart';
+import '../support/layout_fixtures.dart';
 
 void main() {
   late List<http.Request> requests;
@@ -151,5 +152,13 @@ void main() {
 
       expect(find.byType(ArticleDetailScreen), findsOneWidget);
     });
+  });
+
+  testWidgets('keeps the form in a readable column on a wide screen',
+      (tester) async {
+    useWideScreen(tester);
+    await pumpSearch(tester);
+
+    expect(tester.getSize(find.byType(TextField)).width, 720 - 2 * 16);
   });
 }

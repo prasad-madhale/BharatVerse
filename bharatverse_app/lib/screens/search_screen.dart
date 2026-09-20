@@ -8,6 +8,7 @@ import '../widgets/app_back_bar.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_input.dart';
 import '../widgets/article_card.dart';
+import '../widgets/content_column.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/highlighted_text.dart';
 import 'article_detail_screen.dart';
@@ -87,10 +88,7 @@ class _SearchScreenState extends State<SearchScreen> {
         }
         final terms = searchTerms(_query);
         return ListView.builder(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.space4,
-            vertical: AppSpacing.space2,
-          ),
+          padding: columnPadding(context, vertical: AppSpacing.space2),
           itemCount: articles.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
@@ -124,24 +122,25 @@ class _SearchScreenState extends State<SearchScreen> {
       appBar: const AppBackBar(),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.space4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AppInput(
-                  label: 'Search',
-                  controller: _controller,
-                  placeholder: 'Ashoka, Chola, "Bay of Bengal"',
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => _search(),
-                  autofocus: true,
-                ),
-                const SizedBox(height: AppSpacing.space3),
-                AppButton(label: 'Search', wide: true, onPressed: _search),
-              ],
-            ),
-          ),
+          ContentColumn(
+              child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.space4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      AppInput(
+                        label: 'Search',
+                        controller: _controller,
+                        placeholder: 'Ashoka, Chola, "Bay of Bengal"',
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => _search(),
+                        autofocus: true,
+                      ),
+                      const SizedBox(height: AppSpacing.space3),
+                      AppButton(
+                          label: 'Search', wide: true, onPressed: _search),
+                    ],
+                  ))),
           Expanded(child: _buildResults()),
         ],
       ),

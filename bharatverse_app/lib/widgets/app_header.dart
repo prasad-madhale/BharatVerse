@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 import 'app_icon_button.dart';
+import 'content_column.dart';
 
 const _weekdayNames = [
   'Monday',
@@ -73,7 +74,8 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
+            ContentColumn(
+                child: Padding(
               padding: const EdgeInsets.fromLTRB(4, 10, 12, 8),
               child: Row(
                 children: [
@@ -124,7 +126,7 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                   ),
                 ],
               ),
-            ),
+            )),
             // Indian tricolor accent stripe.
             Padding(
               padding: const EdgeInsets.only(bottom: 8),

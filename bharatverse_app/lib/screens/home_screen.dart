@@ -7,6 +7,7 @@ import '../state/auth_state.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/app_header.dart';
 import '../widgets/article_card.dart';
+import '../widgets/content_column.dart';
 import '../widgets/empty_state.dart';
 import 'article_detail_screen.dart';
 import 'auth_screen.dart';
@@ -100,10 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return RefreshIndicator(
             onRefresh: () async => _retry(),
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(
-                horizontal: AppSpacing.space4,
-                vertical: AppSpacing.space2,
-              ),
+              padding: columnPadding(context, vertical: AppSpacing.space2),
               itemCount: articles.length,
               itemBuilder: (context, index) {
                 final article = articles[index];

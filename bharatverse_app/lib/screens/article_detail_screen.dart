@@ -5,9 +5,10 @@ import '../models/article.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
-import '../widgets/app_icon_button.dart';
+import '../widgets/app_back_bar.dart';
 import '../widgets/app_tag.dart';
 import '../widgets/citation_item.dart';
+import '../widgets/content_column.dart';
 import '../widgets/like_button.dart';
 import 'auth_screen.dart';
 
@@ -19,49 +20,21 @@ class ArticleDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(56),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: AppColors.surfacePage,
-            border: Border(
-              top: BorderSide(color: AppColors.ink950, width: 2),
-              bottom: BorderSide(color: AppColors.ink200),
-            ),
-          ),
-          child: SafeArea(
-            bottom: false,
-            child: Row(
-              children: [
-                AppIconButton(
-                  icon: Icons.arrow_back,
-                  label: 'Back',
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                Expanded(
-                  child: Text(
-                    'ARTICLE',
-                    textAlign: TextAlign.center,
-                    style: AppTypography.ui.copyWith(
-                      fontFamily: AppTypography.headline.fontFamily,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 15 * 0.08,
-                    ),
-                  ),
-                ),
-                LikeButton(
-                  articleId: article.id,
-                  onRequireAuth: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const AuthScreen()),
-                  ),
-                ),
-              ],
-            ),
+      appBar: AppBackBar(
+        title: 'ARTICLE',
+        trailing: LikeButton(
+          articleId: article.id,
+          onRequireAuth: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AuthScreen()),
           ),
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.space5),
+        padding: columnPadding(
+          context,
+          horizontal: AppSpacing.space5,
+          vertical: AppSpacing.space5,
+        ),
         children: [
           Container(
             padding: const EdgeInsets.symmetric(

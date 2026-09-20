@@ -15,6 +15,7 @@ import 'package:bharatverse_app/widgets/article_card.dart';
 import '../support/like_fixtures.dart'
     show MockLikesClient, testUser, withLikeProviders;
 import '../support/article_fixtures.dart';
+import '../support/layout_fixtures.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
@@ -184,5 +185,29 @@ void main() {
 
       expect(find.byType(LikedArticlesScreen), findsOneWidget);
     });
+  });
+
+  testWidgets('keeps its cards in a readable column on a wide screen',
+      (tester) async {
+    useWideScreen(tester);
+    final apiClient =
+        ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(find.byType(ArticleCard)).width, 720 - 2 * 16);
+  });
+
+  testWidgets('keeps the header icons in the reading column on a wide screen',
+      (tester) async {
+    useWideScreen(tester);
+    final apiClient =
+        ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    // The column is 720 wide, centered in 1600, with 4px and 12px row padding.
+    expect(tester.getTopLeft(find.byTooltip('Search')).dx, closeTo(444, 12));
+    expect(tester.getTopRight(find.byTooltip('Sign in')).dx, closeTo(1148, 12));
   });
 }

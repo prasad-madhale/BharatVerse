@@ -8,6 +8,7 @@ import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/widgets/like_button.dart';
 
 import '../support/like_fixtures.dart';
+import '../support/layout_fixtures.dart';
 
 const _articleId = 'art_20260703_001';
 
@@ -81,5 +82,16 @@ void main() {
             articleId: _articleId,
           )).called(1);
     });
+  });
+
+  testWidgets('keeps the article in a readable column on a wide screen',
+      (tester) async {
+    useWideScreen(tester);
+    await pumpScreen(tester);
+
+    final article = find
+        .descendant(of: find.byType(ListView), matching: find.byType(Container))
+        .first;
+    expect(tester.getSize(article).width, 720 - 2 * 20);
   });
 }

@@ -10,6 +10,7 @@ import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_back_bar.dart';
 import '../widgets/article_card.dart';
+import '../widgets/content_column.dart';
 import '../widgets/empty_state.dart';
 import 'article_detail_screen.dart';
 
@@ -65,13 +66,14 @@ class _LikedArticlesScreenState extends State<LikedArticlesScreen> {
       appBar: const AppBackBar(),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(AppSpacing.space4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('LIKED ARTICLES', style: AppTypography.display2),
-            ),
-          ),
+          ContentColumn(
+              child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.space4),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child:
+                        Text('LIKED ARTICLES', style: AppTypography.display2),
+                  ))),
           Expanded(
             child: FutureBuilder<List<Article>>(
               future: _articles,
@@ -102,10 +104,7 @@ class _LikedArticlesScreenState extends State<LikedArticlesScreen> {
                   );
                 }
                 return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.space4,
-                    vertical: AppSpacing.space2,
-                  ),
+                  padding: columnPadding(context, vertical: AppSpacing.space2),
                   itemCount: articles.length,
                   itemBuilder: (context, index) => ArticleCard(
                     article: articles[index],
