@@ -161,4 +161,17 @@ void main() {
 
     expect(tester.getSize(find.byType(TextField)).width, 720 - 2 * 16);
   });
+
+  testWidgets('hides an unexpected error behind a generic message',
+      (tester) async {
+    await pumpSearch(tester,
+        client: MockClient((_) async => http.Response('not json', 200)));
+
+    await search(tester, 'ashoka');
+
+    expect(find.text('SEARCH FAILED'), findsOneWidget);
+    expect(
+        find.text('Something went wrong. Please try again.'), findsOneWidget);
+    expect(find.textContaining('FormatException'), findsNothing);
+  });
 }

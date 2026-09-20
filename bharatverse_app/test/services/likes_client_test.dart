@@ -197,4 +197,20 @@ void main() {
       );
     });
   });
+
+  group('LikesClient failures', () {
+    test('a network failure gets a plain message without the raw error',
+        () async {
+      final client = LikesClient(
+        client: MockClient((_) async =>
+            throw http.ClientException('Failed to fetch, uri=http://internal')),
+      );
+
+      await expectLater(
+        client.getLikedArticleIds(accessToken: 'user-token'),
+        throwsA(isA<ApiException>().having((e) => e.message, 'message',
+            'Could not reach the server. Check your connection and try again.')),
+      );
+    });
+  });
 }

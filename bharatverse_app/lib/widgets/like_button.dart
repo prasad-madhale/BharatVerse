@@ -40,9 +40,11 @@ class LikeButton extends StatelessWidget {
     try {
       await likeState.toggleLike(articleId);
     } on ApiException catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text('Could not update your like: $e')),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(_failureMessage(e))));
     }
   }
+
+  String _failureMessage(ApiException e) => e.statusCode == null
+      ? e.message
+      : 'Could not update your like (${e.statusCode}). Please try again.';
 }

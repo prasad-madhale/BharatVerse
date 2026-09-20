@@ -187,6 +187,18 @@ void main() {
     });
   });
 
+  testWidgets('hides an unexpected error behind a generic message',
+      (tester) async {
+    final apiClient = ApiClient(
+        client: MockClient((_) async => http.Response('not json', 200)));
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.text('Something went wrong. Please try again.'), findsOneWidget);
+    expect(find.textContaining('FormatException'), findsNothing);
+  });
+
   testWidgets('keeps its cards in a readable column on a wide screen',
       (tester) async {
     useWideScreen(tester);
@@ -209,5 +221,22 @@ void main() {
     // The column is 720 wide, centered in 1600, with 4px and 12px row padding.
     expect(tester.getTopLeft(find.byTooltip('Search')).dx, closeTo(444, 12));
     expect(tester.getTopRight(find.byTooltip('Sign in')).dx, closeTo(1148, 12));
+  });
+
+  testWidgets('shows a plain message, not the raw error, when loading fails',
+      (tester) async {
+    final apiClient = ApiClient(
+      client: MockClient((_) async =>
+          throw http.ClientException('Failed to fetch, uri=http://internal')),
+    );
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(find.text('COULD NOT LOAD ARTICLES'), findsOneWidget);
+    expect(
+        find.text(
+            'Could not reach the server. Check your connection and try again.'),
+        findsOneWidget);
+    expect(find.textContaining('uri='), findsNothing);
   });
 }

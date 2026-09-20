@@ -225,4 +225,33 @@ void main() {
       expect(articles.first.sections.single.heading, 'Origins');
     });
   });
+
+  group('ApiClient failures', () {
+    test('a network failure gets a plain message without the raw error',
+        () async {
+      final client = ApiClient(
+        client: MockClient((_) async =>
+            throw http.ClientException('Failed to fetch, uri=http://internal')),
+      );
+
+      await expectLater(
+        client.getDailyArticle(),
+        throwsA(isA<ApiException>().having((e) => e.message, 'message',
+            'Could not reach the server. Check your connection and try again.')),
+      );
+    });
+  });
+
+  group('describeError', () {
+    test("uses an ApiException's own message", () {
+      expect(describeError(ApiException('Request failed (500)')),
+          'Request failed (500)');
+    });
+
+    test('is generic for anything else', () {
+      const generic = 'Something went wrong. Please try again.';
+      expect(describeError(const FormatException('bad json')), generic);
+      expect(describeError(null), generic);
+    });
+  });
 }

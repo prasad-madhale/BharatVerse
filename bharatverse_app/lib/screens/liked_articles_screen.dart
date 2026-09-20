@@ -86,7 +86,7 @@ class _LikedArticlesScreenState extends State<LikedArticlesScreen> {
                     child: EmptyState(
                       icon: Icons.error_outline,
                       title: 'Could not load your likes',
-                      description: '${snapshot.error}',
+                      description: describeError(snapshot.error),
                       actionLabel: 'Retry',
                       onAction: () => setState(_start),
                     ),

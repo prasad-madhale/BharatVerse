@@ -76,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: EmptyState(
                 icon: Icons.error_outline,
                 title: 'Could not load articles',
-                description: '${snapshot.error}',
+                description: describeError(snapshot.error),
                 actionLabel: 'Retry',
                 onAction: _retry,
               ),

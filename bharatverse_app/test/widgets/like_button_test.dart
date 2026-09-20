@@ -115,4 +115,43 @@ void main() {
       expect(find.byIcon(Icons.favorite_border), findsOneWidget);
     });
   });
+
+  group('LikeButton failure messages', () {
+    testWidgets('says plainly that the server could not be reached',
+        (tester) async {
+      authClient.signInAs(testUser());
+      when(() => likesClient.like(
+                accessToken: any(named: 'accessToken'),
+                userId: any(named: 'userId'),
+                articleId: any(named: 'articleId'),
+              ))
+          .thenThrow(ApiException(
+              'Could not reach the server. Check your connection and try again.'));
+      await pumpButton(tester);
+
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(
+          find.text(
+              'Could not reach the server. Check your connection and try again.'),
+          findsOneWidget);
+    });
+
+    testWidgets('names the status when the server refused', (tester) async {
+      authClient.signInAs(testUser());
+      when(() => likesClient.like(
+            accessToken: any(named: 'accessToken'),
+            userId: any(named: 'userId'),
+            articleId: any(named: 'articleId'),
+          )).thenThrow(ApiException('Request failed (500)', statusCode: 500));
+      await pumpButton(tester);
+
+      await tester.tap(find.byType(IconButton));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Could not update your like (500). Please try again.'),
+          findsOneWidget);
+    });
+  });
 }

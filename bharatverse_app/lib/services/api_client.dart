@@ -14,6 +14,12 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// What to show a reader when a request fails: the exception's own
+/// plain-language message, or a generic one for anything unexpected.
+String describeError(Object? error) => error is ApiException
+    ? error.message
+    : 'Something went wrong. Please try again.';
+
 /// Supabase Storage bucket articles' content JSON lives in -- mirrors the
 /// backend's default (see backend/config.py's articles_storage_bucket).
 const _articlesBucket = 'articles';
@@ -107,7 +113,8 @@ class ApiClient {
         },
       );
     } catch (e) {
-      throw ApiException('Could not reach the server: $e');
+      throw ApiException(
+          'Could not reach the server. Check your connection and try again.');
     }
 
     if (response.statusCode != 200) {

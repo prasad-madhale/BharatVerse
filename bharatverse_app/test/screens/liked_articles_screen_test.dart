@@ -140,4 +140,15 @@ void main() {
           )).called(1);
     });
   });
+
+  testWidgets('hides an unexpected error behind a generic message',
+      (tester) async {
+    stubLiked(() async => throw const FormatException('bad json'));
+
+    await pumpLiked(tester);
+
+    expect(
+        find.text('Something went wrong. Please try again.'), findsOneWidget);
+    expect(find.textContaining('FormatException'), findsNothing);
+  });
 }

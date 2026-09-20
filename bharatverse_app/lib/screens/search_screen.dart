@@ -69,7 +69,7 @@ class _SearchScreenState extends State<SearchScreen> {
             child: EmptyState(
               icon: Icons.error_outline,
               title: 'Search failed',
-              description: '${snapshot.error}',
+              description: describeError(snapshot.error),
               actionLabel: 'Retry',
               onAction: () => _search(_query),
             ),
