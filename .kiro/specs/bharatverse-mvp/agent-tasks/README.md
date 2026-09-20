@@ -27,6 +27,9 @@ checks against the worktree, `run --dry-run` prints the prompt the agent would g
 `run --executor reference` applies each spec's steps mechanically with no model. That proves a spec is complete and
 detects drift: if the codebase changes and a spec no longer applies, the reference run fails on it.
 
+The runner has its own tests: `python -m pytest scripts/tests`. They use a throwaway repo, toy specs, and a stub
+agent, so they need no model, network, or real specs.
+
 ## What the runner enforces, independent of the model
 
 - Only files listed under `allowed` may change. Anything else is reverted and the attempt is failed.
