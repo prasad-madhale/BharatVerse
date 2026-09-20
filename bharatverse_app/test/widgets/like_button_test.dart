@@ -1,55 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import 'package:bharatverse_app/services/api_client.dart';
-import 'package:bharatverse_app/services/likes_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
-import 'package:bharatverse_app/state/like_state.dart';
 import 'package:bharatverse_app/theme/app_colors.dart';
 import 'package:bharatverse_app/widgets/like_button.dart';
 
-class MockGoTrueClient extends Mock implements GoTrueClient {}
-
-class MockLikesClient extends Mock implements LikesClient {}
+import '../support/like_fixtures.dart';
 
 void main() {
   late MockGoTrueClient authClient;
   late MockLikesClient likesClient;
 
-  /// Makes the mocked auth client report a signed-in user.
-  void signIn() {
-    final user = User(
-      id: 'user-123',
-      appMetadata: const {},
-      userMetadata: const {},
-      aud: 'authenticated',
-      createdAt: '2026-07-08T00:00:00Z',
-    );
-    when(() => authClient.currentUser).thenReturn(user);
-    when(() => authClient.currentSession).thenReturn(
-      Session(accessToken: 'user-token', tokenType: 'bearer', user: user),
-    );
-  }
-
-  /// Pumps a LikeButton for article 'art_1' under a real AuthState and the
-  /// LikeState that follows it. [onRequireAuth] defaults to doing nothing.
+  /// Pumps a LikeButton for article 'art_1'; [onRequireAuth] defaults to doing nothing.
   Future<void> pumpButton(
     WidgetTester tester, {
     VoidCallback? onRequireAuth,
   }) async {
-    final authState = AuthState(authClient: authClient);
     await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider.value(value: authState),
-          ChangeNotifierProvider(
-            create: (_) =>
-                LikeState(likesClient: likesClient, authState: authState),
-          ),
-        ],
+      withLikeProviders(
+        authState: AuthState(authClient: authClient),
+        likesClient: likesClient,
         child: MaterialApp(
           home: Scaffold(
             body: LikeButton(
@@ -64,26 +36,14 @@ void main() {
   }
 
   setUp(() {
-    authClient = MockGoTrueClient();
-    likesClient = MockLikesClient();
-    when(() => authClient.currentUser).thenReturn(null);
-    when(() => authClient.currentSession).thenReturn(null);
-    when(() => authClient.onAuthStateChange)
-        .thenAnswer((_) => const Stream.empty());
-    when(() => likesClient.getLikedArticleIds(
-          accessToken: any(named: 'accessToken'),
-        )).thenAnswer((_) async => <String>{});
-    when(() => likesClient.like(
-          accessToken: any(named: 'accessToken'),
-          userId: any(named: 'userId'),
-          articleId: any(named: 'articleId'),
-        )).thenAnswer((_) async {});
+    authClient = stubAuthClient();
+    likesClient = stubLikesClient();
   });
 
   group('LikeButton', () {
     testWidgets('shows an outline heart when the article is not liked',
         (tester) async {
-      signIn();
+      authClient.signInAs(testUser());
 
       await pumpButton(tester);
 
@@ -94,7 +54,7 @@ void main() {
 
     testWidgets('shows a filled heart in the like accent when liked',
         (tester) async {
-      signIn();
+      authClient.signInAs(testUser());
       when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
           .thenAnswer((_) async => {'art_1'});
 
@@ -107,7 +67,7 @@ void main() {
     });
 
     testWidgets('tapping while signed in likes the article', (tester) async {
-      signIn();
+      authClient.signInAs(testUser());
       await pumpButton(tester);
 
       await tester.tap(find.byType(IconButton));
@@ -140,7 +100,7 @@ void main() {
 
     testWidgets('shows a message and rolls back when liking fails',
         (tester) async {
-      signIn();
+      authClient.signInAs(testUser());
       when(() => likesClient.like(
             accessToken: any(named: 'accessToken'),
             userId: any(named: 'userId'),

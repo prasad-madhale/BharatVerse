@@ -6,10 +6,8 @@ import '../state/auth_state.dart';
 import '../state/like_state.dart';
 import 'app_icon_button.dart';
 
-/// Heart toggle for an article -- filled in the like accent when the signed-in
-/// user has liked it. Only a signed-in user has likes, so a signed-out tap
-/// calls [onRequireAuth] instead. Needs an [AuthState] and a [LikeState] above
-/// it in the widget tree.
+/// Heart toggle for an article. A signed-out tap calls [onRequireAuth]. Needs
+/// an [AuthState] and a [LikeState] above it in the widget tree.
 class LikeButton extends StatelessWidget {
   final String articleId;
   final VoidCallback onRequireAuth;
@@ -37,7 +35,7 @@ class LikeButton extends StatelessWidget {
   }
 
   Future<void> _toggle(BuildContext context, LikeState likeState) async {
-    // Grabbed before the await: the context may be gone by the time it ends.
+    // Read before the await; the context may be gone after it.
     final messenger = ScaffoldMessenger.of(context);
     try {
       await likeState.toggle(articleId);

@@ -8,6 +8,8 @@ import 'package:supabase_flutter/supabase_flutter.dart' as gotrue
 
 import 'package:bharatverse_app/state/auth_state.dart';
 
+import '../support/like_fixtures.dart' show testUser;
+
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
 class FakeAuthResponse extends Fake implements AuthResponse {}
@@ -124,13 +126,7 @@ void main() {
       final session = Session(
         accessToken: 'user-token',
         tokenType: 'bearer',
-        user: User(
-          id: 'user-123',
-          appMetadata: const {},
-          userMetadata: const {},
-          aud: 'authenticated',
-          createdAt: '2026-07-08T00:00:00Z',
-        ),
+        user: testUser(),
       );
       when(() => mockAuthClient.currentSession).thenReturn(session);
       final authState = AuthState(authClient: mockAuthClient);

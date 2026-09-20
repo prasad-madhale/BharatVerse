@@ -5,13 +5,9 @@ import 'package:http/http.dart' as http;
 import '../config.dart';
 import 'api_client.dart';
 
-/// Reads and writes the signed-in user's likes straight through Supabase's
-/// REST (PostgREST) API. Unlike [ApiClient]'s public reads, every call here
-/// carries the *user's* access token: the `likes` table's row-level security
-/// (see backend/database/schema.sql) only lets a user see and change their
-/// own rows, so the anon key alone would see and change nothing.
+/// Reads and writes the signed-in user's likes through Supabase's REST API,
+/// with the user's own token so row-level security scopes each call to their rows.
 class LikesClient {
-  /// Supabase project URL. Override only for tests.
   final String baseUrl;
   final http.Client _client;
 
@@ -21,7 +17,6 @@ class LikesClient {
   })  : baseUrl = baseUrl ?? supabaseUrl,
         _client = client ?? http.Client();
 
-  /// Ids of the articles the token's user has liked.
   Future<Set<String>> getLikedArticleIds({required String accessToken}) async {
     final response = await _send(
       'GET',
@@ -33,11 +28,8 @@ class LikesClient {
         .toSet();
   }
 
-  /// Records a like. Idempotent: liking twice is not an error. The table has a
-  /// unique (user_id, article_id) index, and `ignore-duplicates` (ON CONFLICT DO
-  /// NOTHING) skips the second insert. It is not `merge-duplicates` because the
-  /// table has no UPDATE policy, so row-level security would refuse the update
-  /// that merging performs on an existing row.
+  /// Idempotent. Uses `ignore-duplicates` rather than `merge-duplicates`: the
+  /// table has no UPDATE policy, so row-level security would refuse a merge.
   Future<void> like({
     required String accessToken,
     required String userId,
@@ -52,8 +44,6 @@ class LikesClient {
     );
   }
 
-  /// Removes a like. Idempotent. Row-level security limits the delete to the
-  /// token user's own rows.
   Future<void> unlike({
     required String accessToken,
     required String articleId,

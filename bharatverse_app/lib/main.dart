@@ -26,7 +26,7 @@ class BharatVerseApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthState()),
-        // LikeState follows AuthState, so it is created after it.
+        // LikeState reads AuthState, so it comes after it.
         ChangeNotifierProvider(
           create: (context) => LikeState(
             likesClient: LikesClient(),

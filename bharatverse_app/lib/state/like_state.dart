@@ -3,10 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../services/likes_client.dart';
 import 'auth_state.dart';
 
-/// Which articles the signed-in user has liked, kept in memory and synced to
-/// Supabase through [LikesClient]. Follows [AuthState]: it loads the user's
-/// likes on sign-in and forgets them on sign-out, so one user's likes never
-/// show for the next.
+/// The signed-in user's liked articles, in memory and synced through
+/// [LikesClient]. Follows [AuthState]: loads on sign-in, clears on sign-out.
 class LikeState extends ChangeNotifier {
   final LikesClient _likesClient;
   final AuthState _authState;
@@ -24,10 +22,9 @@ class LikeState extends ChangeNotifier {
 
   bool isLiked(String articleId) => _likedIds.contains(articleId);
 
-  /// Likes the article if it is not liked, and unlikes it if it is. The change
-  /// shows immediately and is rolled back if the request fails, in which case
-  /// the error is rethrown. A tap on an article whose previous change is still
-  /// in flight is ignored. Throws a [StateError] when nobody is signed in.
+  /// Flips the like at once and rolls back, rethrowing, if the request fails.
+  /// Ignored while a change to the same article is in flight; throws a
+  /// [StateError] when nobody is signed in.
   Future<void> toggle(String articleId) async {
     final userId = _authState.currentUser?.id;
     final accessToken = _authState.accessToken;
@@ -98,15 +95,14 @@ class LikeState extends ChangeNotifier {
       final ids = await _likesClient.getLikedArticleIds(
         accessToken: accessToken,
       );
-      // Signed out, or a different account, by the time this returned.
+      // The account changed while this was loading.
       if (_loadedForUserId != userId) {
         return;
       }
       _likedIds.addAll(ids);
       notifyListeners();
     } catch (e) {
-      // A failed load must not block reading. The likes stay empty until the
-      // next sign-in.
+      // A failed load must not block reading.
       debugPrint('Could not load likes: $e');
     }
   }
