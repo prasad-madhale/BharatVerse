@@ -14,7 +14,7 @@ for the authoritative, phase-by-phase status and the remaining build order. In s
   email/password auth via Supabase Auth. Search and likes are verified against a local Postgres and PostgREST
   running `schema.sql`, not yet against the hosted Supabase project. The mobile app reads articles, searches
   them, and reads and writes likes directly against Supabase, not through this API.
-- `bharatverse_app/`: Home, Article Detail, Sign-in, and Search screens are built in the "Vintage Broadsheet" design
+- `bharatverse_app/`: Home, Article Detail, Sign-in, Search, and Liked articles screens are built in the "Vintage Broadsheet" design
   system, and the article screen has a like button. Offline caching is not built yet.
 
 ## 🏗️ Project Structure (Monorepo)
