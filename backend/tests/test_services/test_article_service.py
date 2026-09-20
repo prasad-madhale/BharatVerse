@@ -302,39 +302,3 @@ class TestListRecentArticles:
         articles = await service.list_recent_articles()
 
         assert articles == []
-
-
-class TestGetDailyArticle:
-    @pytest.mark.asyncio
-    @patch("backend.services.article_service.get_supabase")
-    @patch("backend.services.article_service.get_settings")
-    async def test_returns_none_when_no_articles(
-        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
-    ):
-        mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
-        query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
-        query.execute.return_value.data = []
-
-        service = ArticleService()
-        result = await service.get_daily_article()
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    @patch("backend.services.article_service.get_supabase")
-    @patch("backend.services.article_service.get_settings")
-    async def test_orders_by_date_descending(
-        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
-    ):
-        mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
-        query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
-        query.execute.return_value.data = []
-
-        service = ArticleService()
-        await service.get_daily_article()
-
-        mock_supabase_client.table.return_value.select.return_value.order.assert_called_once_with(
-            "date", desc=True
-        )

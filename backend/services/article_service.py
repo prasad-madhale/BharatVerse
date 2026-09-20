@@ -96,8 +96,9 @@ class ArticleService:
         """
         Retrieve the current daily article.
 
-        Phase 0: the most recently published article by date. Real
-        daily-selection logic (one designated article per calendar day,
+        The most recently published article by date, breaking ties on
+        created_at so the result is stable when two articles share a date.
+        Real daily-selection logic (one designated article per calendar day,
         topic uniqueness) is a Phase 4 (scheduler) concern.
         """
         client = get_supabase().get_client()
@@ -105,6 +106,7 @@ class ArticleService:
             client.table("articles")
             .select("*")
             .order("date", desc=True)
+            .order("created_at", desc=True)
             .limit(1)
             .execute()
         )
