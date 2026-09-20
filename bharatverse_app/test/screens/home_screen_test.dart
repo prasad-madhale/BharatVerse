@@ -9,10 +9,14 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:bharatverse_app/screens/home_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
+import 'package:bharatverse_app/services/likes_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
+import 'package:bharatverse_app/state/like_state.dart';
 import 'package:bharatverse_app/widgets/article_card.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
+
+class MockLikesClient extends Mock implements LikesClient {}
 
 /// Shape of a row returned by Supabase's REST (PostgREST) API for the
 /// `articles` table -- note `date`, not `publication_date`, and no
@@ -54,17 +58,27 @@ MockClient articlesMockClient(List<Map<String, dynamic>> Function() rows) =>
       return http.Response(jsonEncode(rows()), 200);
     });
 
-/// Wraps HomeScreen with a signed-out AuthState -- HomeScreen's account icon
-/// (a Consumer widget for AuthState) needs a Provider ancestor regardless of
-/// whether a given test cares about auth at all.
+/// Wraps HomeScreen with a signed-out AuthState and the LikeState that
+/// follows it -- HomeScreen's account icon (a Consumer widget for AuthState)
+/// and the detail screen's like button both need a Provider ancestor
+/// regardless of whether a given test cares about auth or likes at all.
 Widget _wrapWithProviders(ApiClient apiClient) {
   final mockAuthClient = MockGoTrueClient();
   when(() => mockAuthClient.currentUser).thenReturn(null);
   when(() => mockAuthClient.onAuthStateChange)
       .thenAnswer((_) => const Stream.empty());
+  final authState = AuthState(authClient: mockAuthClient);
 
-  return ChangeNotifierProvider(
-    create: (_) => AuthState(authClient: mockAuthClient),
+  return MultiProvider(
+    providers: [
+      ChangeNotifierProvider.value(value: authState),
+      ChangeNotifierProvider(
+        create: (_) => LikeState(
+          likesClient: MockLikesClient(),
+          authState: authState,
+        ),
+      ),
+    ],
     child: MaterialApp(home: HomeScreen(apiClient: apiClient)),
   );
 }

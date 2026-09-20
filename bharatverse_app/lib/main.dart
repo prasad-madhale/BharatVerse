@@ -7,7 +7,9 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'config.dart';
 import 'screens/home_screen.dart';
 import 'services/api_client.dart';
+import 'services/likes_client.dart';
 import 'state/auth_state.dart';
+import 'state/like_state.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -21,8 +23,17 @@ class BharatVerseApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AuthState(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthState()),
+        // LikeState follows AuthState, so it is created after it.
+        ChangeNotifierProvider(
+          create: (context) => LikeState(
+            likesClient: LikesClient(),
+            authState: context.read<AuthState>(),
+          ),
+        ),
+      ],
       child: MaterialApp(
         title: 'BharatVerse',
         theme: AppTheme.theme,

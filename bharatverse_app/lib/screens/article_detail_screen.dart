@@ -8,6 +8,8 @@ import '../theme/app_typography.dart';
 import '../widgets/app_icon_button.dart';
 import '../widgets/app_tag.dart';
 import '../widgets/citation_item.dart';
+import '../widgets/like_button.dart';
+import 'auth_screen.dart';
 
 class ArticleDetailScreen extends StatelessWidget {
   final Article article;
@@ -47,7 +49,12 @@ class ArticleDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                const SizedBox(width: 40), // balances the back button
+                LikeButton(
+                  articleId: article.id,
+                  onRequireAuth: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AuthScreen()),
+                  ),
+                ),
               ],
             ),
           ),
