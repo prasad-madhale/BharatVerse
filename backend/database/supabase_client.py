@@ -4,7 +4,7 @@ Supabase client for BharatVerse MVP.
 Provides connection to Supabase PostgreSQL database and storage.
 """
 
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
 from typing import Optional
 import logging
 
@@ -58,6 +58,26 @@ class SupabaseClient:
             self._admin_client = create_client(self.url, self.service_role_key)
             logger.info("Initialized Supabase admin client (service role)")
         return self._admin_client
+
+    def create_auth_client(self) -> Client:
+        """
+        A brand-new anon client, never cached.
+
+        Signing a user in or up stores that user's session on the client that
+        made the call, and supabase-py then sends the user's token with every
+        later request from that client. Doing that on the shared client from
+        get_client() would make every other request run as the last user to
+        sign in. Use this for calls that create a session, and discard it.
+
+        Auto-refresh is off because after a sign-in supabase-py otherwise
+        starts a timer thread that keeps this client alive, refreshing its
+        session forever. One leaked thread and client per login adds up.
+        """
+        return create_client(
+            self.url,
+            self.anon_key,
+            options=ClientOptions(auto_refresh_token=False, persist_session=False),
+        )
 
     async def test_connection(self) -> bool:
         """
