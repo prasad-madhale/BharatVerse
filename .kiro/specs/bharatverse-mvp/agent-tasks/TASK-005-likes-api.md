@@ -1,6 +1,6 @@
 ---
 id: TASK-005
-title: Expose likes over HTTP behind the existing auth dependency
+title: Expose likes over HTTP at the paths the design doc specifies
 depends_on: TASK-004
 requires: 
 allowed: backend/api/likes.py, backend/main.py, backend/tests/test_api/test_likes.py
@@ -9,15 +9,18 @@ verify: cd "$BV_ROOT/backend" && python -m pytest -m "not integration" -q -p no:
 verify: cd "$BV_ROOT" && python -m autopep8 --recursive --aggressive --aggressive --max-line-length=127 --exit-code --diff backend/ scrapper/ common/
 verify: cd "$BV_ROOT" && python -m flake8 . --count --select=E9,F63,F7,F82 --exclude=.venv,.agent,.git,__pycache__,bharatverse_app,scripts
 verify: cd "$BV_ROOT" && grep -q 'likes_router' backend/main.py
+verify: cd "$BV_ROOT" && grep -q '/users/me/likes' backend/api/likes.py
 commit: feat: add authenticated likes endpoints
 ---
 
-# TASK-005: Expose likes over HTTP behind the existing auth dependency
+# TASK-005: Expose likes over HTTP at the paths the design doc specifies
 
 ## Why
 
-TASK-004 added the data layer. This task puts it behind three authenticated endpoints. It is the first real consumer
-of `backend/api/deps.py`'s `get_current_user`, which has been built and tested but unused since the auth phase.
+TASK-004 added the data layer. This task puts it behind three authenticated endpoints, at the paths `design.md`
+section 2.5 specifies: `POST` and `DELETE /api/v1/articles/{id}/like`, and `GET /api/v1/users/me/likes`, which
+returns the user's liked articles. It is the first real consumer of `backend/api/deps.py`'s `get_current_user`,
+which has been built and tested but unused since the auth phase.
 
 The user id always comes from the verified token, never from the path, query, or body. Liking an article id that does
 not exist returns 404 instead of a 500 from the database.
@@ -39,7 +42,8 @@ Article like endpoints.
 
 Every route here requires a valid Supabase session. The user id comes from
 the verified token via get_current_user, never from the request body, so a
-caller cannot act on someone else's behalf.
+caller cannot act on someone else's behalf. Paths follow design.md:
+POST/DELETE /articles/{id}/like and GET /users/me/likes.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -47,11 +51,12 @@ from gotrue.types import User
 
 from backend.api.deps import get_current_user
 from backend.services.like_service import ArticleNotFoundError, LikeService
+from common.models import Article
 
-router = APIRouter(prefix="/likes", tags=["likes"])
+router = APIRouter(tags=["likes"])
 
 
-@router.put("/{article_id}", status_code=204)
+@router.post("/articles/{article_id}/like", status_code=204)
 async def like_article(article_id: str, user: User = Depends(get_current_user)) -> None:
     """Like an article. Idempotent, so a repeated call is still a 204."""
     try:
@@ -60,19 +65,19 @@ async def like_article(article_id: str, user: User = Depends(get_current_user)) 
         raise HTTPException(status_code=404, detail=f"Article '{article_id}' not found") from e
 
 
-@router.delete("/{article_id}", status_code=204)
+@router.delete("/articles/{article_id}/like", status_code=204)
 async def unlike_article(article_id: str, user: User = Depends(get_current_user)) -> None:
     """Remove a like. Idempotent, so unliking twice is still a 204."""
     await LikeService().unlike_article(user.id, article_id)
 
 
-@router.get("", response_model=list[str])
-async def list_likes(
-    limit: int = Query(default=50, ge=1, le=200),
+@router.get("/users/me/likes", response_model=list[Article])
+async def get_liked_articles(
+    limit: int = Query(default=20, ge=1, le=50),
     user: User = Depends(get_current_user),
-) -> list[str]:
-    """Article ids this user has liked, most recently liked first."""
-    return await LikeService().list_liked_article_ids(user.id, limit=limit)
+) -> list[Article]:
+    """Articles this user has liked, most recently liked first."""
+    return await LikeService().get_user_likes(user.id, limit=limit)
 ```
 
 ### Step 2. Register the router
@@ -120,6 +125,7 @@ LikeService is mocked and get_current_user is overridden, so no live
 Supabase or network calls happen.
 """
 
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -129,10 +135,22 @@ from fastapi.testclient import TestClient
 from backend.api.deps import get_current_user
 from backend.main import app
 from backend.services.like_service import ArticleNotFoundError
+from common.models import Article
 
 # HTTPBearer answers a missing Authorization header with 403 on the pinned
 # FastAPI 0.109 and with 401 on newer releases. Either means "rejected".
 REJECTED = (401, 403)
+
+
+def make_article(article_id="art_20260703_001"):
+    return Article(
+        id=article_id,
+        title="The Mauryan Empire",
+        summary="A summary.",
+        content="## Origins\n\nSome content.",
+        publication_date=date(2026, 7, 3),
+        reading_time_minutes=13,
+    )
 
 
 @pytest.fixture
@@ -151,11 +169,16 @@ def anonymous_client():
 
 
 class TestRouting:
-    def test_like_routes_are_registered_under_the_api_prefix(self, anonymous_client):
+    def test_like_routes_follow_the_design_doc_paths(self, anonymous_client):
         paths = anonymous_client.get("/openapi.json").json()["paths"]
 
-        assert set(paths["/api/v1/likes/{article_id}"]) == {"put", "delete"}
-        assert "get" in paths["/api/v1/likes"]
+        assert set(paths["/api/v1/articles/{article_id}/like"]) == {"post", "delete"}
+        assert set(paths["/api/v1/users/me/likes"]) == {"get"}
+
+    def test_liking_does_not_shadow_the_article_by_id_route(self, anonymous_client):
+        paths = anonymous_client.get("/openapi.json").json()["paths"]
+
+        assert "get" in paths["/api/v1/articles/{article_id}"]
 
 
 class TestLikeArticle:
@@ -163,7 +186,7 @@ class TestLikeArticle:
         with patch("backend.api.likes.LikeService") as mock_service_class:
             mock_service_class.return_value.like_article = AsyncMock(return_value=None)
 
-            response = client.put("/api/v1/likes/art_1")
+            response = client.post("/api/v1/articles/art_1/like")
 
         assert response.status_code == 204
         mock_service_class.return_value.like_article.assert_called_once_with("user-123", "art_1")
@@ -174,14 +197,14 @@ class TestLikeArticle:
                 side_effect=ArticleNotFoundError("art_missing")
             )
 
-            response = client.put("/api/v1/likes/art_missing")
+            response = client.post("/api/v1/articles/art_missing/like")
 
         assert response.status_code == 404
         assert "art_missing" in response.json()["detail"]
 
     def test_rejects_anonymous_caller_without_touching_the_service(self, anonymous_client):
         with patch("backend.api.likes.LikeService") as mock_service_class:
-            response = anonymous_client.put("/api/v1/likes/art_1")
+            response = anonymous_client.post("/api/v1/articles/art_1/like")
 
         assert response.status_code in REJECTED
         mock_service_class.assert_not_called()
@@ -192,47 +215,46 @@ class TestUnlikeArticle:
         with patch("backend.api.likes.LikeService") as mock_service_class:
             mock_service_class.return_value.unlike_article = AsyncMock(return_value=None)
 
-            response = client.delete("/api/v1/likes/art_1")
+            response = client.delete("/api/v1/articles/art_1/like")
 
         assert response.status_code == 204
         mock_service_class.return_value.unlike_article.assert_called_once_with("user-123", "art_1")
 
     def test_rejects_anonymous_caller_without_touching_the_service(self, anonymous_client):
         with patch("backend.api.likes.LikeService") as mock_service_class:
-            response = anonymous_client.delete("/api/v1/likes/art_1")
+            response = anonymous_client.delete("/api/v1/articles/art_1/like")
 
         assert response.status_code in REJECTED
         mock_service_class.assert_not_called()
 
 
-class TestListLikes:
-    def test_returns_liked_ids(self, client):
+class TestGetLikedArticles:
+    def test_returns_the_users_liked_articles(self, client):
         with patch("backend.api.likes.LikeService") as mock_service_class:
-            mock_service_class.return_value.list_liked_article_ids = AsyncMock(
-                return_value=["art_2", "art_1"]
+            mock_service_class.return_value.get_user_likes = AsyncMock(
+                return_value=[make_article("art_2"), make_article("art_1")]
             )
 
-            response = client.get("/api/v1/likes")
+            response = client.get("/api/v1/users/me/likes")
 
         assert response.status_code == 200
-        assert response.json() == ["art_2", "art_1"]
+        assert [a["id"] for a in response.json()] == ["art_2", "art_1"]
+        mock_service_class.return_value.get_user_likes.assert_called_once_with("user-123", limit=20)
 
     def test_passes_limit_through(self, client):
         with patch("backend.api.likes.LikeService") as mock_service_class:
-            mock_service_class.return_value.list_liked_article_ids = AsyncMock(return_value=[])
+            mock_service_class.return_value.get_user_likes = AsyncMock(return_value=[])
 
-            client.get("/api/v1/likes?limit=10")
+            client.get("/api/v1/users/me/likes?limit=10")
 
-        mock_service_class.return_value.list_liked_article_ids.assert_called_once_with(
-            "user-123", limit=10
-        )
+        mock_service_class.return_value.get_user_likes.assert_called_once_with("user-123", limit=10)
 
     def test_rejects_limit_above_max(self, client):
-        assert client.get("/api/v1/likes?limit=201").status_code == 422
+        assert client.get("/api/v1/users/me/likes?limit=51").status_code == 422
 
     def test_rejects_anonymous_caller_without_touching_the_service(self, anonymous_client):
         with patch("backend.api.likes.LikeService") as mock_service_class:
-            response = anonymous_client.get("/api/v1/likes")
+            response = anonymous_client.get("/api/v1/users/me/likes")
 
         assert response.status_code in REJECTED
         mock_service_class.assert_not_called()

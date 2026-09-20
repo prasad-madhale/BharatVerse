@@ -15,16 +15,26 @@ commit: feat: add LikeService for article likes
 
 ## Why
 
-Likes are the next unbuilt roadmap phase. The `likes` table, its unique index, and its row-level security policies
-already exist in `schema.sql` and need no change. This task adds only the Python service. The HTTP endpoints are
-TASK-005.
+Likes are the next unbuilt roadmap phase. `design.md` section 2.4 defines the service: `like_article`, `unlike_article`,
+`is_liked`, `get_user_likes` returning full articles, and `get_article_like_count`. The `likes` table, its unique index,
+and its row-level security policies already exist in `schema.sql` and need no change. This task adds only the Python
+service. The HTTP endpoints are TASK-005.
 
 ## Security constraint
 
 Writes go through `get_supabase().get_admin_client()`, which uses the service-role key and bypasses row-level
 security entirely. The table's policies restricting a user to their own rows are therefore not in force on this path.
-Every query in this service must filter on `user_id`. A missing filter would let one user read or delete another
-user's likes. The tests assert the real `user_id=eq...` parameter on the wire for exactly this reason.
+Every per-user query in this service must filter on `user_id`. A missing filter would let one user read or delete
+another user's likes. The tests assert the real `user_id=eq...` parameter on the wire for exactly this reason.
+
+## Two things confirmed offline that shape the code
+
+- **Counting.** postgrest-py reports a count of 0 for any response with an empty body, and a real HEAD response has
+  no body. So `head=True` would silently return 0 in production. The service counts with a normal GET and
+  `limit(0)`, which returns an empty list plus the total in the `Content-Range` header.
+- **Liked articles.** `articles(*)` in the select embeds each liked article's row through the foreign key, so one
+  query returns the likes with their article rows. The service then reads each article's content from storage with
+  the existing `ArticleService.load_article`, the same way search does.
 
 ## Read first, and nothing else
 
@@ -42,8 +52,8 @@ Create `backend/services/like_service.py` with exactly this content:
 Article likes, backed by the `likes` table in Supabase Postgres.
 
 These calls use the service-role client, which bypasses row-level security.
-That makes filtering by user_id in every query mandatory, not optional --
-the table's RLS policies are not in force on this path.
+That makes filtering by user_id in every per-user query mandatory, not
+optional -- the table's RLS policies are not in force on this path.
 """
 
 import logging
@@ -51,6 +61,8 @@ import logging
 from postgrest.exceptions import APIError
 
 from backend.database import get_supabase
+from backend.services.article_service import ArticleService
+from common.models import Article
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +76,9 @@ class ArticleNotFoundError(Exception):
 
 class LikeService:
     """Creates, removes, and reads a user's article likes."""
+
+    def __init__(self):
+        self.article_service = ArticleService()
 
     async def like_article(self, user_id: str, article_id: str) -> None:
         """Record a like. Idempotent -- liking twice is not an error.
@@ -106,18 +121,29 @@ class LikeService:
         )
         return bool(response.data)
 
-    async def list_liked_article_ids(self, user_id: str, limit: int = 50) -> list[str]:
-        """Article ids this user has liked, most recently liked first."""
+    async def get_user_likes(self, user_id: str, limit: int = 20) -> list[Article]:
+        """Full articles this user has liked, most recently liked first."""
         client = get_supabase().get_admin_client()
+        # articles(*) embeds each liked article's row through the foreign key,
+        # so this is one query for the rows plus one storage read per article.
         response = (
             client.table("likes")
-            .select("article_id")
+            .select("created_at", "articles(*)")
             .eq("user_id", user_id)
             .order("created_at", desc=True)
             .limit(limit)
             .execute()
         )
-        return [row["article_id"] for row in response.data]
+        return [self.article_service.load_article(client, row["articles"]) for row in response.data]
+
+    async def get_article_like_count(self, article_id: str) -> int:
+        """How many users have liked this article."""
+        client = get_supabase().get_admin_client()
+        # limit(0) returns no rows, only the total in the Content-Range header. A HEAD request
+        # (head=True) looks tidier, but postgrest-py reports count=0 for any response with an
+        # empty body, which is what a real HEAD response is.
+        response = client.table("likes").select("id", count="exact").eq("article_id", article_id).limit(0).execute()
+        return response.count or 0
 ```
 
 ### Step 2. Create the tests
@@ -137,7 +163,7 @@ HTTP request that would be sent, not on a mock's call list.
 """
 
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
@@ -145,6 +171,30 @@ from postgrest.exceptions import APIError
 
 from backend.services.like_service import ArticleNotFoundError, LikeService
 from backend.tests.wire import WireClient
+
+
+def make_row(article_id="art_20260703_001", title="The Mauryan Empire"):
+    return {
+        "id": article_id,
+        "title": title,
+        "summary": "A summary.",
+        "date": "2026-07-03",
+        "reading_time_minutes": 13,
+        "author": "BharatVerse AI",
+        "tags": ["mauryan-empire"],
+        "image_url": None,
+        "content_file_path": f"articles/2026-07-03/{article_id}.json",
+        "created_at": "2026-07-03T00:00:00Z",
+        "updated_at": "2026-07-03T00:00:00Z",
+    }
+
+
+def make_blob():
+    return json.dumps({
+        "content": "## Origins\n\nSome content.",
+        "sections": [{"heading": "Origins", "content": "Some content.", "order": 1}],
+        "citations": [],
+    }).encode("utf-8")
 
 
 def use_wire(mock_get_supabase, handler):
@@ -245,37 +295,70 @@ class TestIsLiked:
         assert await LikeService().is_liked("user-1", "art_1") is False
 
 
-class TestListLikedArticleIds:
+class TestGetUserLikes:
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
-    async def test_returns_ids_most_recent_first_scoped_to_the_user(self, mock_get_supabase):
-        rows = [{"article_id": "art_2"}, {"article_id": "art_1"}]
+    async def test_returns_full_articles_most_recent_first_scoped_to_the_user(self, mock_get_supabase):
+        rows = [
+            {"created_at": "2026-07-05T00:00:00Z", "articles": make_row("art_2", "Second")},
+            {"created_at": "2026-07-04T00:00:00Z", "articles": make_row("art_1", "First")},
+        ]
         wire = use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=rows))
+        wire.storage = MagicMock()
+        wire.storage.from_.return_value.download.return_value = make_blob()
 
-        result = await LikeService().list_liked_article_ids("user-1")
+        articles = await LikeService().get_user_likes("user-1")
 
-        assert result == ["art_2", "art_1"]
+        assert [a.id for a in articles] == ["art_2", "art_1"]
+        assert articles[0].sections[0].heading == "Origins"
         (request,) = wire.requests
-        assert request.url.params["select"] == "article_id"
+        assert request.method == "GET"
+        assert request.url.path == "/rest/v1/likes"
+        assert request.url.params["select"] == "created_at,articles(*)"
         assert request.url.params["user_id"] == "eq.user-1"
         assert request.url.params["order"] == "created_at.desc"
-        assert request.url.params["limit"] == "50"
+        assert request.url.params["limit"] == "20"
 
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
     async def test_passes_custom_limit(self, mock_get_supabase):
         wire = use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[]))
 
-        await LikeService().list_liked_article_ids("user-1", limit=10)
+        await LikeService().get_user_likes("user-1", limit=5)
 
-        assert wire.requests[0].url.params["limit"] == "10"
+        assert wire.requests[0].url.params["limit"] == "5"
 
     @pytest.mark.asyncio
     @patch("backend.services.like_service.get_supabase")
     async def test_empty_when_no_likes(self, mock_get_supabase):
         use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[]))
 
-        assert await LikeService().list_liked_article_ids("user-1") == []
+        assert await LikeService().get_user_likes("user-1") == []
+
+
+class TestGetArticleLikeCount:
+    @pytest.mark.asyncio
+    @patch("backend.services.like_service.get_supabase")
+    async def test_reads_the_total_from_a_count_only_request(self, mock_get_supabase):
+        # With limit(0) PostgREST returns an empty list and the total in Content-Range.
+        wire = use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[], headers={"content-range": "*/7"}))
+
+        assert await LikeService().get_article_like_count("art_1") == 7
+
+        (request,) = wire.requests
+        assert request.method == "GET"
+        assert request.url.path == "/rest/v1/likes"
+        assert request.url.params["select"] == "id"
+        assert request.url.params["article_id"] == "eq.art_1"
+        assert request.url.params["limit"] == "0"
+        assert request.headers["prefer"] == "count=exact"
+
+    @pytest.mark.asyncio
+    @patch("backend.services.like_service.get_supabase")
+    async def test_zero_when_no_count_is_returned(self, mock_get_supabase):
+        use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[]))
+
+        assert await LikeService().get_article_like_count("art_1") == 0
 ```
 
 ## Verify
@@ -294,5 +377,5 @@ under `allowed`.
 
 ## Out of scope
 
-Do not create the HTTP endpoints (TASK-005). Do not modify `schema.sql` or `deps.py`. Do not add a like count or join
-to the `articles` table. Do not try to reach a live Supabase project.
+Do not create the HTTP endpoints (TASK-005). Do not modify `schema.sql` or `deps.py`. Do not join like counts into
+article responses. Do not try to reach a live Supabase project.

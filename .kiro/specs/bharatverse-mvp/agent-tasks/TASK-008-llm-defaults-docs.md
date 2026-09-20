@@ -11,7 +11,7 @@ verify: cd "$BV_ROOT" && grep -q 'gemini-2.5-flash' .env.example
 verify: cd "$BV_ROOT" && grep -q 'claude-sonnet-5' .env.example
 verify: cd "$BV_ROOT" && grep -q 'llama-3.3-70b-versatile' .env.example
 verify: cd "$BV_ROOT" && ! grep -q 'Default provider is now' .kiro/specs/bharatverse-mvp/roadmap.md
-verify: cd "$BV_ROOT" && grep -q 'still defaults to `gemini`' .kiro/specs/bharatverse-mvp/roadmap.md
+verify: cd "$BV_ROOT" && grep -q 'still defaults to .gemini.' .kiro/specs/bharatverse-mvp/roadmap.md
 commit: docs: correct the documented LLM provider and model defaults
 ---
 
