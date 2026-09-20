@@ -1,0 +1,356 @@
+import 'dart:async';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
+import 'package:supabase_flutter/supabase_flutter.dart' as gotrue
+    show AuthState;
+
+import 'package:bharatverse_app/services/api_client.dart';
+import 'package:bharatverse_app/services/likes_client.dart';
+import 'package:bharatverse_app/state/auth_state.dart';
+import 'package:bharatverse_app/state/like_state.dart';
+
+class MockGoTrueClient extends Mock implements GoTrueClient {}
+
+class MockLikesClient extends Mock implements LikesClient {}
+
+User testUser({String id = 'user-123'}) => User(
+      id: id,
+      appMetadata: const {},
+      userMetadata: const {},
+      aud: 'authenticated',
+      createdAt: '2026-07-08T00:00:00Z',
+    );
+
+void main() {
+  late MockGoTrueClient authClient;
+  late MockLikesClient likesClient;
+  late StreamController<gotrue.AuthState> authEvents;
+  late AuthState authState;
+
+  /// Makes the mocked auth client report [user] as signed in, or nobody.
+  void signInAs(User? user, {String token = 'user-token'}) {
+    when(() => authClient.currentUser).thenReturn(user);
+    when(() => authClient.currentSession).thenReturn(
+      user == null
+          ? null
+          : Session(accessToken: token, tokenType: 'bearer', user: user),
+    );
+  }
+
+  /// Tells listeners the auth state changed, as Supabase would.
+  Future<void> emitAuthChange(AuthChangeEvent event) async {
+    authEvents.add(gotrue.AuthState(event, authClient.currentSession));
+    await pumpEventQueue();
+  }
+
+  LikeState makeLikeState() =>
+      LikeState(likesClient: likesClient, authState: authState);
+
+  setUp(() {
+    authClient = MockGoTrueClient();
+    likesClient = MockLikesClient();
+    authEvents = StreamController<gotrue.AuthState>.broadcast();
+    addTearDown(authEvents.close);
+    when(() => authClient.onAuthStateChange)
+        .thenAnswer((_) => authEvents.stream);
+    signInAs(null);
+    when(() => likesClient.getLikedArticleIds(
+          accessToken: any(named: 'accessToken'),
+        )).thenAnswer((_) async => <String>{});
+    when(() => likesClient.like(
+          accessToken: any(named: 'accessToken'),
+          userId: any(named: 'userId'),
+          articleId: any(named: 'articleId'),
+        )).thenAnswer((_) async {});
+    when(() => likesClient.unlike(
+          accessToken: any(named: 'accessToken'),
+          articleId: any(named: 'articleId'),
+        )).thenAnswer((_) async {});
+    authState = AuthState(authClient: authClient);
+  });
+
+  group('LikeState loading', () {
+    test('nothing is liked, and nothing is fetched, when signed out', () {
+      final likeState = makeLikeState();
+
+      expect(likeState.isLiked('art_1'), isFalse);
+      verifyNever(() => likesClient.getLikedArticleIds(
+            accessToken: any(named: 'accessToken'),
+          ));
+    });
+
+    test("loads the user's likes when already signed in", () async {
+      signInAs(testUser());
+      when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
+          .thenAnswer((_) async => {'art_1'});
+
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      expect(likeState.isLiked('art_1'), isTrue);
+      expect(likeState.isLiked('art_2'), isFalse);
+    });
+
+    test('loads the likes when a user signs in later', () async {
+      when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
+          .thenAnswer((_) async => {'art_1'});
+      final likeState = makeLikeState();
+
+      signInAs(testUser());
+      await emitAuthChange(AuthChangeEvent.signedIn);
+
+      expect(likeState.isLiked('art_1'), isTrue);
+    });
+
+    test('notifies listeners once the likes have loaded', () async {
+      signInAs(testUser());
+      when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
+          .thenAnswer((_) async => {'art_1'});
+      final likeState = makeLikeState();
+      var notified = 0;
+      likeState.addListener(() => notified++);
+
+      await pumpEventQueue();
+
+      expect(notified, 1);
+    });
+
+    test('forgets the likes when the user signs out', () async {
+      signInAs(testUser());
+      when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
+          .thenAnswer((_) async => {'art_1'});
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      signInAs(null);
+      await emitAuthChange(AuthChangeEvent.signedOut);
+
+      expect(likeState.isLiked('art_1'), isFalse);
+    });
+
+    test("a different account never sees the previous user's likes", () async {
+      signInAs(testUser(id: 'alice'), token: 'alice-token');
+      when(() => likesClient.getLikedArticleIds(accessToken: 'alice-token'))
+          .thenAnswer((_) async => {'art_1'});
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      signInAs(testUser(id: 'bob'), token: 'bob-token');
+      await emitAuthChange(AuthChangeEvent.signedIn);
+
+      expect(likeState.isLiked('art_1'), isFalse);
+    });
+
+    test("does not reload when the same user's token refreshes", () async {
+      signInAs(testUser());
+      makeLikeState();
+      await pumpEventQueue();
+
+      await emitAuthChange(AuthChangeEvent.tokenRefreshed);
+
+      verify(() => likesClient.getLikedArticleIds(
+            accessToken: any(named: 'accessToken'),
+          )).called(1);
+    });
+
+    test('ignores a load that finishes after the user signed out', () async {
+      final slowLoad = Completer<Set<String>>();
+      signInAs(testUser());
+      when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
+          .thenAnswer((_) => slowLoad.future);
+      final likeState = makeLikeState();
+
+      signInAs(null);
+      await emitAuthChange(AuthChangeEvent.signedOut);
+      slowLoad.complete({'art_1'});
+      await pumpEventQueue();
+
+      expect(likeState.isLiked('art_1'), isFalse);
+    });
+
+    test('a failed load leaves the likes empty and does not throw', () async {
+      signInAs(testUser());
+      when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
+          .thenThrow(ApiException('Could not reach the server'));
+
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      expect(likeState.isLiked('art_1'), isFalse);
+    });
+  });
+
+  group('LikeState.toggle', () {
+    test('likes an unliked article, showing it immediately', () async {
+      signInAs(testUser());
+      final request = Completer<void>();
+      when(() => likesClient.like(
+            accessToken: 'user-token',
+            userId: 'user-123',
+            articleId: 'art_1',
+          )).thenAnswer((_) => request.future);
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      final toggled = likeState.toggle('art_1');
+
+      expect(likeState.isLiked('art_1'), isTrue);
+      request.complete();
+      await toggled;
+      verify(() => likesClient.like(
+            accessToken: 'user-token',
+            userId: 'user-123',
+            articleId: 'art_1',
+          )).called(1);
+    });
+
+    test('unlikes a liked article', () async {
+      signInAs(testUser());
+      when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
+          .thenAnswer((_) async => {'art_1'});
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      await likeState.toggle('art_1');
+
+      expect(likeState.isLiked('art_1'), isFalse);
+      verify(() => likesClient.unlike(
+            accessToken: 'user-token',
+            articleId: 'art_1',
+          )).called(1);
+    });
+
+    test('rolls back and rethrows when liking fails', () async {
+      signInAs(testUser());
+      when(() => likesClient.like(
+            accessToken: any(named: 'accessToken'),
+            userId: any(named: 'userId'),
+            articleId: any(named: 'articleId'),
+          )).thenThrow(ApiException('Article not found', statusCode: 404));
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      await expectLater(
+        likeState.toggle('art_missing'),
+        throwsA(isA<ApiException>()),
+      );
+
+      expect(likeState.isLiked('art_missing'), isFalse);
+    });
+
+    test('rolls back an unlike that fails', () async {
+      signInAs(testUser());
+      when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
+          .thenAnswer((_) async => {'art_1'});
+      when(() => likesClient.unlike(
+            accessToken: any(named: 'accessToken'),
+            articleId: any(named: 'articleId'),
+          )).thenThrow(ApiException('Request failed (500)', statusCode: 500));
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      await expectLater(
+        likeState.toggle('art_1'),
+        throwsA(isA<ApiException>()),
+      );
+
+      expect(likeState.isLiked('art_1'), isTrue);
+    });
+
+    test('ignores a second tap while the first is still in flight', () async {
+      signInAs(testUser());
+      final request = Completer<void>();
+      when(() => likesClient.like(
+            accessToken: any(named: 'accessToken'),
+            userId: any(named: 'userId'),
+            articleId: any(named: 'articleId'),
+          )).thenAnswer((_) => request.future);
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      final first = likeState.toggle('art_1');
+      final second = likeState.toggle('art_1');
+      request.complete();
+      await Future.wait([first, second]);
+
+      expect(likeState.isLiked('art_1'), isTrue);
+      verify(() => likesClient.like(
+            accessToken: any(named: 'accessToken'),
+            userId: any(named: 'userId'),
+            articleId: any(named: 'articleId'),
+          )).called(1);
+    });
+
+    test('notifies listeners on the optimistic change and on a rollback',
+        () async {
+      signInAs(testUser());
+      when(() => likesClient.like(
+            accessToken: any(named: 'accessToken'),
+            userId: any(named: 'userId'),
+            articleId: any(named: 'articleId'),
+          )).thenThrow(ApiException('Request failed (500)', statusCode: 500));
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+      var notified = 0;
+      likeState.addListener(() => notified++);
+
+      await expectLater(
+        likeState.toggle('art_1'),
+        throwsA(isA<ApiException>()),
+      );
+
+      expect(notified, 2);
+    });
+
+    test('throws a StateError when nobody is signed in', () async {
+      final likeState = makeLikeState();
+
+      expect(() => likeState.toggle('art_1'), throwsStateError);
+      verifyNever(() => likesClient.like(
+            accessToken: any(named: 'accessToken'),
+            userId: any(named: 'userId'),
+            articleId: any(named: 'articleId'),
+          ));
+    });
+
+    test('does not bring back an unlike after the account changed mid-request',
+        () async {
+      // Rolling back a failed unlike re-adds the id, so this is the case where
+      // a rollback that ignores the account change would leak a like.
+      signInAs(testUser());
+      when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
+          .thenAnswer((_) async => {'art_1'});
+      final request = Completer<void>();
+      when(() => likesClient.unlike(
+            accessToken: any(named: 'accessToken'),
+            articleId: any(named: 'articleId'),
+          )).thenAnswer((_) => request.future);
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      final toggled = likeState.toggle('art_1');
+      signInAs(null);
+      await emitAuthChange(AuthChangeEvent.signedOut);
+      request.completeError(ApiException('Request failed (500)'));
+      await expectLater(toggled, throwsA(isA<ApiException>()));
+
+      expect(likeState.isLiked('art_1'), isFalse);
+    });
+  });
+
+  group('LikeState.dispose', () {
+    test('stops following auth changes', () async {
+      final likeState = makeLikeState();
+      likeState.dispose();
+      signInAs(testUser());
+      clearInteractions(authClient);
+
+      await emitAuthChange(AuthChangeEvent.signedIn);
+
+      // A LikeState still subscribed would read the current user in response.
+      verifyNever(() => authClient.currentUser);
+    });
+  });
+}
