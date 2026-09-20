@@ -15,7 +15,7 @@ for the authoritative, phase-by-phase status and the remaining build order. In s
   running `schema.sql`, not yet against the hosted Supabase project. The mobile app reads articles, searches
   them, and reads and writes likes directly against Supabase, not through this API.
 - `bharatverse_app/`: Home, Article Detail, Sign-in, Search, Liked articles, and Archive screens are built in the "Vintage Broadsheet" design
-  system, and the article screen has a like button. Offline caching is not built yet.
+  system, the article screen has a like button, and articles are saved for offline reading.
 
 ## 🏗️ Project Structure (Monorepo)
 
