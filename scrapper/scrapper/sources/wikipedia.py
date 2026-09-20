@@ -58,7 +58,7 @@ class WikipediaSource(ContentSource):
         logger.info(f"Searching Wikipedia for: '{topic}' (max {max_results} results)")
 
         try:
-            search_results = wikipedia.search(topic, results=max_results, suggestion=auto_suggest)
+            search_results = self._search_titles(topic, max_results, auto_suggest)
 
             if not search_results:
                 logger.warning(f"No Wikipedia results found for: {topic}")
@@ -67,10 +67,19 @@ class WikipediaSource(ContentSource):
             logger.info(f"Found {len(search_results)} results")
 
             results = []
+            seen_urls = set()
             for title in search_results:
                 page_info = self._get_page_info(title)
-                if page_info:
-                    results.append(page_info)
+                if not page_info:
+                    continue
+                # Two search hits can resolve to the same article (redirects,
+                # near-duplicate titles). Scraping it twice wastes a slot of the
+                # per-source character budget for no new content.
+                if page_info['url'] in seen_urls:
+                    logger.debug(f"Skipping duplicate Wikipedia URL: {page_info['url']}")
+                    continue
+                seen_urls.add(page_info['url'])
+                results.append(page_info)
 
             logger.info(f"Successfully retrieved {len(results)} pages")
             logger.debug(f"Wikipedia results: {results}")
@@ -79,6 +88,25 @@ class WikipediaSource(ContentSource):
         except Exception as e:
             logger.error(f"Search failed for '{topic}': {e}")
             return []
+
+    def _search_titles(self, topic: str, max_results: int, auto_suggest: bool) -> List[str]:
+        """
+        Titles of the pages matching `topic`, best match first.
+
+        wikipedia.search() returns a plain list of titles normally, but a
+        (titles, suggestion) tuple when called with suggestion=True. The tuple
+        must be unpacked: iterating it as if it were the title list yields the
+        whole list as its first "title" and the suggestion string as its
+        second, which resolves to the wrong pages.
+        """
+        if not auto_suggest:
+            return wikipedia.search(topic, results=max_results)
+
+        titles, suggestion = wikipedia.search(topic, results=max_results, suggestion=True)
+        if not titles and suggestion:
+            logger.info(f"No results for '{topic}'; retrying with Wikipedia's suggestion '{suggestion}'")
+            titles = wikipedia.search(suggestion, results=max_results)
+        return titles
 
     def _get_page_info(self, title: str) -> Optional[Dict[str, str]]:
         """Get page information from Wikipedia API."""
