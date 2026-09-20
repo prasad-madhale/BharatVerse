@@ -4,14 +4,17 @@ Discover India's epic past, one story at a time! BharatVerse delivers daily, AI-
 
 ## 📍 Project Status
 
-This project is early-stage: the core "scrape → AI-generate → store → serve → display" pipeline is not yet
-connected end-to-end. See **[.kiro/specs/bharatverse-mvp/roadmap.md](.kiro/specs/bharatverse-mvp/roadmap.md)**
-for what's actually implemented today versus what's planned, and the phased build order. In short:
-- `scrapper/`: web scraping (Wikipedia + archive.org via Crawl4AI) works; LLM article generation, validation, and
-  a daily scheduler are not yet built.
-- `backend/`: configuration, Supabase client, and database schema exist; the FastAPI app itself
-  (`backend/main.py`) and all API endpoints (articles, auth, search, likes) are not yet built.
-- `bharatverse_app/`: still the default Flutter starter template; no screens have been built yet.
+This project is early-stage but works end to end: the core scrape, AI-generate, validate, store, serve, and
+display pipeline has been run live. See **[.kiro/specs/bharatverse-mvp/roadmap.md](.kiro/specs/bharatverse-mvp/roadmap.md)**
+for the authoritative, phase-by-phase status and the remaining build order. In short:
+- `scrapper/`: scraping (Wikipedia, archive.org, New World Encyclopedia via Crawl4AI), LLM article generation,
+  content validation, and the daily scheduler CLI (`python scrapper/scrapper_main.py --count N`) all work. The
+  daily GitHub Actions trigger is deliberately disabled (manual runs only) until output quality is trusted.
+- `backend/`: the FastAPI app (`backend/main.py`) serves articles and email/password auth via Supabase Auth.
+  Full-text search and article likes are implemented and unit-tested but not yet verified against a live
+  Supabase project. The mobile app currently reads articles directly from Supabase, not through this API.
+- `bharatverse_app/`: Home, Article Detail, and Sign-in screens are built in the "Vintage Broadsheet" design
+  system. Search, likes, and offline caching are not built yet.
 
 ## 🏗️ Project Structure (Monorepo)
 
@@ -156,7 +159,7 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r backend/requirements.txt
 
-# Run API server (once backend/main.py exists — see Project Status above)
+# Run API server
 uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
