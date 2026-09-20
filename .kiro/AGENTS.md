@@ -5,8 +5,9 @@ This document provides essential information for AI agents working within the Bh
 > **Current implementation status**: the scrape, generate, validate, store, serve, and display pipeline works
 > end to end (the roadmap records what has been verified live). `scrapper/` has `scrapper_main.py`, the daily
 > scheduler, topic generation, and content validation. `backend/` has `main.py` with articles, auth, search, and
-> likes routers. `bharatverse_app/` has Home, Article Detail, and Sign-in screens. Search and likes are not yet
-> verified against a live Supabase project, and the app has no search, likes, or offline-cache screens yet. See
+> likes routers. `bharatverse_app/` has Home, Article Detail, and Sign-in screens, plus a like button on the
+> article screen. Search and likes are verified against a local Postgres and PostgREST, not yet the hosted Supabase
+> project, and the app has no search or offline-cache screens yet. See
 > [.kiro/specs/bharatverse-mvp/roadmap.md](specs/bharatverse-mvp/roadmap.md) for the current build order.
 
 ## Project Overview

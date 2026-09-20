@@ -5,7 +5,7 @@ FastAPI-based REST API for the BharatVerse mobile application.
 > **Status**: the endpoint list below is the target design from
 > [design.md](../.kiro/specs/bharatverse-mvp/design.md). Implemented today: the article endpoints,
 > `GET /api/v1/articles/search`, the like endpoints, and email/password auth (`/auth/signup`, `/auth/login`,
-> `/auth/logout`). Search and likes are unit-tested but not yet verified against a live Supabase project.
+> `/auth/logout`). Search and likes are verified against a local Postgres and PostgREST running `schema.sql`, not yet against the hosted Supabase project.
 > Endpoints marked "not built yet" do not exist. See
 > [.kiro/specs/bharatverse-mvp/roadmap.md](../.kiro/specs/bharatverse-mvp/roadmap.md) for current status and build order.
 

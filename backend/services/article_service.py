@@ -3,11 +3,9 @@ Article storage and retrieval, backed by Supabase: metadata in the
 `articles` Postgres table, full content (body/sections/citations) as a
 JSON file in Supabase Storage referenced by content_file_path.
 
-NOTE: the Supabase calls here (storage upload/download, table upsert) are
-unit-tested with a mocked client but have not yet been exercised against a
-live Supabase project (see backend/tests/test_database/ for the property
-test that already validates the Postgres row round-trip). Verify end-to-end
-once a live project is available.
+NOTE: the table calls here have been exercised against a local Postgres and
+PostgREST; Storage and Auth were local stand-ins, so none of this has run
+against the hosted Supabase project yet.
 """
 
 import json
