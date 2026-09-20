@@ -9,6 +9,9 @@ import 'package:bharatverse_app/widgets/like_button.dart';
 
 import '../support/like_fixtures.dart';
 import '../support/layout_fixtures.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bharatverse_app/services/article_cache.dart';
+import 'package:bharatverse_app/services/api_client.dart';
 
 const _articleId = 'art_20260703_001';
 
@@ -93,5 +96,30 @@ void main() {
         .descendant(of: find.byType(ListView), matching: find.byType(Container))
         .first;
     expect(tester.getSize(article).width, 720 - 2 * 20);
+  });
+
+  testWidgets('openArticle shows the article and saves the view',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final cache = ArticleCache(await SharedPreferences.getInstance());
+    final apiClient = ApiClient(cache: cache);
+    await tester.pumpWidget(withLikeProviders(
+      authState: AuthState(authClient: authClient),
+      likesClient: likesClient,
+      child: MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => openArticle(context, apiClient, sampleArticle()),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ArticleDetailScreen), findsOneWidget);
+    expect(await cache.getCachedArticle(sampleArticle().id), isNotNull);
   });
 }

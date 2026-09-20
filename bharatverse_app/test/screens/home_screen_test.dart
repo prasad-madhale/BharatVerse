@@ -17,6 +17,8 @@ import '../support/like_fixtures.dart'
     show MockLikesClient, testUser, withLikeProviders;
 import '../support/article_fixtures.dart';
 import '../support/layout_fixtures.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bharatverse_app/services/article_cache.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
@@ -268,6 +270,56 @@ void main() {
       await pumpHome(tester, 3);
 
       expect(find.text('Browse the archive →'), findsNothing);
+    });
+  });
+
+  group('offline', () {
+    late SharedPreferences prefs;
+    late ArticleCache cache;
+    late bool online;
+
+    ApiClient client() => ApiClient(
+          cache: cache,
+          client: MockClient((request) async {
+            if (!online) {
+              throw http.ClientException('Failed to fetch');
+            }
+            if (request.url.path.contains('/storage/')) {
+              return http.Response(jsonEncode(sampleArticleContent()), 200);
+            }
+            return http.Response(
+                jsonEncode([sampleArticleRow(id: 'live', title: 'Live news')]),
+                200);
+          }),
+        );
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      prefs = await SharedPreferences.getInstance();
+      cache = ArticleCache(prefs);
+      await cache.cacheArticle(sampleArticle(id: 'kept', title: 'Kept copy'));
+      online = false;
+    });
+
+    testWidgets('shows the saved articles with a notice', (tester) async {
+      await tester.pumpWidget(_wrapWithProviders(client()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('KEPT COPY'), findsOneWidget);
+      expect(find.text('OFFLINE · SHOWING SAVED ARTICLES'), findsOneWidget);
+    });
+
+    testWidgets('goes back to live articles when a refresh succeeds',
+        (tester) async {
+      await tester.pumpWidget(_wrapWithProviders(client()));
+      await tester.pumpAndSettle();
+      online = true;
+
+      await tester.fling(find.byType(ListView), const Offset(0, 400), 1000);
+      await tester.pumpAndSettle();
+
+      expect(find.text('LIVE NEWS'), findsOneWidget);
+      expect(find.text('OFFLINE · SHOWING SAVED ARTICLES'), findsNothing);
     });
   });
 }

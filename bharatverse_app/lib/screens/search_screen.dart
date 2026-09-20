@@ -104,11 +104,7 @@ class _SearchScreenState extends State<SearchScreen> {
             return ArticleCard(
               article: article,
               highlight: terms,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ArticleDetailScreen(article: article),
-                ),
-              ),
+              onTap: () => openArticle(context, widget.apiClient, article),
             );
           },
         );

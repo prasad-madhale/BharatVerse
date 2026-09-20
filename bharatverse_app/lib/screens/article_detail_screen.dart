@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../models/article.dart';
+import '../services/api_client.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
@@ -11,6 +14,18 @@ import '../widgets/citation_item.dart';
 import '../widgets/content_column.dart';
 import '../widgets/like_button.dart';
 import 'auth_screen.dart';
+
+/// Opens [article], first noting the view so it stays in the offline cache.
+Future<void> openArticle(
+  BuildContext context,
+  ApiClient apiClient,
+  Article article,
+) {
+  unawaited(apiClient.markViewed(article));
+  return Navigator.of(context).push(
+    MaterialPageRoute(builder: (_) => ArticleDetailScreen(article: article)),
+  );
+}
 
 class ArticleDetailScreen extends StatelessWidget {
   final Article article;

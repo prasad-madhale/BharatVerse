@@ -6,6 +6,9 @@ import 'package:http/testing.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 
 import '../support/article_fixtures.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bharatverse_app/services/article_cache.dart';
+import 'package:bharatverse_app/models/article.dart';
 
 void main() {
   group('ApiClient.getDailyArticle', () {
@@ -285,4 +288,158 @@ void main() {
       expect(seen.single.url.queryParameters['limit'], '20');
     });
   });
+
+  group('ApiClient offline', () {
+    late SharedPreferences prefs;
+    late ArticleCache cache;
+    late bool online;
+    late int status;
+    late List<Map<String, dynamic>> rows;
+
+    ApiClient clientWith({ArticleCache? saved}) => ApiClient(
+          cache: saved,
+          client: MockClient((request) async {
+            if (!online) {
+              throw http.ClientException('Failed to fetch');
+            }
+            if (request.url.path.contains('/storage/')) {
+              return http.Response(jsonEncode(sampleArticleContent()), 200);
+            }
+            return http.Response(jsonEncode(rows), status);
+          }),
+        );
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      prefs = await SharedPreferences.getInstance();
+      cache = ArticleCache(prefs);
+      online = true;
+      status = 200;
+      rows = [
+        for (var n = 5; n >= 1; n--)
+          sampleArticleRow(id: 'art_$n', title: 'Article $n'),
+      ];
+    });
+
+    test('saves what it loads while online', () async {
+      final client = clientWith(saved: cache);
+
+      await client.getRecentArticles();
+
+      expect((await cache.getCachedArticles()).length, 5);
+      expect(client.offline.value, isFalse);
+    });
+
+    test('answers from the saved articles when the server cannot be reached',
+        () async {
+      final client = clientWith(saved: cache);
+      await client.getRecentArticles();
+      online = false;
+
+      final articles = await client.getRecentArticles(limit: 2);
+
+      expect(articles.map((a) => a.id), ['art_5', 'art_4']);
+      expect(client.offline.value, isTrue);
+
+      online = true;
+      await client.getRecentArticles();
+      expect(client.offline.value, isFalse);
+    });
+
+    test('opens a saved article by id, and fails for one it never saw',
+        () async {
+      final client = clientWith(saved: cache);
+      await client.getRecentArticles();
+      online = false;
+
+      expect((await client.getArticleById('art_3')).id, 'art_3');
+      await expectLater(
+          client.getArticleById('art_99'), throwsA(isA<ApiException>()));
+    });
+
+    test('gives the newest saved article as the daily one', () async {
+      final client = clientWith(saved: cache);
+      await client.getRecentArticles();
+      online = false;
+
+      expect((await client.getDailyArticle()).id, 'art_5');
+    });
+
+    test('lists the matching slice of what is saved', () async {
+      final client = clientWith(saved: cache);
+      await client.getRecentArticles();
+      online = false;
+
+      final page = await client.listArticles(page: 1, limit: 2);
+
+      expect(page.map((a) => a.id), ['art_3', 'art_2']);
+    });
+
+    test('shows the server refusing a request instead of old articles',
+        () async {
+      final client = clientWith(saved: cache);
+      await client.getRecentArticles();
+      status = 500;
+
+      await expectLater(
+        client.getRecentArticles(),
+        throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500)),
+      );
+      expect(client.offline.value, isFalse);
+    });
+
+    test('fails when offline with nothing saved, or no cache at all', () async {
+      online = false;
+
+      await expectLater(clientWith(saved: cache).getRecentArticles(),
+          throwsA(isA<ApiException>()));
+      await expectLater(
+          clientWith().getRecentArticles(), throwsA(isA<ApiException>()));
+    });
+
+    test('does not answer a search from the saved articles', () async {
+      final client = clientWith(saved: cache);
+      await client.getRecentArticles();
+      online = false;
+
+      await expectLater(
+          client.searchArticles('ashoka'), throwsA(isA<ApiException>()));
+      expect(client.offline.value, isFalse);
+    });
+
+    test('keeps reading working when the store fails', () async {
+      final client = clientWith(saved: _FailingCache(prefs));
+
+      final articles = await client.getRecentArticles();
+
+      expect(articles.length, 5);
+    });
+
+    test('markViewed saves an article and keeps it from eviction', () async {
+      var clock = DateTime(2026, 9, 20);
+      final small = ArticleCache(prefs, capacity: 2, now: () => clock);
+      final client = clientWith(saved: small);
+      await small.cacheArticle(sampleArticle(id: 'a'));
+      clock = clock.add(const Duration(minutes: 1));
+      await small.cacheArticle(sampleArticle(id: 'b'));
+      clock = clock.add(const Duration(minutes: 1));
+
+      await client.markViewed(sampleArticle(id: 'a'));
+      clock = clock.add(const Duration(minutes: 1));
+      await small.cacheArticle(sampleArticle(id: 'c'));
+
+      final ids = [for (final a in await small.getCachedArticles()) a.id]
+        ..sort();
+      expect(ids, ['a', 'c']);
+    });
+  });
+}
+
+class _FailingCache extends ArticleCache {
+  _FailingCache(super.prefs);
+
+  @override
+  Future<void> cacheArticles(Iterable<Article> articles) =>
+      throw StateError('storage is full');
 }

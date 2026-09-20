@@ -51,9 +51,7 @@ class _LikedArticlesScreenState extends State<LikedArticlesScreen> {
   }
 
   Future<void> _open(Article article) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ArticleDetailScreen(article: article)),
-    );
+    await openArticle(context, widget.apiClient, article);
     // Unliked while reading: refresh so it leaves the list.
     if (mounted && !context.read<LikeState>().isLiked(article.id)) {
       setState(_start);

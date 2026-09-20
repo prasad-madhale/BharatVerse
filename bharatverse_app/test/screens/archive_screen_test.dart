@@ -15,6 +15,8 @@ import 'package:bharatverse_app/widgets/article_card.dart';
 
 import '../support/article_fixtures.dart';
 import '../support/like_fixtures.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bharatverse_app/services/article_cache.dart';
 
 /// Rows for articles [from] down to 1, newest first ('Article 45' ... 'Article 1').
 List<Map<String, dynamic>> rowsFrom(int from) => [
@@ -215,5 +217,29 @@ void main() {
 
       expect(find.byType(ArticleDetailScreen), findsOneWidget);
     });
+  });
+
+  testWidgets('shows the saved articles with a notice when offline',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final cache = ArticleCache(await SharedPreferences.getInstance());
+    await cache.cacheArticles([
+      sampleArticle(id: 'a', title: 'Saved A', date: '2026-07-02'),
+      sampleArticle(id: 'b', title: 'Saved B', date: '2026-07-01'),
+    ]);
+    final apiClient = ApiClient(
+      cache: cache,
+      client: MockClient((_) async => throw http.ClientException('offline')),
+    );
+    await tester.pumpWidget(withLikeProviders(
+      authState: AuthState(authClient: stubAuthClient()),
+      likesClient: stubLikesClient(),
+      child: MaterialApp(home: ArchiveScreen(apiClient: apiClient)),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('SAVED A'), findsOneWidget);
+    expect(find.text('SAVED B'), findsOneWidget);
+    expect(find.text('OFFLINE · SHOWING SAVED ARTICLES'), findsOneWidget);
   });
 }

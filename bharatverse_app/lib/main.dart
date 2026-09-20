@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'config.dart';
 import 'screens/home_screen.dart';
 import 'services/api_client.dart';
+import 'services/article_cache.dart';
 import 'services/likes_client.dart';
 import 'state/auth_state.dart';
 import 'state/like_state.dart';
@@ -15,11 +16,14 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
-  runApp(const BharatVerseApp());
+  final cache = await ArticleCache.open();
+  runApp(BharatVerseApp(apiClient: ApiClient(cache: cache)));
 }
 
 class BharatVerseApp extends StatelessWidget {
-  const BharatVerseApp({super.key});
+  final ApiClient apiClient;
+
+  const BharatVerseApp({super.key, required this.apiClient});
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +44,7 @@ class BharatVerseApp extends StatelessWidget {
       child: MaterialApp(
         title: 'BharatVerse',
         theme: AppTheme.theme,
-        home: HomeScreen(apiClient: ApiClient()),
+        home: HomeScreen(apiClient: apiClient),
       ),
     );
   }

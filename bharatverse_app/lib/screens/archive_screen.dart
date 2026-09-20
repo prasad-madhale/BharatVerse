@@ -9,6 +9,7 @@ import '../widgets/app_button.dart';
 import '../widgets/article_card.dart';
 import '../widgets/content_column.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/offline_banner.dart';
 import '../widgets/screen_heading.dart';
 import 'article_detail_screen.dart';
 
@@ -158,11 +159,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
         final article = _articles[index];
         return ArticleCard(
           article: article,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => ArticleDetailScreen(article: article),
-            ),
-          ),
+          onTap: () => openArticle(context, widget.apiClient, article),
         );
       },
     );
@@ -175,6 +172,7 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
       body: Column(
         children: [
           const ScreenHeading('Archive'),
+          OfflineBanner(offline: widget.apiClient.offline),
           Expanded(child: _buildBody()),
         ],
       ),

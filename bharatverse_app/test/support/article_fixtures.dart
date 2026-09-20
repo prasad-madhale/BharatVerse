@@ -10,12 +10,13 @@ import 'package:bharatverse_app/models/article.dart';
 Map<String, dynamic> sampleArticleRow({
   String id = 'art_20260703_001',
   String title = 'The Mauryan Empire',
+  String date = '2026-07-03',
 }) =>
     {
       'id': id,
       'title': title,
       'summary': 'A summary of the Mauryan Empire.',
-      'date': '2026-07-03',
+      'date': date,
       'reading_time_minutes': 13,
       'author': 'BharatVerse AI',
       'tags': ['mauryan-empire'],
@@ -51,9 +52,10 @@ MockClient articlesMockClient(
 Article sampleArticle({
   String id = 'art_20260703_001',
   String title = 'The Mauryan Empire',
+  String date = '2026-07-03',
 }) =>
     Article.fromJson({
-      ...sampleArticleRow(id: id, title: title),
-      'publication_date': '2026-07-03',
+      ...sampleArticleRow(id: id, title: title, date: date),
+      'publication_date': date,
       ...sampleArticleContent(),
     });

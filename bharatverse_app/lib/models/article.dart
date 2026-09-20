@@ -11,6 +11,9 @@ class ArticleSection {
     required this.order,
   });
 
+  Map<String, dynamic> toJson() =>
+      {'heading': heading, 'content': content, 'order': order};
+
   factory ArticleSection.fromJson(Map<String, dynamic> json) => ArticleSection(
         heading: json['heading'] as String,
         content: json['content'] as String,
@@ -30,6 +33,13 @@ class ArticleCitation {
     required this.sourceName,
     required this.accessedDate,
   });
+
+  Map<String, dynamic> toJson() => {
+        'text': text,
+        'source_url': sourceUrl,
+        'source_name': sourceName,
+        'accessed_date': accessedDate.toIso8601String(),
+      };
 
   factory ArticleCitation.fromJson(Map<String, dynamic> json) =>
       ArticleCitation(
@@ -72,6 +82,20 @@ class Article {
   String get dateAndReadingTime =>
       '${publicationDate.toLocal().toString().split(' ').first}'
       ' · $readingTimeMinutes min read';
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'summary': summary,
+        'content': content,
+        'sections': sections.map((section) => section.toJson()).toList(),
+        'citations': citations.map((citation) => citation.toJson()).toList(),
+        'publication_date': publicationDate.toIso8601String(),
+        'reading_time_minutes': readingTimeMinutes,
+        'author': author,
+        'tags': tags,
+        'image_url': imageUrl,
+      };
 
   factory Article.fromJson(Map<String, dynamic> json) => Article(
         id: json['id'] as String,
