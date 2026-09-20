@@ -14,7 +14,10 @@ task the runner:
   2. checks that only files the spec allows were changed (reverting any that
      were not) and that the agent did not move HEAD itself;
   3. runs the spec's `verify:` commands itself. The agent's own claim of
-     success is ignored;
+     success is ignored. It also applies the spec's steps mechanically to a
+     scratch checkout and diffs the agent's files against the result, so a
+     dropped line or a reworded comment goes back to the agent as an exact
+     diff instead of a vague test failure;
   4. makes exactly one commit per task, or with --review leaves the verified
      changes uncommitted for a human to inspect first.
 
@@ -31,11 +34,16 @@ Environment:
     BV_AGENT_CMD          agent command, default "claude-local"
     BV_AGENT_VENV         virtualenv whose bin/ goes first on PATH, default .agent/venv
     BV_AGENT_TIMEOUT      seconds one agent attempt may run, default 2400
+
+Flutter tasks (`requires: flutter`) use the SDK in .agent/flutter and the package cache in .agent/pub-cache when
+they exist. Before such a task the runner runs `flutter pub get` once per worktree and restores pubspec.lock, which a
+different SDK version would otherwise rewrite.
     BV_GIT_NAME/EMAIL     commit identity, used only when git has none configured
     BV_COMMIT_TRAILERS    extra trailer lines appended to every commit message
 """
 
 import argparse
+import difflib
 import fcntl
 import fnmatch
 import json
@@ -45,6 +53,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,12 +62,14 @@ REPO = Path(__file__).resolve().parent.parent
 TASKS_DIR = REPO / ".kiro" / "specs" / "bharatverse-mvp" / "agent-tasks"
 AGENT_DIR = REPO / ".agent"
 STOP_FILE = AGENT_DIR / "STOP"
+FLUTTER_DIR = AGENT_DIR / "flutter"
+PUB_CACHE = AGENT_DIR / "pub-cache"
 # Set by configure() from --namespace. A namespace gets its own branch, worktree,
 # state and logs, so a scratch run can never touch the real queue.
 BRANCH = "agent/queue"
 STATE_DIR = AGENT_DIR / "state" / "queue"
 LOG_DIR = AGENT_DIR / "logs" / "queue"
-MAX_ATTEMPTS = 2
+MAX_ATTEMPTS = 3
 AGENT_TIMEOUT = int(os.environ.get("BV_AGENT_TIMEOUT", 40 * 60))  # seconds per attempt
 VERIFY_TIMEOUT = 15 * 60
 
@@ -66,6 +77,7 @@ ALLOWED_TOOLS = [
     "Read", "Edit", "Write", "Glob", "Grep",
     "Bash(python:*)", "Bash(cd:*)", "Bash(grep:*)", "Bash(cat:*)", "Bash(ls:*)", "Bash(pwd)",
     "Bash(head:*)", "Bash(tail:*)", "Bash(git status:*)", "Bash(git diff:*)",
+    "Bash(flutter:*)", "Bash(dart:*)", "Bash(./scripts/check_lcov_coverage.sh:*)",
 ]
 DISALLOWED_TOOLS = [
     "Bash(git push:*)", "Bash(git commit:*)", "Bash(git checkout:*)", "Bash(git reset:*)",
@@ -230,8 +242,13 @@ def base_env(root: Path = None) -> dict:
     env = dict(os.environ)
     if root is not None:
         env["BV_ROOT"] = str(root)
+    if (FLUTTER_DIR / "bin").is_dir():
+        env["PATH"] = f"{FLUTTER_DIR / 'bin'}{os.pathsep}{env['PATH']}"
+        env["PUB_CACHE"] = str(PUB_CACHE)
+        env["FLUTTER_SUPPRESS_ANALYTICS"] = "true"
+        env["CI"] = "true"  # makes Flutter and Dart non-interactive
     venv_bin = venv_dir() / "bin"
-    if venv_bin.is_dir():
+    if venv_bin.is_dir():  # added last, so the project's Python is always found first
         env["PATH"] = f"{venv_bin}{os.pathsep}{env['PATH']}"
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     return env
@@ -343,6 +360,88 @@ def unmet_requirements(spec: Spec) -> list:
 
 
 # ----------------------------------------------------------------------------
+# Fidelity: does the agent's work match what the spec's steps produce?
+# ----------------------------------------------------------------------------
+
+def expected_files(spec: Spec, wt: Path):
+    """What applying the spec's steps mechanically to a scratch checkout of the worktree's HEAD produces, as
+    {path: text}. None when the spec has no steps, or does not apply cleanly to this HEAD (a stale spec is
+    reported by the reference executor, not held against the agent)."""
+    if not parse_steps(spec.text):
+        return None
+    with tempfile.TemporaryDirectory(prefix="fidelity-") as tmp:
+        scratch = Path(tmp) / "wt"
+        git("worktree", "add", "--detach", str(scratch), "HEAD", cwd=wt)
+        try:
+            apply_steps(spec, scratch, base_env(scratch))
+            return {path: (scratch / path).read_text() for _, path in changed_paths(scratch) if (scratch / path).exists()}
+        except RunnerError:
+            return None
+        finally:
+            git("worktree", "remove", "--force", str(scratch), cwd=wt, check=False)
+
+
+def _significant(text: str) -> list:
+    """The lines that carry meaning: no blank lines, no trailing whitespace."""
+    return [line.rstrip() for line in text.splitlines() if line.strip()]
+
+
+def _describe_whitespace(path: str, want: str, got: str) -> str:
+    """Plain-language instructions for a difference that is only blank lines or trailing spaces. A bare '-' line in a
+    diff does not tell a small model to insert an empty line, so say which two lines the empty line belongs between."""
+    a, b = want.splitlines(), got.splitlines()
+    notes = []
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag == "equal":
+            continue
+        if tag == "delete" and not any(line.strip() for line in a[i1:i2]):
+            before = a[i1 - 1] if i1 else "(the top of the file)"
+            after = a[i2] if i2 < len(a) else "(the end of the file)"
+            notes.append(f"In {path}, insert {i2 - i1} empty line(s) between these two lines:\n  {before}\n  {after}")
+        elif tag == "insert" and not any(line.strip() for line in b[j1:j2]):
+            before = b[j1 - 1] if j1 else "(the top of the file)"
+            notes.append(f"In {path}, remove the {j2 - j1} extra empty line(s) that follow this line:\n  {before}")
+        else:
+            notes.append(f"In {path}, trailing spaces differ on the line(s): {[line.rstrip() for line in a[i1:i2]]}. "
+                         "Remove trailing spaces.")
+    return "\n".join(notes)
+
+
+def fidelity_report(spec: Spec, wt: Path, entries: list) -> tuple:
+    """(feedback, tolerable). Feedback is empty when the agent's files match the spec exactly. Otherwise it is text
+    to send back: a unified diff per file ('-' lines are the task's text, '+' lines are the agent's), plain-language
+    instructions where the only difference is blank lines, and a note on any file it changed that the task does not
+    touch. Such a stray change is reverted here, because it can only be a mistake. `tolerable` is True when nothing
+    that carries meaning differs, only blank lines or trailing spaces."""
+    expected = expected_files(spec, wt)
+    if expected is None:
+        return "", True
+    problems, tolerable = [], True
+    for path, want in expected.items():
+        target = wt / path
+        got = target.read_text() if target.exists() else ""
+        if got == want:
+            continue
+        if _significant(got) == _significant(want):
+            problems.append(_describe_whitespace(path, want, got))
+            continue
+        tolerable = False
+        diff = difflib.unified_diff(want.splitlines(), got.splitlines(), f"{path} (task text)", f"{path} (yours)",
+                                    lineterm="", n=2)
+        problems.append("\n".join(list(diff)[:60]))
+    stray = [(status, path) for status, path in entries if path not in expected]
+    if stray:
+        revert_entries(wt, stray)
+        problems.append("You changed files the task does not change, and they were reverted: "
+                        f"{[path for _, path in stray]}.")
+    if not problems:
+        return "", True
+    return ("Your files do not match the task text exactly. Lines starting with '-' are the task's text and lines "
+            "starting with '+' are yours. Change only what differs, and touch nothing else.\n\n"
+            + "\n\n".join(problems)), tolerable
+
+
+# ----------------------------------------------------------------------------
 # Running one task
 # ----------------------------------------------------------------------------
 
@@ -354,6 +453,8 @@ Rules, enforced by a runner that checks your work independently:
 - Change only the files listed under `allowed` in the front matter. Anything else is reverted.
 - Do not explore the repository. Read only what the task tells you to read.
 - Do not run git commit, checkout, reset, push, or any git command that changes state. The runner commits.
+- The sandbox denies shell redirections and pipes such as `2>&1` and `|`, `$?`, `curl`, and anything not listed as
+  allowed. Run each command exactly as written, on its own, and read its output. A denied command is not worth retrying.
 - Do not invent API calls or edit text you were not told to edit. If a step cannot be done as written, stop.
 - Copy code blocks exactly. Do not "improve" them.
 - Your shell remembers its directory between commands. Every command in this task already starts with a
@@ -440,8 +541,26 @@ def commit_task(spec: Spec, wt: Path) -> str:
     return head_of(wt)
 
 
+def prepare_worktree(spec: Spec, wt: Path) -> None:
+    """Flutter tasks run with --no-pub, so the package config has to exist first. `flutter pub get` also rewrites
+    the committed pubspec.lock when the SDK pins different test packages than the one it was created with, which is
+    an artifact of the SDK here, not a change anyone asked for, so the lockfile is restored."""
+    app = wt / "bharatverse_app"
+    if "flutter" not in spec.requires or (app / ".dart_tool" / "package_config.json").exists():
+        return
+    print(f"[{spec.id}] preparing the Flutter package config (flutter pub get)", flush=True)
+    for extra in (["--offline"], []):
+        result = subprocess.run(["flutter", "pub", "get", *extra], cwd=app, env=base_env(wt), capture_output=True, text=True)
+        if result.returncode == 0:
+            break
+    else:
+        raise RunnerError("flutter pub get failed:\n" + tail(result.stdout + result.stderr))
+    git("checkout", "--", "bharatverse_app/pubspec.lock", cwd=wt, check=False)
+
+
 def run_task(spec: Spec, wt: Path, executor: str, review: bool, feedback: str = "") -> bool:
     """Execute one task. True if it ended verified (committed, or pending review)."""
+    prepare_worktree(spec, wt)
     resuming = load_state(spec.id).get("status") == "pending"
     if not resuming and changed_paths(wt):
         raise RunnerError(f"worktree {wt} has uncommitted changes; resolve them before starting {spec.id}")
@@ -478,8 +597,14 @@ def run_task(spec: Spec, wt: Path, executor: str, review: bool, feedback: str = 
             print(f"[{spec.id}]   no changes made", flush=True)
             continue
 
+        fidelity, tolerable = ("", True) if executor == "reference" else fidelity_report(spec, wt, entries)
         ok, failure = run_verify(spec, wt)
-        if ok:
+        # Blank lines and trailing spaces are cosmetic. If they are all that is left on the last attempt and the
+        # checks pass, take the work rather than block a task over them.
+        if ok and fidelity and tolerable and attempt == MAX_ATTEMPTS:
+            print(f"[{spec.id}]   accepted with whitespace-only differences from the task text:\n{fidelity}", flush=True)
+            fidelity = ""
+        if ok and not fidelity:
             if review:
                 save_state(spec.id, status="pending", attempts=attempt)
                 print(f"[{spec.id}] verified, waiting for review. `agent_loop.py commit {spec.id}` to accept.", flush=True)
@@ -488,8 +613,14 @@ def run_task(spec: Spec, wt: Path, executor: str, review: bool, feedback: str = 
             clear_state(spec.id)
             print(f"[{spec.id}] committed {sha[:7]}", flush=True)
             return True
-        notes = f"Verification failed:\n{failure}"
-        print(f"[{spec.id}]   verification failed:\n{failure}", flush=True)
+        parts = []
+        if not ok:
+            parts.append(f"Verification failed:\n{failure}")
+            print(f"[{spec.id}]   verification failed:\n{failure}", flush=True)
+        if fidelity:
+            parts.append(fidelity)
+            print(f"[{spec.id}]   does not match the task text:\n{fidelity}", flush=True)
+        notes = "\n\n".join(parts)
 
     snapshot_patch(spec, wt, "failed")
     discard_changes(wt)
