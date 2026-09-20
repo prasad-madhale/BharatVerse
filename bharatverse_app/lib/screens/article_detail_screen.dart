@@ -50,8 +50,7 @@ class ArticleDetailScreen extends StatelessWidget {
                     style: AppTypography.display1),
                 const SizedBox(height: AppSpacing.space4),
                 Text(
-                  '${article.publicationDate.toLocal().toString().split(' ').first}'
-                  ' · ${article.readingTimeMinutes} min read · ${article.author}',
+                  '${article.dateAndReadingTime} · ${article.author}',
                   style: AppTypography.caption,
                 ),
                 const SizedBox(height: AppSpacing.space5),

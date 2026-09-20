@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
+import 'package:bharatverse_app/screens/archive_screen.dart';
 import 'package:bharatverse_app/screens/home_screen.dart';
 import 'package:bharatverse_app/screens/liked_articles_screen.dart';
 import 'package:bharatverse_app/screens/search_screen.dart';
@@ -238,5 +239,35 @@ void main() {
             'Could not reach the server. Check your connection and try again.'),
         findsOneWidget);
     expect(find.textContaining('uri='), findsNothing);
+  });
+
+  group('the archive link', () {
+    Future<void> pumpHome(WidgetTester tester, int articles) async {
+      await tester.binding.setSurfaceSize(const Size(800, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final apiClient = ApiClient(
+        client: articlesMockClient(() => List.generate(articles,
+            (i) => sampleArticleRow(id: 'art_$i', title: 'Article $i'))),
+      );
+      await tester.pumpWidget(_wrapWithProviders(apiClient));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('follows a full page of recent articles and opens the archive',
+        (tester) async {
+      await pumpHome(tester, 5);
+
+      await tester.tap(find.text('Browse the archive →'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ArchiveScreen), findsOneWidget);
+    });
+
+    testWidgets('is left out when there is nothing older to browse',
+        (tester) async {
+      await pumpHome(tester, 3);
+
+      expect(find.text('Browse the archive →'), findsNothing);
+    });
   });
 }

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:bharatverse_app/models/article.dart';
+
 /// A row of the `articles` table as PostgREST returns it: `date`, not
 /// `publication_date`, and no content (that lives in a Storage blob).
 Map<String, dynamic> sampleArticleRow({
@@ -42,4 +44,16 @@ MockClient articlesMockClient(
       }
       onRequest?.call(request);
       return http.Response(jsonEncode(rows()), 200);
+    });
+
+/// A full [Article], assembled the way ApiClient does from a row and its
+/// content.
+Article sampleArticle({
+  String id = 'art_20260703_001',
+  String title = 'The Mauryan Empire',
+}) =>
+    Article.fromJson({
+      ...sampleArticleRow(id: id, title: title),
+      'publication_date': '2026-07-03',
+      ...sampleArticleContent(),
     });

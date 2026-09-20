@@ -61,4 +61,22 @@ void main() {
       expect(article.imageUrl, 'https://example.com/image.jpg');
     });
   });
+
+  test('dateAndReadingTime is the byline shown under a title', () {
+    final article = Article.fromJson({
+      'id': 'art_1',
+      'title': 'T',
+      'summary': 'S',
+      'content': 'C',
+      'sections': [],
+      'citations': [],
+      'publication_date': '2026-07-03',
+      'reading_time_minutes': 13,
+      'author': 'A',
+      'tags': [],
+      'image_url': null,
+    });
+
+    expect(article.dateAndReadingTime, '2026-07-03 · 13 min read');
+  });
 }

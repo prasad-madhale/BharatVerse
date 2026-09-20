@@ -62,6 +62,14 @@ class ApiClient {
     return loadArticles(rows);
   }
 
+  /// One page of articles, newest first. The order is total, so pages never
+  /// repeat or skip an article.
+  Future<List<Article>> listArticles({int page = 0, int limit = 20}) async {
+    final rows = await _fetchRows('select=*&order=date.desc,created_at.desc,'
+        'id.desc&offset=${page * limit}&limit=$limit');
+    return loadArticles(rows);
+  }
+
   /// Full-text search over title and summary, newest first. Sends the same
   /// `wfts` (websearch) filter as the backend's `/articles/search`, so quoted
   /// phrases and `-exclusions` work.

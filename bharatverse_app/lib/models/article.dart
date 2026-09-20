@@ -67,6 +67,12 @@ class Article {
     this.imageUrl,
   });
 
+  /// "2026-09-20 · 12 min read", the byline under a title in lists and on the
+  /// article.
+  String get dateAndReadingTime =>
+      '${publicationDate.toLocal().toString().split(' ').first}'
+      ' · $readingTimeMinutes min read';
+
   factory Article.fromJson(Map<String, dynamic> json) => Article(
         id: json['id'] as String,
         title: json['title'] as String,

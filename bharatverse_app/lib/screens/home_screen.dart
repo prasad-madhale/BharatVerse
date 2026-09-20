@@ -6,9 +6,11 @@ import '../services/api_client.dart';
 import '../state/auth_state.dart';
 import '../theme/app_spacing.dart';
 import '../widgets/app_header.dart';
+import '../widgets/arrow_link.dart';
 import '../widgets/article_card.dart';
 import '../widgets/content_column.dart';
 import '../widgets/empty_state.dart';
+import 'archive_screen.dart';
 import 'article_detail_screen.dart';
 import 'auth_screen.dart';
 import 'liked_articles_screen.dart';
@@ -24,17 +26,19 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  static const _recentLimit = 5;
+
   late Future<List<Article>> _recentArticles;
 
   @override
   void initState() {
     super.initState();
-    _recentArticles = widget.apiClient.getRecentArticles();
+    _recentArticles = widget.apiClient.getRecentArticles(limit: _recentLimit);
   }
 
   void _retry() {
     setState(() {
-      _recentArticles = widget.apiClient.getRecentArticles();
+      _recentArticles = widget.apiClient.getRecentArticles(limit: _recentLimit);
     });
   }
 
@@ -98,12 +102,28 @@ class _HomeScreenState extends State<HomeScreen> {
             );
           }
 
+          // Only a full page suggests there are older articles to browse.
+          final showArchive = articles.length >= _recentLimit;
           return RefreshIndicator(
             onRefresh: () async => _retry(),
             child: ListView.builder(
               padding: columnPadding(context, vertical: AppSpacing.space2),
-              itemCount: articles.length,
+              itemCount: articles.length + (showArchive ? 1 : 0),
               itemBuilder: (context, index) {
+                if (index == articles.length) {
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: ArrowLink(
+                      label: 'Browse the archive',
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ArchiveScreen(apiClient: widget.apiClient),
+                        ),
+                      ),
+                    ),
+                  );
+                }
                 final article = articles[index];
                 return ArticleCard(
                   article: article,

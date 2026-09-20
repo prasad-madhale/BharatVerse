@@ -5,6 +5,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import 'app_badge.dart';
+import 'arrow_link.dart';
 import 'highlighted_text.dart';
 
 enum ArticleCardSize { featured, compact }
@@ -67,6 +68,9 @@ class ArticleCard extends StatelessWidget {
                         style: AppTypography.display2,
                       ),
                       const SizedBox(height: AppSpacing.space2),
+                      Text(article.dateAndReadingTime,
+                          style: AppTypography.caption),
+                      const SizedBox(height: AppSpacing.space2),
                       Text(
                         article.summary,
                         maxLines: 3,
@@ -74,15 +78,7 @@ class ArticleCard extends StatelessWidget {
                         style: AppTypography.body,
                       ),
                       const SizedBox(height: AppSpacing.space3),
-                      Text(
-                        'Read More →',
-                        style: AppTypography.ui.copyWith(
-                          fontFamily: AppTypography.headline.fontFamily,
-                          fontWeight: FontWeight.w700,
-                          decoration: TextDecoration.underline,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
+                      Text('Read More →', style: arrowLinkStyle),
                     ],
                   ),
                 ),
@@ -124,7 +120,10 @@ class ArticleCard extends StatelessWidget {
                     style: AppTypography.headline
                         .copyWith(fontSize: 16, height: 1.3),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 3),
+                  Text(article.dateAndReadingTime,
+                      style: AppTypography.caption),
+                  const SizedBox(height: 3),
                   HighlightedText(
                     article.summary,
                     terms: highlight,

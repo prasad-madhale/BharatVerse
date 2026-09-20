@@ -254,4 +254,35 @@ void main() {
       expect(describeError(null), generic);
     });
   });
+
+  group('ApiClient.listArticles', () {
+    test('asks for a page in a total newest-first order', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(
+        client:
+            articlesMockClient(() => [sampleArticleRow()], onRequest: seen.add),
+      );
+
+      final articles = await client.listArticles(page: 2, limit: 10);
+
+      expect(articles.single.id, 'art_20260703_001');
+      final query = seen.single.url.queryParameters;
+      expect(seen.single.url.path, '/rest/v1/articles');
+      expect(query['order'], 'date.desc,created_at.desc,id.desc');
+      expect(query['offset'], '20');
+      expect(query['limit'], '10');
+    });
+
+    test('starts at the first page of twenty', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(
+        client: articlesMockClient(() => [], onRequest: seen.add),
+      );
+
+      await client.listArticles();
+
+      expect(seen.single.url.queryParameters['offset'], '0');
+      expect(seen.single.url.queryParameters['limit'], '20');
+    });
+  });
 }

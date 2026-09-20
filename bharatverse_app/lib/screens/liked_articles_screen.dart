@@ -7,11 +7,11 @@ import '../services/likes_client.dart';
 import '../state/auth_state.dart';
 import '../state/like_state.dart';
 import '../theme/app_spacing.dart';
-import '../theme/app_typography.dart';
 import '../widgets/app_back_bar.dart';
 import '../widgets/article_card.dart';
 import '../widgets/content_column.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/screen_heading.dart';
 import 'article_detail_screen.dart';
 
 /// The signed-in user's liked articles, most recently liked first.
@@ -66,14 +66,7 @@ class _LikedArticlesScreenState extends State<LikedArticlesScreen> {
       appBar: const AppBackBar(),
       body: Column(
         children: [
-          ContentColumn(
-              child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.space4),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child:
-                        Text('LIKED ARTICLES', style: AppTypography.display2),
-                  ))),
+          const ScreenHeading('Liked articles'),
           Expanded(
             child: FutureBuilder<List<Article>>(
               future: _articles,
