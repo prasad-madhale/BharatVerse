@@ -154,4 +154,19 @@ void main() {
           findsOneWidget);
     });
   });
+
+  testWidgets('animates between the outline and the filled heart',
+      (tester) async {
+    authClient.signInAs(testUser());
+    await pumpButton(tester);
+
+    await tester.tap(find.byType(IconButton));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(find.byIcon(Icons.favorite_border), findsOneWidget); // fading out
+
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.favorite_border), findsNothing);
+  });
 }
