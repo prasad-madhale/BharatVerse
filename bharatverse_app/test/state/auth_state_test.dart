@@ -122,7 +122,7 @@ void main() {
       expect(notified, isTrue);
     });
 
-    test('accessToken is the current session token', () {
+    test('authToken is the current session token', () {
       final session = Session(
         accessToken: 'user-token',
         tokenType: 'bearer',
@@ -131,14 +131,14 @@ void main() {
       when(() => mockAuthClient.currentSession).thenReturn(session);
       final authState = AuthState(authClient: mockAuthClient);
 
-      expect(authState.accessToken, 'user-token');
+      expect(authState.authToken, 'user-token');
     });
 
-    test('accessToken is null when there is no session', () {
+    test('authToken is null when there is no session', () {
       when(() => mockAuthClient.currentSession).thenReturn(null);
       final authState = AuthState(authClient: mockAuthClient);
 
-      expect(authState.accessToken, isNull);
+      expect(authState.authToken, isNull);
     });
   });
 }

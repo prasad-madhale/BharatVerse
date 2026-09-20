@@ -148,7 +148,7 @@ void main() {
     });
   });
 
-  group('LikeState.toggle', () {
+  group('LikeState.toggleLike', () {
     test('likes an unliked article, showing it immediately', () async {
       authClient.signInAs(testUser());
       final request = Completer<void>();
@@ -160,7 +160,7 @@ void main() {
       final likeState = makeLikeState();
       await pumpEventQueue();
 
-      final toggled = likeState.toggle('art_1');
+      final toggled = likeState.toggleLike('art_1');
 
       expect(likeState.isLiked('art_1'), isTrue);
       request.complete();
@@ -179,7 +179,7 @@ void main() {
       final likeState = makeLikeState();
       await pumpEventQueue();
 
-      await likeState.toggle('art_1');
+      await likeState.toggleLike('art_1');
 
       expect(likeState.isLiked('art_1'), isFalse);
       verify(() => likesClient.unlike(
@@ -199,7 +199,7 @@ void main() {
       await pumpEventQueue();
 
       await expectLater(
-        likeState.toggle('art_missing'),
+        likeState.toggleLike('art_missing'),
         throwsA(isA<ApiException>()),
       );
 
@@ -218,7 +218,7 @@ void main() {
       await pumpEventQueue();
 
       await expectLater(
-        likeState.toggle('art_1'),
+        likeState.toggleLike('art_1'),
         throwsA(isA<ApiException>()),
       );
 
@@ -236,8 +236,8 @@ void main() {
       final likeState = makeLikeState();
       await pumpEventQueue();
 
-      final first = likeState.toggle('art_1');
-      final second = likeState.toggle('art_1');
+      final first = likeState.toggleLike('art_1');
+      final second = likeState.toggleLike('art_1');
       request.complete();
       await Future.wait([first, second]);
 
@@ -263,7 +263,7 @@ void main() {
       likeState.addListener(() => notified++);
 
       await expectLater(
-        likeState.toggle('art_1'),
+        likeState.toggleLike('art_1'),
         throwsA(isA<ApiException>()),
       );
 
@@ -273,7 +273,7 @@ void main() {
     test('throws a StateError when nobody is signed in', () async {
       final likeState = makeLikeState();
 
-      expect(() => likeState.toggle('art_1'), throwsStateError);
+      expect(() => likeState.toggleLike('art_1'), throwsStateError);
       verifyNever(() => likesClient.like(
             accessToken: any(named: 'accessToken'),
             userId: any(named: 'userId'),
@@ -295,7 +295,7 @@ void main() {
       final likeState = makeLikeState();
       await pumpEventQueue();
 
-      final toggled = likeState.toggle('art_1');
+      final toggled = likeState.toggleLike('art_1');
       authClient.signInAs(null);
       await emitAuthChange(AuthChangeEvent.signedOut);
       request.completeError(ApiException('Request failed (500)'));

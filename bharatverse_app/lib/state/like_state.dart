@@ -25,9 +25,9 @@ class LikeState extends ChangeNotifier {
   /// Flips the like at once and rolls back, rethrowing, if the request fails.
   /// Ignored while a change to the same article is in flight; throws a
   /// [StateError] when nobody is signed in.
-  Future<void> toggle(String articleId) async {
+  Future<void> toggleLike(String articleId) async {
     final userId = _authState.currentUser?.id;
-    final accessToken = _authState.accessToken;
+    final accessToken = _authState.authToken;
     if (userId == null || accessToken == null) {
       throw StateError('Sign in to like articles');
     }
@@ -87,7 +87,7 @@ class LikeState extends ChangeNotifier {
   }
 
   Future<void> _load(String userId) async {
-    final accessToken = _authState.accessToken;
+    final accessToken = _authState.authToken;
     if (accessToken == null) {
       return;
     }

@@ -38,7 +38,7 @@ class LikeButton extends StatelessWidget {
     // Read before the await; the context may be gone after it.
     final messenger = ScaffoldMessenger.of(context);
     try {
-      await likeState.toggle(articleId);
+      await likeState.toggleLike(articleId);
     } on ApiException catch (e) {
       messenger.showSnackBar(
         SnackBar(content: Text('Could not update your like: $e')),
