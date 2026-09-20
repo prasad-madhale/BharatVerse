@@ -2,11 +2,12 @@
 
 FastAPI-based REST API for the BharatVerse mobile application.
 
-> **Status**: this document describes the target design. As of now, `backend/main.py` and all of `api/`,
-> `services/`, and most of `models/` are not yet implemented — only `config.py`, the Supabase client wrapper,
-> `database/schema.sql`, and `utils/llm_provider.py` exist. See
-> [.kiro/specs/bharatverse-mvp/roadmap.md](../.kiro/specs/bharatverse-mvp/roadmap.md) for current status and build
-> order (Phase 0 covers standing up `main.py` and the first article endpoints).
+> **Status**: the endpoint list below is the target design from
+> [design.md](../.kiro/specs/bharatverse-mvp/design.md). Implemented today: the article endpoints,
+> `GET /api/v1/articles/search`, the like endpoints, and email/password auth (`/auth/signup`, `/auth/login`,
+> `/auth/logout`). Search and likes are unit-tested but not yet verified against a live Supabase project.
+> Endpoints marked "not built yet" do not exist. See
+> [.kiro/specs/bharatverse-mvp/roadmap.md](../.kiro/specs/bharatverse-mvp/roadmap.md) for current status and build order.
 
 ## Overview
 
@@ -131,6 +132,9 @@ uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
 
 ## Project Structure
 
+The layout below is the target design. `models/`, `utils/`, and `tests/` currently hold fewer files, and the LLM
+provider now lives in `common/`.
+
 ```
 backend/
 ├── api/                # API routers and endpoints
@@ -181,16 +185,16 @@ backend/
 
 ### Search
 
-- `GET /api/v1/articles/search/autocomplete?q=...` - Get autocomplete suggestions
-- `GET /api/v1/articles/search/semantic?q=...` - Semantic similarity search
+- `GET /api/v1/articles/search/autocomplete?q=...` - Get autocomplete suggestions (not built yet)
+- `GET /api/v1/articles/search/semantic?q=...` - Semantic similarity search (not built yet)
 
 ### Authentication
 
-- `POST /api/v1/auth/register` - Register with email/password
+- `POST /api/v1/auth/signup` - Register with email/password (the design calls this `/auth/register`)
 - `POST /api/v1/auth/login` - Login with email/password
-- `POST /api/v1/auth/oauth/google` - OAuth login with Google
-- `POST /api/v1/auth/oauth/facebook` - OAuth login with Facebook
-- `POST /api/v1/auth/refresh` - Refresh access token
+- `POST /api/v1/auth/oauth/google` - OAuth login with Google (not built yet)
+- `POST /api/v1/auth/oauth/facebook` - OAuth login with Facebook (not built yet)
+- `POST /api/v1/auth/refresh` - Refresh access token (not built yet)
 - `POST /api/v1/auth/logout` - Logout user
 
 ### Likes (Authenticated)
