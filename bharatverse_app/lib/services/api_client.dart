@@ -53,7 +53,7 @@ class ApiClient {
 
   Future<List<Article>> getRecentArticles({int limit = 5}) async {
     final rows = await _fetchRows('select=*&order=date.desc&limit=$limit');
-    return Future.wait(rows.map(_loadArticle));
+    return loadArticles(rows);
   }
 
   /// Full-text search over title and summary, newest first. Sends the same
@@ -63,8 +63,12 @@ class ApiClient {
     final filter = Uri.encodeComponent('wfts(english).${query.trim()}');
     final rows = await _fetchRows(
         'select=*&search_vector=$filter&order=date.desc&limit=$limit');
-    return Future.wait(rows.map(_loadArticle));
+    return loadArticles(rows);
   }
+
+  /// Builds full articles from `articles` rows, fetching each one's content.
+  Future<List<Article>> loadArticles(List<Map<String, dynamic>> rows) =>
+      Future.wait(rows.map(_loadArticle));
 
   /// Fetches metadata rows from the `articles` table via PostgREST.
   Future<List<Map<String, dynamic>>> _fetchRows(String query) async {

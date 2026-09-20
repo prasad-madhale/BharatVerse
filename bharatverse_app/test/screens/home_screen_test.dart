@@ -7,20 +7,23 @@ import 'package:http/testing.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:bharatverse_app/screens/home_screen.dart';
+import 'package:bharatverse_app/screens/liked_articles_screen.dart';
 import 'package:bharatverse_app/screens/search_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/widgets/article_card.dart';
-import '../support/like_fixtures.dart' show MockLikesClient, withLikeProviders;
+import '../support/like_fixtures.dart'
+    show MockLikesClient, testUser, withLikeProviders;
 import '../support/article_fixtures.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
 /// Wraps HomeScreen with a signed-out AuthState and LikeState: the account icon
 /// and the detail screen's like button need them whether or not a test cares.
-Widget _wrapWithProviders(ApiClient apiClient) {
+Widget _wrapWithProviders(ApiClient apiClient, {bool signedIn = false}) {
   final mockAuthClient = MockGoTrueClient();
-  when(() => mockAuthClient.currentUser).thenReturn(null);
+  when(() => mockAuthClient.currentUser)
+      .thenReturn(signedIn ? testUser() : null);
   when(() => mockAuthClient.onAuthStateChange)
       .thenAnswer((_) => const Stream.empty());
 
@@ -152,5 +155,34 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(SearchScreen), findsOneWidget);
+  });
+
+  group('the liked-articles icon', () {
+    late ApiClient apiClient;
+
+    setUp(() {
+      apiClient =
+          ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
+    });
+
+    testWidgets('is only there while signed in', (tester) async {
+      await tester.pumpWidget(_wrapWithProviders(apiClient));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Liked articles'), findsNothing);
+
+      await tester.pumpWidget(_wrapWithProviders(apiClient, signedIn: true));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Liked articles'), findsOneWidget);
+    });
+
+    testWidgets('opens the liked articles', (tester) async {
+      await tester.pumpWidget(_wrapWithProviders(apiClient, signedIn: true));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Liked articles'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LikedArticlesScreen), findsOneWidget);
+    });
   });
 }

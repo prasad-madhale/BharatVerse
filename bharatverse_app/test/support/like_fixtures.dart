@@ -64,6 +64,7 @@ Widget withLikeProviders({
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: authState),
+        Provider<LikesClient>.value(value: likesClient),
         ChangeNotifierProvider(
           create: (_) =>
               LikeState(likesClient: likesClient, authState: authState),

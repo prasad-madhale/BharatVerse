@@ -143,4 +143,58 @@ void main() {
       expect(request.headers['Authorization'], 'Bearer user-token');
     });
   });
+
+  group('LikesClient.getLikedArticleRows', () {
+    test('asks for the liked articles, newest like first, as the user',
+        () async {
+      final seen = <http.Request>[];
+      final client = LikesClient(
+        client: recordingClient(
+          seen,
+          body: jsonEncode([
+            {
+              'articles': {'id': 'art_2'}
+            },
+            {
+              'articles': {'id': 'art_1'}
+            },
+          ]),
+        ),
+      );
+
+      final rows =
+          await client.getLikedArticleRows(accessToken: 'user-token', limit: 5);
+
+      expect(rows.map((row) => row['id']), ['art_2', 'art_1']);
+      final request = seen.single;
+      expect(request.method, 'GET');
+      expect(request.url.path, '/rest/v1/likes');
+      expect(request.url.queryParameters, {
+        'select': 'articles(*)',
+        'order': 'created_at.desc',
+        'limit': '5',
+      });
+      expect(request.headers['Authorization'], 'Bearer user-token');
+    });
+
+    test('returns twenty by default', () async {
+      final seen = <http.Request>[];
+      final client = LikesClient(client: recordingClient(seen));
+
+      await client.getLikedArticleRows(accessToken: 'user-token');
+
+      expect(seen.single.url.queryParameters['limit'], '20');
+    });
+
+    test('throws an ApiException when the request fails', () async {
+      final client =
+          LikesClient(client: recordingClient([], status: 401, body: 'no'));
+
+      expect(
+        () => client.getLikedArticleRows(accessToken: 'expired-token'),
+        throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'statusCode', 401)),
+      );
+    });
+  });
 }

@@ -26,12 +26,13 @@ class BharatVerseApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthState()),
-        // LikeState reads AuthState, so it comes after it. It is not lazy, so a
-        // returning user's likes are loaded before the first article opens.
+        Provider(create: (_) => LikesClient()),
+        // LikeState reads the two above, so it comes after them. It is not lazy,
+        // so a returning user's likes are loaded before the first article opens.
         ChangeNotifierProvider(
           lazy: false,
           create: (context) => LikeState(
-            likesClient: LikesClient(),
+            likesClient: context.read<LikesClient>(),
             authState: context.read<AuthState>(),
           ),
         ),

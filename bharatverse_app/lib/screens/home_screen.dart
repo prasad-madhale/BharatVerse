@@ -10,6 +10,7 @@ import '../widgets/article_card.dart';
 import '../widgets/empty_state.dart';
 import 'article_detail_screen.dart';
 import 'auth_screen.dart';
+import 'liked_articles_screen.dart';
 import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -55,6 +56,11 @@ class _HomeScreenState extends State<HomeScreen> {
         onSearchClick: () => Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => SearchScreen(apiClient: widget.apiClient),
+          ),
+        ),
+        onLikedClick: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => LikedArticlesScreen(apiClient: widget.apiClient),
           ),
         ),
       ),

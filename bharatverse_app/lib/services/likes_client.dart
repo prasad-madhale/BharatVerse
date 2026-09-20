@@ -28,6 +28,22 @@ class LikesClient {
         .toSet();
   }
 
+  /// The `articles` rows this user has liked, most recently liked first.
+  Future<List<Map<String, dynamic>>> getLikedArticleRows({
+    required String accessToken,
+    int limit = 20,
+  }) async {
+    final response = await _send(
+      'GET',
+      {'select': 'articles(*)', 'order': 'created_at.desc', 'limit': '$limit'},
+      accessToken: accessToken,
+    );
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((row) =>
+            (row as Map<String, dynamic>)['articles'] as Map<String, dynamic>)
+        .toList();
+  }
+
   /// Idempotent. Uses `ignore-duplicates` rather than `merge-duplicates`: the
   /// table has no UPDATE policy, so row-level security would refuse a merge.
   Future<void> like({

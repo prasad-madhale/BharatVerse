@@ -37,11 +37,13 @@ String _formatLongDate(DateTime date) {
 /// Newspaper-masthead app header -- centered "BHARATVERSE" wordmark with
 /// date, an account/sign-in icon, heavy/medium rules, and a tricolor accent
 /// stripe. Mirrors the design system's AppHeader component. The search icon
-/// shows when [onSearchClick] is given.
+/// shows when [onSearchClick] is given, and the liked-articles icon when
+/// [onLikedClick] is given and the user is signed in.
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   final bool authenticated;
   final VoidCallback onAuthClick;
   final VoidCallback? onSearchClick;
+  final VoidCallback? onLikedClick;
   final DateTime? date;
 
   const AppHeader(
@@ -49,10 +51,15 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
       required this.authenticated,
       required this.onAuthClick,
       this.onSearchClick,
+      this.onLikedClick,
       this.date});
 
   @override
   Widget build(BuildContext context) {
+    // Both sides are as wide as the left icons (48px tap targets), so the
+    // wordmark stays centered.
+    final showLiked = authenticated && onLikedClick != null;
+    final sideWidth = showLiked ? 96.0 : 48.0;
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surfacePage,
@@ -70,14 +77,25 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
               padding: const EdgeInsets.fromLTRB(4, 10, 12, 8),
               child: Row(
                 children: [
-                  onSearchClick == null
-                      ? const SizedBox(
-                          width: 40) // balances the icon on the right
-                      : AppIconButton(
-                          icon: Icons.search,
-                          label: 'Search',
-                          onPressed: onSearchClick,
-                        ),
+                  SizedBox(
+                    width: sideWidth,
+                    child: Row(
+                      children: [
+                        if (onSearchClick != null)
+                          AppIconButton(
+                            icon: Icons.search,
+                            label: 'Search',
+                            onPressed: onSearchClick,
+                          ),
+                        if (showLiked)
+                          AppIconButton(
+                            icon: Icons.favorite_border,
+                            label: 'Liked articles',
+                            onPressed: onLikedClick,
+                          ),
+                      ],
+                    ),
+                  ),
                   Expanded(
                     child: Column(
                       children: [
@@ -92,10 +110,17 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                       ],
                     ),
                   ),
-                  AppIconButton(
-                    icon: authenticated ? Icons.account_circle : Icons.login,
-                    label: authenticated ? 'Sign out' : 'Sign in',
-                    onPressed: onAuthClick,
+                  SizedBox(
+                    width: sideWidth,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: AppIconButton(
+                        icon:
+                            authenticated ? Icons.account_circle : Icons.login,
+                        label: authenticated ? 'Sign out' : 'Sign in',
+                        onPressed: onAuthClick,
+                      ),
+                    ),
                   ),
                 ],
               ),

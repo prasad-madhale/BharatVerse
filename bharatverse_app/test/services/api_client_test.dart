@@ -210,4 +210,19 @@ void main() {
       );
     });
   });
+
+  group('ApiClient.loadArticles', () {
+    test("builds full articles from rows, fetching each one's content",
+        () async {
+      final client = ApiClient(client: articlesMockClient(() => []));
+
+      final articles = await client.loadArticles([
+        sampleArticleRow(id: 'art_1'),
+        sampleArticleRow(id: 'art_2'),
+      ]);
+
+      expect(articles.map((article) => article.id), ['art_1', 'art_2']);
+      expect(articles.first.sections.single.heading, 'Origins');
+    });
+  });
 }
