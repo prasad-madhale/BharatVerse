@@ -494,7 +494,8 @@ def run_task(spec: Spec, wt: Path, executor: str, review: bool, feedback: str = 
     snapshot_patch(spec, wt, "failed")
     discard_changes(wt)
     save_state(spec.id, status="blocked", attempts=MAX_ATTEMPTS, reason=notes)
-    print(f"[{spec.id}] BLOCKED after {MAX_ATTEMPTS} attempts; patch saved to {LOG_DIR / (spec.id + '.failed.patch')}", flush=True)
+    saved = LOG_DIR / f"{spec.id}.failed.patch"
+    print(f"[{spec.id}] BLOCKED after {MAX_ATTEMPTS} attempts; patch saved to {saved}", flush=True)
     return False
 
 
