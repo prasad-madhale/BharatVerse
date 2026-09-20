@@ -2,12 +2,12 @@
 
 This document provides essential information for AI agents working within the BharatVerse repository. It outlines project structure, commands, conventions, and important considerations to facilitate effective contributions.
 
-> **Current implementation status**: this repo is early-stage. `scrapper/`'s web scraping works; LLM article
-> generation, validation, scheduling, and persistence are not yet built (`scrapper_main.py` does not exist yet).
-> `backend/`'s config, Supabase client, and DB schema exist, but `backend/main.py` and all `api/`/`services/`
-> code are not yet built — the API cannot be started today. `bharatverse_app/` is still the default Flutter
-> starter template. See [.kiro/specs/bharatverse-mvp/roadmap.md](specs/bharatverse-mvp/roadmap.md) for the
-> current build order before assuming any of the "target" instructions below already work.
+> **Current implementation status**: the scrape, generate, validate, store, serve, and display pipeline works
+> end to end (the roadmap records what has been verified live). `scrapper/` has `scrapper_main.py`, the daily
+> scheduler, topic generation, and content validation. `backend/` has `main.py` with articles, auth, search, and
+> likes routers. `bharatverse_app/` has Home, Article Detail, and Sign-in screens. Search and likes are not yet
+> verified against a live Supabase project, and the app has no search, likes, or offline-cache screens yet. See
+> [.kiro/specs/bharatverse-mvp/roadmap.md](specs/bharatverse-mvp/roadmap.md) for the current build order.
 
 ## Project Overview
 
@@ -19,7 +19,7 @@ The BharatVerse repository is a monorepo containing three primary services:
 ## `bharatverse_app` (Flutter Application)
 
 ### Overview
-This is a standard Flutter application.
+A Flutter app using Provider for state, Supabase for auth, and the Vintage Broadsheet design system. Screens: Home, Article Detail, Sign-in.
 
 ### Essential Commands
 
@@ -44,7 +44,7 @@ flutter test
 ### Code Organization
 The project follows a standard Flutter directory structure. Key directories include:
 *   `lib/`: Contains the main application source code. `lib/main.dart` is the entry point.
-*   `test/`: Contains unit and widget tests. `test/widget_test.dart` is an example widget test.
+*   `test/`: Contains unit and widget tests. Grouped as `test/models/`, `test/services/`, `test/screens/`, and `test/state/`.
 
 ### Naming Conventions and Style
 The codebase adheres to standard Dart and Flutter naming conventions:
@@ -113,9 +113,12 @@ This project contains the content generation pipeline that scrapes historical co
     ```
 
 **Run the scraper:**
-`scrapper/scrapper_main.py` does not exist yet (planned for Phase 0 of the roadmap). Today, scraping is
-exercised via the test suite (`pytest scrapper/tests/`) and the `WebScraper` class directly
-(`scrapper/scrapper/web_scraper.py`).
+`scrapper/scrapper_main.py` runs the daily content pipeline: topic selection, multi-source scrape, LLM
+generation, validation, and storage in Supabase. It makes real LLM calls and writes to the live database, so run
+it deliberately, never from a test or an automated loop:
+```bash
+python scrapper/scrapper_main.py --count 1
+```
 
 ### Environment Variables
 The scraper requires an LLM API key. Create a `.env` file in the `BharatVerse/` root directory:
@@ -127,9 +130,9 @@ GEMINI_API_KEY=your_api_key_here
 Supported providers: `gemini` (FREE, default), `anthropic`, `openai`, `groq`
 
 ### Code Organization
-*   `scrapper_main.py`: Planned pipeline entry point (not yet implemented — see status note above).
+*   `scrapper_main.py`: Pipeline entry point, a thin `--count N` CLI over `scrapper/scheduler.py`.
 *   `scrapper/web_scraper.py`: `WebScraper` class (Crawl4AI-based) — implemented and tested.
-*   `scrapper/sources/`: Pluggable content sources (`wikipedia.py`, `archive_org.py`) via a `ContentSource` ABC.
+*   `scrapper/sources/`: Pluggable content sources (`wikipedia.py`, `archive_org.py`, `new_world_encyclopedia.py`) via a `ContentSource` ABC.
 *   `scrapper/models/`: Contains Pydantic models for data structures, e.g., `article.py` defines the `Article`,
     `Section`, `Citation`, and `ScrapedContent` models.
 
@@ -159,8 +162,7 @@ FastAPI-based REST API that serves articles to the mobile app, handles authentic
     database is entirely hosted on Supabase.
 
 **Run the API server:**
-`backend/main.py` does not exist yet (planned for Phase 0 of the roadmap), so the server cannot currently be
-started. Once implemented, development mode with hot reload will be:
+Development mode with hot reload:
 ```bash
 uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
@@ -204,10 +206,11 @@ Follows PEP 8 conventions:
 *   Async functions preferred for I/O operations.
 
 ### Testing Approach
-`backend/tests/` has substantive coverage of what currently exists: `test_config.py`, `test_llm_provider.py`,
-`test_supabase_client.py`, plus property-based persistence tests in `test_database/` (Hypothesis, some marked
-`@pytest.mark.integration` and requiring a live Supabase connection). `test_api/`, `test_services/`, and
-`test_utils/` are empty placeholders mirroring the not-yet-implemented `api/`/`services/` source directories.
+`backend/tests/` covers config, the Supabase client, the API routers (`test_api/`), the services
+(`test_services/`), and property-based persistence tests in `test_database/` (Hypothesis, some marked
+`@pytest.mark.integration` and requiring a live Supabase connection). Query-shape tests run the real service
+through the real postgrest builder via `backend/tests/wire.py`, so a wrong operator or call order fails a test
+instead of passing a mock.
 
 ## General Gotchas and Patterns
 
