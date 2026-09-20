@@ -7,52 +7,14 @@ import 'package:http/testing.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:bharatverse_app/screens/home_screen.dart';
+import 'package:bharatverse_app/screens/search_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/widgets/article_card.dart';
 import '../support/like_fixtures.dart' show MockLikesClient, withLikeProviders;
+import '../support/article_fixtures.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
-
-/// Shape of a row returned by Supabase's REST (PostgREST) API for the
-/// `articles` table -- note `date`, not `publication_date`, and no
-/// content/sections/citations (those live in a separate Storage blob).
-Map<String, dynamic> sampleArticleRow({
-  String id = 'art_20260703_001',
-  String title = 'The Mauryan Empire',
-}) =>
-    {
-      'id': id,
-      'title': title,
-      'summary': 'A summary of the Mauryan Empire.',
-      'date': '2026-07-03',
-      'reading_time_minutes': 13,
-      'author': 'BharatVerse AI',
-      'tags': ['mauryan-empire'],
-      'image_url': null,
-      'content_file_path': 'articles/2026-07-03/$id.json',
-    };
-
-/// Shape of the content JSON downloaded from Supabase Storage for a row's
-/// `content_file_path`.
-Map<String, dynamic> sampleArticleContent() => {
-      'content': '## Origins\n\nSome content.',
-      'sections': [
-        {'heading': 'Origins', 'content': 'Some content.', 'order': 1},
-      ],
-      'citations': [],
-    };
-
-/// A MockClient that serves `rows` for ApiClient's PostgREST call and a
-/// fixed content blob for its Storage call, branching on the request path
-/// the same way ApiClient's two calls do.
-MockClient articlesMockClient(List<Map<String, dynamic>> Function() rows) =>
-    MockClient((request) async {
-      if (request.url.path.contains('/storage/')) {
-        return http.Response(jsonEncode(sampleArticleContent()), 200);
-      }
-      return http.Response(jsonEncode(rows()), 200);
-    });
 
 /// Wraps HomeScreen with a signed-out AuthState and LikeState: the account icon
 /// and the detail screen's like button need them whether or not a test cares.
@@ -178,5 +140,17 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sign In'), findsWidgets);
+  });
+
+  testWidgets('the search icon opens the search screen', (tester) async {
+    final apiClient =
+        ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Search'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SearchScreen), findsOneWidget);
   });
 }

@@ -6,8 +6,8 @@ import '../state/auth_state.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
+import '../widgets/app_back_bar.dart';
 import '../widgets/app_button.dart';
-import '../widgets/app_icon_button.dart';
 import '../widgets/app_input.dart';
 
 /// Single screen toggling between sign-in and sign-up, email/password only
@@ -64,29 +64,7 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(56),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: AppColors.surfacePage,
-            border: Border(
-              top: BorderSide(color: AppColors.ink950, width: 2),
-              bottom: BorderSide(color: AppColors.ink200),
-            ),
-          ),
-          child: SafeArea(
-            bottom: false,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: AppIconButton(
-                icon: Icons.arrow_back,
-                label: 'Back',
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-          ),
-        ),
-      ),
+      appBar: const AppBackBar(),
       body: Padding(
         padding: const EdgeInsets.all(AppSpacing.space8),
         child: Form(

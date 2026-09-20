@@ -5,39 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 
-/// Shape of a row returned by Supabase's REST (PostgREST) API for the
-/// `articles` table -- note `date`, not `publication_date`, and no
-/// content/sections/citations (those live in a separate Storage blob).
-Map<String, dynamic> sampleArticleRow({String id = 'art_20260703_001'}) => {
-      'id': id,
-      'title': 'The Mauryan Empire',
-      'summary': 'A summary.',
-      'date': '2026-07-03',
-      'reading_time_minutes': 13,
-      'author': 'BharatVerse AI',
-      'tags': [],
-      'image_url': null,
-      'content_file_path': 'articles/2026-07-03/$id.json',
-    };
-
-/// Shape of the content JSON downloaded from Supabase Storage for a row's
-/// `content_file_path`.
-Map<String, dynamic> sampleArticleContent() => {
-      'content': 'Content',
-      'sections': [],
-      'citations': [],
-    };
-
-/// A MockClient that serves `rows` for ApiClient's PostgREST call and a
-/// fixed content blob for its Storage call, branching on the request path
-/// the same way ApiClient's two calls do.
-MockClient articlesMockClient(List<Map<String, dynamic>> Function() rows) =>
-    MockClient((request) async {
-      if (request.url.path.contains('/storage/')) {
-        return http.Response(jsonEncode(sampleArticleContent()), 200);
-      }
-      return http.Response(jsonEncode(rows()), 200);
-    });
+import '../support/article_fixtures.dart';
 
 void main() {
   group('ApiClient.getDailyArticle', () {
@@ -185,6 +153,60 @@ void main() {
         () => client.getArticleById('missing'),
         throwsA(
             isA<ApiException>().having((e) => e.statusCode, 'statusCode', 404)),
+      );
+    });
+  });
+
+  group('ApiClient.searchArticles', () {
+    test('sends a websearch filter, newest first, with a limit', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(
+        client:
+            articlesMockClient(() => [sampleArticleRow()], onRequest: seen.add),
+      );
+
+      final articles = await client.searchArticles('Mauryan Empire', limit: 7);
+
+      expect(articles.single.id, 'art_20260703_001');
+      final query = seen.single.url.queryParameters;
+      expect(seen.single.url.path, '/rest/v1/articles');
+      expect(query['search_vector'], 'wfts(english).Mauryan Empire');
+      expect(query['order'], 'date.desc');
+      expect(query['limit'], '7');
+    });
+
+    test('returns twenty results by default', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(
+        client: articlesMockClient(() => [], onRequest: seen.add),
+      );
+
+      await client.searchArticles('Ashoka');
+
+      expect(seen.single.url.queryParameters['limit'], '20');
+    });
+
+    test('passes quoted phrases and exclusions through intact', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(
+        client: articlesMockClient(() => [], onRequest: seen.add),
+      );
+
+      await client.searchArticles('  "Bay of Bengal" -Chola  ');
+
+      expect(seen.single.url.queryParameters['search_vector'],
+          'wfts(english)."Bay of Bengal" -Chola');
+    });
+
+    test('throws an ApiException when the request fails', () async {
+      final client = ApiClient(
+        client: MockClient((_) async => http.Response('boom', 500)),
+      );
+
+      expect(
+        () => client.searchArticles('Ashoka'),
+        throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500)),
       );
     });
   });

@@ -5,13 +5,15 @@ import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import 'app_badge.dart';
+import 'highlighted_text.dart';
 
 enum ArticleCardSize { featured, compact }
 
 /// Article card -- the core content unit. `featured` is a side-by-side
 /// hero (text left, image placeholder right) with a "Today's Article"
 /// badge and a "Read More" link; `compact` is a thumbnail-left list row.
-/// Mirrors the design system's ArticleCard component.
+/// Mirrors the design system's ArticleCard component. In the compact card,
+/// [highlight] terms are set in bold saffron (search results).
 ///
 /// Image placeholders are a flat parchment block, not the mockup's literal
 /// diagonal-hatch texture -- see roadmap/plan notes on why that texture
@@ -20,12 +22,14 @@ class ArticleCard extends StatelessWidget {
   final Article article;
   final ArticleCardSize size;
   final VoidCallback onTap;
+  final List<String> highlight;
 
   const ArticleCard({
     super.key,
     required this.article,
     required this.onTap,
     this.size = ArticleCardSize.compact,
+    this.highlight = const [],
   });
 
   @override
@@ -113,18 +117,18 @@ class ArticleCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  HighlightedText(
                     article.title.toUpperCase(),
+                    terms: highlight,
                     maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                     style: AppTypography.headline
                         .copyWith(fontSize: 16, height: 1.3),
                   ),
                   const SizedBox(height: 5),
-                  Text(
+                  HighlightedText(
                     article.summary,
+                    terms: highlight,
                     maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                     style: AppTypography.caption,
                   ),
                 ],

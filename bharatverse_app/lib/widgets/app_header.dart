@@ -36,17 +36,19 @@ String _formatLongDate(DateTime date) {
 
 /// Newspaper-masthead app header -- centered "BHARATVERSE" wordmark with
 /// date, an account/sign-in icon, heavy/medium rules, and a tricolor accent
-/// stripe. Mirrors the design system's AppHeader component, minus the
-/// search icon (Phase 2 search doesn't exist yet).
+/// stripe. Mirrors the design system's AppHeader component. The search icon
+/// shows when [onSearchClick] is given.
 class AppHeader extends StatelessWidget implements PreferredSizeWidget {
   final bool authenticated;
   final VoidCallback onAuthClick;
+  final VoidCallback? onSearchClick;
   final DateTime? date;
 
   const AppHeader(
       {super.key,
       required this.authenticated,
       required this.onAuthClick,
+      this.onSearchClick,
       this.date});
 
   @override
@@ -68,7 +70,14 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
               padding: const EdgeInsets.fromLTRB(4, 10, 12, 8),
               child: Row(
                 children: [
-                  const SizedBox(width: 40), // balances the icon on the right
+                  onSearchClick == null
+                      ? const SizedBox(
+                          width: 40) // balances the icon on the right
+                      : AppIconButton(
+                          icon: Icons.search,
+                          label: 'Search',
+                          onPressed: onSearchClick,
+                        ),
                   Expanded(
                     child: Column(
                       children: [

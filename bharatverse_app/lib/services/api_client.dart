@@ -56,6 +56,16 @@ class ApiClient {
     return Future.wait(rows.map(_loadArticle));
   }
 
+  /// Full-text search over title and summary, newest first. Sends the same
+  /// `wfts` (websearch) filter as the backend's `/articles/search`, so quoted
+  /// phrases and `-exclusions` work.
+  Future<List<Article>> searchArticles(String query, {int limit = 20}) async {
+    final filter = Uri.encodeComponent('wfts(english).${query.trim()}');
+    final rows = await _fetchRows(
+        'select=*&search_vector=$filter&order=date.desc&limit=$limit');
+    return Future.wait(rows.map(_loadArticle));
+  }
+
   /// Fetches metadata rows from the `articles` table via PostgREST.
   Future<List<Map<String, dynamic>>> _fetchRows(String query) async {
     final response = await _get('$baseUrl/rest/v1/articles?$query');

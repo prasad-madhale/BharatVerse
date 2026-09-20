@@ -10,6 +10,7 @@ import '../widgets/article_card.dart';
 import '../widgets/empty_state.dart';
 import 'article_detail_screen.dart';
 import 'auth_screen.dart';
+import 'search_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final ApiClient apiClient;
@@ -51,6 +52,11 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppHeader(
         authenticated: authState.isAuthenticated,
         onAuthClick: () => _openAuth(context, authState),
+        onSearchClick: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => SearchScreen(apiClient: widget.apiClient),
+          ),
+        ),
       ),
       body: FutureBuilder<List<Article>>(
         future: _recentArticles,
