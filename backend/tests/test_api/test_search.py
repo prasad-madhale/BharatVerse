@@ -46,7 +46,7 @@ class TestSearchArticles:
         with patch("backend.api.search.SearchService") as mock_service_class:
             mock_service_class.return_value.search_articles = AsyncMock(return_value=[make_article()])
 
-            response = client.get("/api/v1/search?q=Ashoka")
+            response = client.get("/api/v1/articles/search?q=Ashoka")
 
         assert response.status_code == 200
         body = response.json()
@@ -57,7 +57,7 @@ class TestSearchArticles:
         with patch("backend.api.search.SearchService") as mock_service_class:
             mock_service_class.return_value.search_articles = AsyncMock(return_value=[])
 
-            response = client.get("/api/v1/search?q=nonexistent")
+            response = client.get("/api/v1/articles/search?q=nonexistent")
 
         assert response.status_code == 200
         assert response.json() == []
@@ -66,7 +66,7 @@ class TestSearchArticles:
         with patch("backend.api.search.SearchService") as mock_service_class:
             mock_service_class.return_value.search_articles = AsyncMock(return_value=[])
 
-            client.get("/api/v1/search?q=Ashoka")
+            client.get("/api/v1/articles/search?q=Ashoka")
 
         mock_service_class.return_value.search_articles.assert_called_once_with("Ashoka", limit=20)
 
@@ -74,21 +74,41 @@ class TestSearchArticles:
         with patch("backend.api.search.SearchService") as mock_service_class:
             mock_service_class.return_value.search_articles = AsyncMock(return_value=[])
 
-            client.get("/api/v1/search?q=Ashoka&limit=3")
+            client.get("/api/v1/articles/search?q=Ashoka&limit=3")
 
         mock_service_class.return_value.search_articles.assert_called_once_with("Ashoka", limit=3)
 
     def test_rejects_missing_query(self, client):
-        response = client.get("/api/v1/search")
+        response = client.get("/api/v1/articles/search")
 
         assert response.status_code == 422
 
     def test_rejects_empty_query(self, client):
-        response = client.get("/api/v1/search?q=")
+        response = client.get("/api/v1/articles/search?q=")
 
         assert response.status_code == 422
 
     def test_rejects_limit_above_max(self, client):
-        response = client.get("/api/v1/search?q=Ashoka&limit=51")
+        response = client.get("/api/v1/articles/search?q=Ashoka&limit=51")
 
         assert response.status_code == 422
+
+
+class TestRouting:
+    def test_search_is_served_at_the_design_doc_path(self, client):
+        paths = client.get("/openapi.json").json()["paths"]
+
+        assert "/api/v1/articles/search" in paths
+        assert "/api/v1/search" not in paths
+
+    def test_search_is_not_captured_by_the_article_by_id_route(self, client):
+        # If articles_router were registered first, its /articles/{article_id} route
+        # would answer this request and treat "search" as an article id.
+        with patch("backend.api.search.SearchService") as mock_search_class, \
+                patch("backend.api.articles.ArticleService") as mock_article_class:
+            mock_search_class.return_value.search_articles = AsyncMock(return_value=[])
+
+            response = client.get("/api/v1/articles/search?q=Ashoka")
+
+        assert response.status_code == 200
+        mock_article_class.assert_not_called()
