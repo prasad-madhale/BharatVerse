@@ -78,14 +78,16 @@ class ArticleService:
         )
         return [row["title"] for row in response.data]
 
-    async def list_recent_articles(self, limit: int = 5) -> list[Article]:
-        """Full, recently-published articles (metadata + content), most recent first."""
+    async def list_recent_articles(self, limit: int = 5, offset: int = 0) -> list[Article]:
+        """Full, recently-published articles (metadata + content), most recent first. `offset` pages through them."""
         client = get_supabase().get_client()
         response = (
             client.table("articles")
             .select("*")
             .order("date", desc=True)
-            .limit(limit)
+            .order("created_at", desc=True)
+            .order("id", desc=True)  # a total order, so no page repeats or skips an article
+            .range(offset, offset + limit - 1)
             .execute()
         )
         return [self.load_article(client, row) for row in response.data]

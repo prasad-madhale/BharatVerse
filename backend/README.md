@@ -180,7 +180,7 @@ backend/
 
 - `GET /api/v1/articles/daily` - Get today's daily article
 - `GET /api/v1/articles/{id}` - Get article by ID
-- `GET /api/v1/articles` - List articles (paginated)
+- `GET /api/v1/articles?limit=5&offset=0` - List articles, newest first (`limit` 1-20, `offset` pages through them)
 - `GET /api/v1/articles/search?q=...` - Search articles
 
 ### Search
