@@ -1,17 +1,20 @@
 """
 Unit tests for SearchService.
 
-Tests the text_search query shape and row assembly with a mocked Supabase
-client (no live network calls) -- same convention as
-test_article_service.py.
+The query-shape tests drive the real service through a real postgrest query
+builder (see backend/tests/wire.py) and assert on the HTTP request that would
+be sent to Supabase. A mock-based test cannot catch a wrong operator name or
+a wrong builder-call order, and both went unnoticed once already.
 """
 
 import json
-
-import pytest
 from unittest.mock import MagicMock, patch
 
+import httpx
+import pytest
+
 from backend.services.search_service import SearchService
+from backend.tests.wire import WireClient
 
 
 def make_row(article_id="art_20260703_001", title="The Mauryan Empire"):
@@ -38,69 +41,44 @@ def make_blob():
     }).encode("utf-8")
 
 
-@pytest.fixture
-def mock_settings():
-    settings = MagicMock()
-    settings.articles_storage_bucket = "articles"
-    return settings
-
-
-@pytest.fixture
-def mock_supabase_client():
-    return MagicMock()
-
-
 class TestSearchArticles:
     @pytest.mark.asyncio
     @patch("backend.services.search_service.get_supabase")
-    @patch("backend.services.article_service.get_settings")
-    async def test_queries_search_vector_with_websearch_semantics(
-        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
-    ):
-        mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
-        query = mock_supabase_client.table.return_value.select.return_value.text_search.return_value
-        query.order.return_value.limit.return_value.execute.return_value.data = []
+    async def test_sends_websearch_query_ordered_by_date_with_limit(self, mock_get_supabase):
+        wire = WireClient(lambda request: httpx.Response(200, json=[]))
+        mock_get_supabase.return_value.get_client.return_value = wire
 
-        service = SearchService()
-        await service.search_articles("Ashoka")
+        results = await SearchService().search_articles("Mauryan Empire", limit=7)
 
-        mock_supabase_client.table.assert_called_with("articles")
-        mock_supabase_client.table.return_value.select.return_value.text_search.assert_called_once_with(
-            "search_vector", "Ashoka", options={"type": "websearch", "config": "english"}
-        )
-
-    @pytest.mark.asyncio
-    @patch("backend.services.search_service.get_supabase")
-    @patch("backend.services.article_service.get_settings")
-    async def test_passes_limit_and_orders_by_date_descending(
-        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
-    ):
-        mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
-        query = mock_supabase_client.table.return_value.select.return_value.text_search.return_value
-        query.order.return_value.limit.return_value.execute.return_value.data = []
-
-        service = SearchService()
-        await service.search_articles("Ashoka", limit=5)
-
-        query.order.assert_called_once_with("date", desc=True)
-        query.order.return_value.limit.assert_called_once_with(5)
+        assert results == []
+        (request,) = wire.requests
+        assert request.url.path == "/rest/v1/articles"
+        assert request.url.params["select"] == "*"
+        # wfts is PostgREST's websearch_to_tsquery operator. The strict fts
+        # operator would reject a two-word query like this one.
+        assert request.url.params["search_vector"] == "wfts(english).Mauryan Empire"
+        assert request.url.params["order"] == "date.desc"
+        assert request.url.params["limit"] == "7"
 
     @pytest.mark.asyncio
     @patch("backend.services.search_service.get_supabase")
-    @patch("backend.services.article_service.get_settings")
-    async def test_reassembles_full_articles_from_matched_rows(
-        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
-    ):
-        mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
-        query = mock_supabase_client.table.return_value.select.return_value.text_search.return_value
-        query.order.return_value.limit.return_value.execute.return_value.data = [make_row()]
-        mock_supabase_client.storage.from_.return_value.download.return_value = make_blob()
+    async def test_default_limit_is_twenty(self, mock_get_supabase):
+        wire = WireClient(lambda request: httpx.Response(200, json=[]))
+        mock_get_supabase.return_value.get_client.return_value = wire
 
-        service = SearchService()
-        results = await service.search_articles("Ashoka")
+        await SearchService().search_articles("Ashoka")
+
+        assert wire.requests[0].url.params["limit"] == "20"
+
+    @pytest.mark.asyncio
+    @patch("backend.services.search_service.get_supabase")
+    async def test_reassembles_full_articles_from_matched_rows(self, mock_get_supabase):
+        wire = WireClient(lambda request: httpx.Response(200, json=[make_row()]))
+        wire.storage = MagicMock()
+        wire.storage.from_.return_value.download.return_value = make_blob()
+        mock_get_supabase.return_value.get_client.return_value = wire
+
+        results = await SearchService().search_articles("Ashoka")
 
         assert len(results) == 1
         assert results[0].id == "art_20260703_001"
@@ -109,16 +87,8 @@ class TestSearchArticles:
 
     @pytest.mark.asyncio
     @patch("backend.services.search_service.get_supabase")
-    @patch("backend.services.article_service.get_settings")
-    async def test_returns_empty_list_when_no_matches(
-        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
-    ):
-        mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
-        query = mock_supabase_client.table.return_value.select.return_value.text_search.return_value
-        query.order.return_value.limit.return_value.execute.return_value.data = []
+    async def test_returns_empty_list_when_no_matches(self, mock_get_supabase):
+        wire = WireClient(lambda request: httpx.Response(200, json=[]))
+        mock_get_supabase.return_value.get_client.return_value = wire
 
-        service = SearchService()
-        results = await service.search_articles("no such topic")
-
-        assert results == []
+        assert await SearchService().search_articles("no such topic") == []

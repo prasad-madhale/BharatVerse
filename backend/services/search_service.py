@@ -34,12 +34,17 @@ class SearchService:
         for this FTS-only pass.
         """
         client = get_supabase().get_client()
+        # text_search() must be the LAST builder call before execute(): it returns
+        # a builder that only has execute(), so order()/limit() after it raise
+        # AttributeError. The option type is "web_search" (postgrest-py's spelling),
+        # which emits PostgREST's wfts operator; any other value falls back to the
+        # strict fts operator and rejects multi-word queries.
         response = (
             client.table("articles")
             .select("*")
-            .text_search("search_vector", query, options={"type": "websearch", "config": "english"})
             .order("date", desc=True)
             .limit(limit)
+            .text_search("search_vector", query, options={"type": "web_search", "config": "english"})
             .execute()
         )
         return [self.article_service.load_article(client, row) for row in response.data]
