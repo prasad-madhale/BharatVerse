@@ -10,6 +10,7 @@ inclusion: always
 
 ### Allowed MD Files
 - `README.md` - Main documentation for packages/directories
+- `AGENTS.md` (repo root) - Instructions for coding agents
 - Files in `.kiro/specs/` - Spec-driven development documents
 - User-requested documentation
 
