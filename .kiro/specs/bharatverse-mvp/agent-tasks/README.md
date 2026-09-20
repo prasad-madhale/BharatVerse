@@ -7,8 +7,8 @@ designs nothing. If a spec does not say what to do, that is a bug in the spec, n
 
 ## Running it
 
-`scripts/agent_loop.py` runs the queue. It does its work on one branch, `agent/queue`, in its own git worktree
-under `.agent/`, so your checkout is never touched. It never pushes.
+`scripts/agent_loop.py` runs the queue (the code is the `scripts/agent_queue/` package). It does its work on one
+branch, `agent/queue`, in its own git worktree under `.agent/`, so your checkout is never touched. It never pushes.
 
 TASK-001 fixes code that exists only on the unmerged branch `claude/project-status-n4reoq`. Until that branch
 is merged, start the queue from it with `--base origin/claude/project-status-n4reoq` instead of `--base main`.
@@ -32,7 +32,7 @@ detects drift: if the codebase changes and a spec no longer applies, the referen
 - Only files listed under `allowed` may change. Anything else is reverted and the attempt is failed.
 - The agent may not move `HEAD`. If it does, the runner stops and asks for a human.
 - The runner runs the `verify:` commands itself. The agent's own claim of success is ignored.
-- Two attempts per task. A task that still fails is reverted, its patch saved under `.agent/logs/`, and it is
+- Three attempts per task. A task that still fails is reverted, its patch saved under `.agent/logs/`, and it is
   marked blocked. The rest of the queue continues, except tasks that depend on it.
 - The agent runs in `dontAsk` mode with a small tool allowlist, with git credentials and the SSH agent removed
   from its environment. `git push`, `commit`, `checkout`, `reset`, `rm`, `curl`, and `pip` are denied.
@@ -84,6 +84,11 @@ the command, and the model then burns turns working around it. A `.` in a grep p
 | TASK-014 | Flutter: `LikeState` | 013 |
 | TASK-015 | Flutter: `LikeButton` in the article screen header, provided in `main.dart` | 014 |
 
+All fifteen have been executed by `qwen3.5:9b` on `agent/queue`, one commit each. The specs record what the model
+was told to write. Follow-up commits on that branch then trimmed comments, moved duplicated test helpers into shared
+files, and renamed `LikeState.toggle` and `AuthState.accessToken` to the `design.md` names `toggleLike` and
+`authToken`. Replaying the specs from scratch therefore reproduces the branch as it was before those commits.
+
 ## Conventions the specs assume
 
 The code the specs write follows the packages' own patterns, so the diff reads like the rest of the repo.
@@ -112,13 +117,13 @@ The agent must not attempt these. Each needs live credentials, money, an externa
 
 **Needs live Supabase access**
 
-- Apply the `search_vector` migration. `backend/database/schema.sql` adds a generated column and a GIN index that
-  have never been run against the live project. Until they are, every search request fails in Postgres. Then try a
-  two-word query.
-- Try likes end to end. The backend uses the service-role key and bypasses row-level security. The app uses the
-  user's own token, so it depends on the `likes` policies: select, insert, and delete exist, and there is no update
-  policy, which is why the app inserts with `ignore-duplicates` rather than merging. Check a like, an unlike, and a
-  repeated like.
+- Apply the `search_vector` migration. `backend/database/schema.sql` adds a generated column and a GIN index. They
+  work on a local Postgres and PostgREST, but have not been run against the hosted project, which did not resolve on
+  2026-09-20 (see the roadmap). Until they are, every search request there fails in Postgres. Then try a two-word
+  query.
+- Try likes end to end against the hosted project. Locally, with real user tokens, a like, an unlike, and a repeated
+  like all behave. The app depends on the `likes` policies: select, insert, and delete exist, and there is no update
+  policy, which is why it inserts with `ignore-duplicates` rather than merging.
 
 **Costs money or writes to production**
 
