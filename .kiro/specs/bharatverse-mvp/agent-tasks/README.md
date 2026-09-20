@@ -139,8 +139,8 @@ The agent must not attempt these. Each needs live credentials, money, an externa
 
 **Needs a product decision**
 
-- Whether the app reaches search through the backend or straight through PostgREST. Likes already go straight
-  through PostgREST, so no backend has to be deployed for them. The app has no search screen yet.
+- Whether search should go through the backend. The app searches straight through PostgREST today, like likes and
+  article reads, so no backend has to be deployed. Say so if that should change.
 - Whether semantic search stays in the MVP, and the default LLM provider. `common/config.py` defaults to `gemini`
   and only the daily workflow picks `anthropic`.
 - How autocomplete should work. The `search_suggestions` table has no unique index on `(term, category)`. A
