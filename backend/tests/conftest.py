@@ -23,6 +23,8 @@ import os
 os.environ.setdefault('SUPABASE_URL', 'https://test.supabase.co')
 os.environ.setdefault('SUPABASE_ANON_KEY', 'test-anon-key')
 os.environ.setdefault('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key')
+# The shared app must not throttle the suite (every test client is one address); the limiter has tests of its own.
+os.environ.setdefault('RATE_LIMIT_REQUESTS_PER_MINUTE', '0')
 
 
 @pytest.fixture(scope="function", autouse=True)
