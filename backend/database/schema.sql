@@ -62,20 +62,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_likes_user_article ON likes(user_id, artic
 CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);
 CREATE INDEX IF NOT EXISTS idx_likes_article ON likes(article_id);
 
--- Search suggestions for autocomplete
+-- Search suggestions for autocomplete: every phrase a reader may type to find an article, once, with how many articles
+-- carry it -- each part of a title (split at a colon or a dash, so "The Mauryan Empire: India's First Great Dynasty" gives
+-- two), as it is and without a leading "the", "a" or "an", and the tags with hyphens read as spaces ("medieval-india" is
+-- "Medieval India"). A reader picks one to search for, so no phrase holds a spaced hyphen, which a search reads as "not".
+-- rebuild_search_suggestions() fills it from `articles` and a trigger runs that after every change to `articles`, so the
+-- pipeline needs no extra step and nothing goes stale. A database that already has the earlier, unused version of this
+-- table must drop it first (DROP TABLE search_suggestions) for this definition to apply.
 CREATE TABLE IF NOT EXISTS search_suggestions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    term TEXT NOT NULL,
-    category TEXT NOT NULL,  -- 'title', 'tag', 'person', 'event', 'period'
-    frequency INTEGER DEFAULT 1,  -- How often this term appears
-    article_count INTEGER DEFAULT 0,  -- Number of articles with this term
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    term_key TEXT PRIMARY KEY,       -- lower-cased, whitespace collapsed: what a typed prefix is compared with
+    term TEXT NOT NULL,              -- the phrase as shown
+    category TEXT NOT NULL,          -- 'tag' if any article carries it as a tag, else 'title'
+    article_count INTEGER NOT NULL   -- how many articles carry it
 );
 
-CREATE INDEX IF NOT EXISTS idx_search_suggestions_term ON search_suggestions(term);
-CREATE INDEX IF NOT EXISTS idx_search_suggestions_category ON search_suggestions(category);
-CREATE INDEX IF NOT EXISTS idx_search_suggestions_frequency ON search_suggestions(frequency DESC);
+-- text_pattern_ops lets a prefix search use the index whatever the database's collation
+CREATE INDEX IF NOT EXISTS idx_search_suggestions_prefix ON search_suggestions (term_key text_pattern_ops);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
@@ -116,14 +118,10 @@ CREATE POLICY "Users can delete own likes"
     ON likes FOR DELETE 
     USING (auth.uid() = user_id);
 
--- RLS Policies for search suggestions (public read, service role write)
-CREATE POLICY "Search suggestions are viewable by everyone" 
-    ON search_suggestions FOR SELECT 
+-- RLS Policies for search suggestions (public read; only rebuild_search_suggestions(), which is SECURITY DEFINER, writes)
+CREATE POLICY "Search suggestions are viewable by everyone"
+    ON search_suggestions FOR SELECT
     USING (true);
-
-CREATE POLICY "Search suggestions are insertable by service role" 
-    ON search_suggestions FOR INSERT 
-    WITH CHECK (auth.role() = 'service_role');
 
 -- Full-text search over title, tags and summary, weighted so a title term counts most (A), then a tag (B),
 -- then a summary term (C). Tags are lowercase hyphenated slugs, which the parser splits, so a search for
@@ -157,6 +155,72 @@ AS $$
     LIMIT match_limit
 $$;
 
+CREATE OR REPLACE FUNCTION rebuild_search_suggestions()
+RETURNS void
+LANGUAGE plpgsql SET search_path = public
+AS $$
+BEGIN
+    LOCK TABLE search_suggestions IN EXCLUSIVE MODE;  -- one rebuild at a time; readers are not held up
+    DELETE FROM search_suggestions;
+    INSERT INTO search_suggestions (term_key, term, category, article_count)
+    WITH parts AS (
+        SELECT a.id, part
+        FROM articles a, LATERAL regexp_split_to_table(a.title, '\s*[:\u2013\u2014]+\s*|\s+-\s+') AS part
+    ), raw AS (
+        SELECT a.id, initcap(replace(tag #>> '{}', '-', ' ')) AS phrase, 'tag' AS category
+        FROM articles a,
+             LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(a.tags) = 'array' THEN a.tags ELSE '[]'::jsonb END) AS tag
+        WHERE jsonb_typeof(tag) = 'string'
+        UNION ALL SELECT id, part, 'title' FROM parts
+        UNION ALL SELECT id, regexp_replace(part, '^(the|a|an)\s+', '', 'i'), 'title' FROM parts
+    ), phrases AS (
+        SELECT id, btrim(regexp_replace(phrase, '\s+', ' ', 'g')) AS phrase, category FROM raw
+    )
+    SELECT lower(phrase),
+           (array_agg(phrase ORDER BY (phrase = upper(phrase)), (phrase = lower(phrase)), phrase COLLATE "C"))[1],
+           min(category),
+           count(DISTINCT id)
+    FROM phrases
+    WHERE phrase <> ''
+    GROUP BY lower(phrase);
+END;
+$$;
+
+-- SECURITY DEFINER so the writers of `articles` (the service role) need no rights on the suggestions or the functions
+CREATE OR REPLACE FUNCTION refresh_search_suggestions()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+    PERFORM rebuild_search_suggestions();
+    RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS articles_refresh_search_suggestions ON articles;
+CREATE TRIGGER articles_refresh_search_suggestions
+    AFTER INSERT OR UPDATE OR DELETE OR TRUNCATE ON articles
+    FOR EACH STATEMENT EXECUTE FUNCTION refresh_search_suggestions();
+
+-- Not for the API: the trigger runs them with its owner's rights, whoever wrote the article
+REVOKE ALL ON FUNCTION rebuild_search_suggestions(), refresh_search_suggestions()
+    FROM PUBLIC, anon, authenticated, service_role;
+
+-- Autocomplete: the suggestions that start with what was typed (case and extra spaces do not matter), the phrases more
+-- articles carry first, then tags before titles, then shorter ones; at most 20, so a null or huge match_limit cannot dump
+-- the table. Called as rpc/autocomplete_suggestions by the backend and the app.
+CREATE OR REPLACE FUNCTION autocomplete_suggestions(prefix TEXT, match_limit INT DEFAULT 10)
+RETURNS TABLE (term TEXT)
+LANGUAGE sql STABLE
+AS $$
+    SELECT s.term
+    FROM search_suggestions s,
+         (SELECT lower(btrim(regexp_replace(prefix, '\s+', ' ', 'g'))) AS typed) t
+    WHERE t.typed <> '' AND starts_with(s.term_key, t.typed)
+    ORDER BY s.article_count DESC, (s.category = 'title'), length(s.term), s.term_key COLLATE "C"
+    LIMIT least(greatest(coalesce(match_limit, 10), 0), 20)
+$$;
+
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -170,5 +234,5 @@ $$ language 'plpgsql';
 CREATE TRIGGER update_articles_updated_at BEFORE UPDATE ON articles
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_search_suggestions_updated_at BEFORE UPDATE ON search_suggestions
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+-- Fill the suggestions from the articles already there (nothing to do on a new database)
+SELECT rebuild_search_suggestions();

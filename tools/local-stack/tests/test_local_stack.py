@@ -26,8 +26,10 @@ def test_keeps_semicolons_inside_quotes_and_dollar_quoted_bodies_whole():
 
 def test_the_repos_schema_splits_into_whole_statements():
     found = list(statements(SCHEMA.read_text()))
-    assert all(stmt.split()[0].upper() in {"CREATE", "ALTER", "DROP", "INSERT", "GRANT", "COMMENT"} for stmt in found)
+    assert all(stmt.split()[0].upper() in {"CREATE", "ALTER", "DROP", "INSERT", "GRANT", "REVOKE", "SELECT", "COMMENT"} for stmt in found)
     assert any(stmt.startswith("CREATE OR REPLACE FUNCTION search_articles") and stmt.rstrip().endswith("$$") for stmt in found)
+    rebuild = next(stmt for stmt in found if stmt.startswith("CREATE OR REPLACE FUNCTION rebuild_search_suggestions"))
+    assert "LOCK TABLE" in rebuild and rebuild.rstrip().endswith("$$")  # a body full of semicolons stays in one piece
 
 
 def test_a_signed_token_verifies_until_it_expires_and_only_with_its_own_secret(monkeypatch):

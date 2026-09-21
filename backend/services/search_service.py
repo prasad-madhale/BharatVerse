@@ -1,4 +1,4 @@
-"""Full-text search over article title, tags and summary, ranked by relevance (autocomplete and semantic search are deferred)."""
+"""Full-text search over article title, tags and summary, and autocomplete suggestions (semantic search is deferred)."""
 
 import logging
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class SearchService:
-    """Searches published articles by title, tags and summary using Postgres full-text search."""
+    """Searches published articles by title, tags and summary using Postgres full-text search, and suggests searches."""
 
     def __init__(self):
         self.article_service = ArticleService()
@@ -24,3 +24,16 @@ class SearchService:
         client = get_supabase().get_client()
         response = client.rpc("search_articles", {"search_query": query, "match_limit": limit}).execute()
         return [self.article_service.load_article(client, row) for row in response.data]
+
+    async def autocomplete(self, prefix: str, limit: int = 10) -> list[str]:
+        """
+        Titles and tags that start with `prefix`, the ones more articles carry first.
+
+        Looked up in the search_suggestions table by the autocomplete_suggestions SQL function (schema.sql); a trigger
+        keeps the table in step with the articles.
+        """
+        if not prefix.strip():
+            return []
+        client = get_supabase().get_client()
+        response = client.rpc("autocomplete_suggestions", {"prefix": prefix, "match_limit": limit}).execute()
+        return [row["term"] for row in response.data]
