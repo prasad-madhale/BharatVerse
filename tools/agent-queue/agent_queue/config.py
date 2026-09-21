@@ -4,12 +4,22 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-TASKS_DIR = REPO / ".kiro" / "specs" / "bharatverse-mvp" / "agent-tasks"
+REPO = Path(__file__).resolve().parents[3]
+TASKS_DIR = Path(__file__).resolve().parents[1] / "tasks"
 AGENT_DIR = REPO / ".agent"
 STOP_FILE = AGENT_DIR / "STOP"
-FLUTTER_DIR = AGENT_DIR / "flutter"
-PUB_CACHE = AGENT_DIR / "pub-cache"
+PUB_CACHE = AGENT_DIR / "pub-cache"  # used only when a Flutter SDK is kept under .agent/
+
+
+def find_flutter() -> Path:
+    """The Flutter SDK: $FLUTTER_ROOT, else the usual install at ~/flutter/flutter, else a copy kept under .agent/."""
+    for candidate in (os.environ.get("FLUTTER_ROOT"), Path.home() / "flutter" / "flutter", AGENT_DIR / "flutter"):
+        if candidate and (Path(candidate) / "bin").is_dir():
+            return Path(candidate)
+    return AGENT_DIR / "flutter"
+
+
+FLUTTER_DIR = find_flutter()
 MAX_ATTEMPTS = 3
 AGENT_TIMEOUT = int(os.environ.get("BV_AGENT_TIMEOUT", 40 * 60))  # seconds per attempt
 VERIFY_TIMEOUT = 15 * 60

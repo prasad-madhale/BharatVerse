@@ -251,3 +251,39 @@ def test_a_second_runner_is_refused_and_a_stop_file_ends_the_loop(q):
     (q.agent / "STOP").write_text("")
     code, out, _ = q.run("run", "--executor", "reference", "--base", "main")
     assert code == 0 and "STOP file present" in out and q.subjects() == []
+
+
+def test_flutter_comes_from_flutter_root_then_the_usual_install_then_agent_dir(tmp_path, monkeypatch):
+    def sdk(path):
+        (path / "bin").mkdir(parents=True)
+        return path
+
+    home, agent = tmp_path / "home", tmp_path / "agent"
+    monkeypatch.setattr(config, "AGENT_DIR", agent)
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    monkeypatch.delenv("FLUTTER_ROOT", raising=False)
+    assert config.find_flutter() == agent / "flutter"  # nothing installed: where one would be kept
+
+    kept = sdk(agent / "flutter")
+    assert config.find_flutter() == kept
+    usual = sdk(home / "flutter" / "flutter")
+    assert config.find_flutter() == usual
+    chosen = sdk(tmp_path / "chosen")
+    monkeypatch.setenv("FLUTTER_ROOT", str(chosen))
+    assert config.find_flutter() == chosen
+    monkeypatch.setenv("FLUTTER_ROOT", str(tmp_path / "missing"))  # a bad override is ignored, not trusted
+    assert config.find_flutter() == usual
+
+
+def test_the_runners_own_package_cache_is_used_only_when_it_exists(tmp_path, monkeypatch):
+    from agent_queue.shell import base_env
+
+    sdk, cache = tmp_path / "sdk", tmp_path / "cache"
+    (sdk / "bin").mkdir(parents=True)
+    monkeypatch.setattr(config, "FLUTTER_DIR", sdk)
+    monkeypatch.setattr(config, "PUB_CACHE", cache)
+    monkeypatch.delenv("PUB_CACHE", raising=False)
+    assert "PUB_CACHE" not in base_env() and base_env()["PATH"].startswith(str(sdk / "bin"))
+    cache.mkdir()
+    assert base_env()["PUB_CACHE"] == str(cache)
+

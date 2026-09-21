@@ -1,5 +1,5 @@
 """
-Run the agent task queue (.kiro/specs/bharatverse-mvp/agent-tasks/) one task at a time, on the agent/queue branch in
+Run the agent task queue (tools/agent-queue/tasks/) one task at a time, on the agent/queue branch in
 its own worktree. The runner, not the agent, checks scope, runs each spec's verify commands, and commits. Nothing is
 pushed. See the queue's README.md for the contract the agent is held to.
 

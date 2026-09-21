@@ -30,7 +30,8 @@ def base_env(root: Path = None) -> dict:
         env["BV_ROOT"] = str(root)
     if (config.FLUTTER_DIR / "bin").is_dir():
         env["PATH"] = f"{config.FLUTTER_DIR / 'bin'}{os.pathsep}{env['PATH']}"
-        env["PUB_CACHE"] = str(config.PUB_CACHE)
+        if config.PUB_CACHE.is_dir():  # a cache kept for an SDK under .agent/; any other SDK uses its own default
+            env["PUB_CACHE"] = str(config.PUB_CACHE)
         env["FLUTTER_SUPPRESS_ANALYTICS"] = "true"
         env["CI"] = "true"  # makes Flutter and Dart non-interactive
     venv_bin = venv_dir() / "bin"
