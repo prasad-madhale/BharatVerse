@@ -6,7 +6,7 @@ The runner, not the model, checks each change and commits. Nothing is ever pushe
 
 ## Use
 
-Put one spec per task in `tools/agent-queue/tasks/` (format below), then:
+Create `tools/agent-queue/tasks/` and put one spec per task in it (format below), then:
 
 ```bash
 python tools/agent-queue/agent_loop.py list                      # tasks and their state

@@ -4,7 +4,7 @@ BharatVerse serves one AI-written story from Indian history a day. Monorepo: `sc
 
 ## Setup
 - Python 3.12 with one venv at the repo root: `pip install -r backend/requirements.txt -r scrapper/requirements.txt`, then `playwright install --with-deps chromium`. Leave `fastapi==0.109.0` and `supabase==2.9.0` pinned; newer releases rename `gotrue` and change the missing-bearer status, which breaks tests.
-- Flutter SDK per `bharatverse_app/pubspec.lock`.
+- Flutter stable (CI follows the channel; last verified on 3.47). A newer SDK's `pub get` may rewrite `bharatverse_app/pubspec.lock` and `analysis_options.yaml`; commit those as it writes them.
 - Secrets go in a root `.env` (template: `.env.example`), never committed. Tests need none.
 - `./scripts/dev.sh` runs the backend (:8000) and the Flutter web app (:8765).
 
