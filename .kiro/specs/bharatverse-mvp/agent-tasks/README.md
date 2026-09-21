@@ -120,8 +120,8 @@ The agent must not attempt these. Each needs live credentials, money, an externa
 
 **Needs live Supabase access**
 
-- Apply the `search_vector` migration. `backend/database/schema.sql` adds a generated column and a GIN index. They
-  work on a local Postgres and PostgREST, but have not been run against the hosted project, which did not resolve on
+- Apply the search migration. `backend/database/schema.sql` adds a generated column, a GIN index, and the
+  `search_articles` ranking function. They work on a local Postgres and PostgREST, but have not been run against the hosted project, which did not resolve on
   2026-09-20 (see the roadmap). Until they are, every search request there fails in Postgres. Then try a two-word
   query.
 - Try likes end to end against the hosted project. Locally, with real user tokens, a like, an unlike, and a repeated
