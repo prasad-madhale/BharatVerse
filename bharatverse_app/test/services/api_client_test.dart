@@ -9,6 +9,7 @@ import '../support/article_fixtures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bharatverse_app/services/article_cache.dart';
 import 'package:bharatverse_app/models/article.dart';
+import 'package:bharatverse_app/config.dart';
 
 void main() {
   group('ApiClient.getDailyArticle', () {
@@ -161,7 +162,7 @@ void main() {
   });
 
   group('ApiClient.searchArticles', () {
-    test('sends a websearch filter, newest first, with a limit', () async {
+    test('calls the ranked search function with the query and limit', () async {
       final seen = <http.Request>[];
       final client = ApiClient(
         client:
@@ -171,11 +172,12 @@ void main() {
       final articles = await client.searchArticles('Mauryan Empire', limit: 7);
 
       expect(articles.single.id, 'art_20260703_001');
-      final query = seen.single.url.queryParameters;
-      expect(seen.single.url.path, '/rest/v1/articles');
-      expect(query['search_vector'], 'wfts(english).Mauryan Empire');
-      expect(query['order'], 'date.desc');
-      expect(query['limit'], '7');
+      final request = seen.single;
+      expect(request.method, 'POST');
+      expect(request.url.path, '/rest/v1/rpc/search_articles');
+      expect(request.headers['Content-Type'], contains('application/json'));
+      expect(jsonDecode(request.body),
+          {'search_query': 'Mauryan Empire', 'match_limit': 7});
     });
 
     test('returns twenty results by default', () async {
@@ -186,7 +188,7 @@ void main() {
 
       await client.searchArticles('Ashoka');
 
-      expect(seen.single.url.queryParameters['limit'], '20');
+      expect(jsonDecode(seen.single.body)['match_limit'], 20);
     });
 
     test('passes quoted phrases and exclusions through intact', () async {
@@ -197,8 +199,21 @@ void main() {
 
       await client.searchArticles('  "Bay of Bengal" -Chola  ');
 
-      expect(seen.single.url.queryParameters['search_vector'],
-          'wfts(english)."Bay of Bengal" -Chola');
+      expect(jsonDecode(seen.single.body)['search_query'],
+          '"Bay of Bengal" -Chola');
+    });
+
+    test('keeps the order the database ranked the articles in', () async {
+      final client = ApiClient(
+        client: articlesMockClient(() => [
+              sampleArticleRow(id: 'art_2', title: 'Best match'),
+              sampleArticleRow(id: 'art_1', title: 'Weaker match'),
+            ]),
+      );
+
+      final articles = await client.searchArticles('ashoka');
+
+      expect(articles.map((a) => a.id), ['art_2', 'art_1']);
     });
 
     test('throws an ApiException when the request fails', () async {
@@ -432,6 +447,24 @@ void main() {
       final ids = [for (final a in await small.getCachedArticles()) a.id]
         ..sort();
       expect(ids, ['a', 'c']);
+    });
+  });
+  group('ApiClient credentials', () {
+    test('sends the anon key on reads and on searches', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(
+        client:
+            articlesMockClient(() => [sampleArticleRow()], onRequest: seen.add),
+      );
+
+      await client.getDailyArticle();
+      await client.searchArticles('ashoka');
+
+      expect(seen, hasLength(2));
+      for (final request in seen) {
+        expect(request.headers['apikey'], supabaseAnonKey);
+        expect(request.headers['Authorization'], 'Bearer $supabaseAnonKey');
+      }
     });
   });
 }

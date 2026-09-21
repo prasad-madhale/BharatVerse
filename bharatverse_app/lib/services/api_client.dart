@@ -93,14 +93,17 @@ class ApiClient {
         () => _saved((all) => all.skip(page * limit).take(limit)),
       );
 
-  /// Full-text search over title and summary, newest first. Sends the same
-  /// `wfts` (websearch) filter as the backend's `/articles/search`, so quoted
-  /// phrases and `-exclusions` work. Not available offline.
+  /// Full-text search over title and summary, most relevant first. Calls the
+  /// same `search_articles` database function as the backend's
+  /// `/articles/search`, so quoted phrases and `-exclusions` work. Not
+  /// available offline.
   Future<List<Article>> searchArticles(String query, {int limit = 20}) async {
-    final filter = Uri.encodeComponent('wfts(english).${query.trim()}');
-    final rows = await _fetchRows(
-        'select=*&search_vector=$filter&order=date.desc&limit=$limit');
-    return loadArticles(rows);
+    final response = await _post('$baseUrl/rest/v1/rpc/search_articles', {
+      'search_query': query.trim(),
+      'match_limit': limit,
+    });
+    return loadArticles((jsonDecode(response.body) as List<dynamic>)
+        .cast<Map<String, dynamic>>());
   }
 
   /// Builds full articles from `articles` rows, fetching each one's content,
@@ -175,16 +178,25 @@ class ApiClient {
     });
   }
 
-  Future<http.Response> _get(String url) async {
+  Map<String, String> get _headers => {
+        'apikey': supabaseAnonKey,
+        'Authorization': 'Bearer $supabaseAnonKey',
+      };
+
+  Future<http.Response> _get(String url) =>
+      _send(() => _client.get(Uri.parse(url), headers: _headers));
+
+  Future<http.Response> _post(String url, Object body) =>
+      _send(() => _client.post(
+            Uri.parse(url),
+            headers: {..._headers, 'Content-Type': 'application/json'},
+            body: jsonEncode(body),
+          ));
+
+  Future<http.Response> _send(Future<http.Response> Function() request) async {
     final http.Response response;
     try {
-      response = await _client.get(
-        Uri.parse(url),
-        headers: {
-          'apikey': supabaseAnonKey,
-          'Authorization': 'Bearer $supabaseAnonKey',
-        },
-      );
+      response = await request();
     } catch (e) {
       throw ApiException(
           'Could not reach the server. Check your connection and try again.');

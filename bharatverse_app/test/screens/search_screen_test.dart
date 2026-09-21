@@ -72,15 +72,14 @@ void main() {
       expect(marked(tester), ['MAURYAN', 'Mauryan']); // title, then summary
     });
 
-    testWidgets('sends the trimmed query as a websearch filter, newest first',
-        (tester) async {
+    testWidgets('sends the trimmed query to the ranked search', (tester) async {
       await pumpSearch(tester);
 
       await search(tester, '  Ashoka dhamma  ');
 
-      final query = requests.single.url.queryParameters;
-      expect(query['search_vector'], 'wfts(english).Ashoka dhamma');
-      expect(query['order'], 'date.desc');
+      final request = requests.single;
+      expect(request.url.path, '/rest/v1/rpc/search_articles');
+      expect(jsonDecode(request.body)['search_query'], 'Ashoka dhamma');
     });
 
     testWidgets('searches when the keyboard search action is pressed',
@@ -138,8 +137,8 @@ void main() {
       await tester.tap(find.widgetWithText(AppButton, 'Retry'));
       await tester.pumpAndSettle();
 
-      expect(requests.map((r) => r.url.queryParameters['search_vector']),
-          ['wfts(english).ashoka', 'wfts(english).ashoka']);
+      expect(requests.map((r) => jsonDecode(r.body)['search_query']),
+          ['ashoka', 'ashoka']);
       expect(find.byType(ArticleCard), findsOneWidget);
     });
 
