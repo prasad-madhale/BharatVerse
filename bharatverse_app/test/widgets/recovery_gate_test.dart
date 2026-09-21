@@ -30,10 +30,13 @@ void main() {
     when(() => client.currentUser).thenReturn(null);
   });
 
-  Widget app() => ChangeNotifierProvider(
+  Widget app({Uri? openedWith}) => ChangeNotifierProvider(
         create: (_) => AuthState(authClient: client),
-        child: const MaterialApp(
-          home: RecoveryGate(child: Scaffold(body: Text('the app'))),
+        child: MaterialApp(
+          home: RecoveryGate(
+            openedWith: openedWith,
+            child: const Scaffold(body: Text('the app')),
+          ),
         ),
       );
 
@@ -86,5 +89,67 @@ void main() {
 
     expect(find.text('the app'), findsOneWidget);
     expect(find.text('Password updated'), findsOneWidget);
+  });
+
+  group('a link that could not be used', () {
+    testWidgets('is explained on the app', (tester) async {
+      await tester.pumpWidget(app(
+          openedWith: Uri.parse('https://app.example/?error=access_denied')));
+      await tester.pump();
+
+      expect(find.text('the app'), findsOneWidget);
+      expect(find.textContaining('That reset link could not be used'),
+          findsOneWidget);
+      expect(find.textContaining('Request a new one from Sign In'),
+          findsOneWidget);
+    });
+
+    testWidgets('stays up long enough to read', (tester) async {
+      await tester.pumpWidget(
+          app(openedWith: Uri.parse('https://app.example/?code=abc')));
+      await tester.pump();
+
+      // Once it has slid in, 6 s is past the default 4 s, and 1 s more is
+      // enough for it to have slid out again.
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.textContaining('That reset link could not be used'),
+          findsOneWidget);
+    });
+
+    testWidgets('is not mentioned when the page was opened normally',
+        (tester) async {
+      await tester
+          .pumpWidget(app(openedWith: Uri.parse('https://app.example/')));
+      await tester.pump();
+
+      expect(find.byType(SnackBar), findsNothing);
+    });
+  });
+
+  group('isUnusedAuthLink', () {
+    bool unused(String url) => isUnusedAuthLink(Uri.parse(url));
+
+    test('is true for the parameters a link leaves behind', () {
+      expect(unused('https://app.example/?code=abc'), isTrue);
+      expect(unused('https://app.example/?error=access_denied'), isTrue);
+      expect(unused('https://app.example/?error_code=otp_expired'), isTrue);
+      expect(unused('https://app.example/?error_description=Expired'), isTrue);
+      expect(unused('https://app.example/?error=access_denied&error_code=x'),
+          isTrue);
+    });
+
+    test('is false for an ordinary address', () {
+      expect(unused('https://app.example/'), isFalse);
+      expect(unused('https://app.example/#/'), isFalse);
+      expect(unused('https://app.example/?page=2'), isFalse);
+    });
+
+    test('is false for an address whose query cannot be read', () {
+      expect(unused('https://app.example/?a=%FF'), isFalse);
+      expect(unused('https://app.example/?a=%FF&code=1'), isFalse);
+    });
   });
 }

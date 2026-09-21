@@ -344,6 +344,17 @@ void main() {
       expect(authState.isRecovering, isTrue);
     });
 
+    test('does not let an error from the SDK go unhandled', () async {
+      final authState = AuthState(authClient: mockAuthClient);
+      await emit(AuthChangeEvent.passwordRecovery);
+
+      changes.addError(
+          const AuthException('Email link is invalid or has expired'));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(authState.isRecovering, isTrue);
+    });
+
     test('finishRecovery ends it without saving anything', () async {
       final authState = AuthState(authClient: mockAuthClient);
       await emit(AuthChangeEvent.passwordRecovery);

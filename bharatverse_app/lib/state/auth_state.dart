@@ -43,6 +43,10 @@ class AuthState extends ChangeNotifier {
         _recovering = false;
       }
       notifyListeners();
+    }, onError: (Object error) {
+      // A link or a refresh the SDK could not use also arrives as an error
+      // here. The app carries on signed out; it just must not go unhandled.
+      debugPrint('Auth error: $error');
     });
   }
 
