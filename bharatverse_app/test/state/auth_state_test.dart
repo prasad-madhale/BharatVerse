@@ -14,11 +14,14 @@ class MockGoTrueClient extends Mock implements GoTrueClient {}
 
 class FakeAuthResponse extends Fake implements AuthResponse {}
 
+class FakeUserResponse extends Fake implements UserResponse {}
+
 void main() {
   late MockGoTrueClient mockAuthClient;
 
   setUpAll(() {
     registerFallbackValue(FakeAuthResponse());
+    registerFallbackValue(UserAttributes());
   });
 
   setUp(() {
@@ -194,6 +197,11 @@ void main() {
       );
     });
 
+    test('asks for a fresh sign-in when the session is gone', () {
+      expect(describeAuthError(AuthSessionMissingException()),
+          'Your session has ended. Please sign in again.');
+    });
+
     test('gives anything else a generic message', () {
       expect(describeAuthError(StateError('boom')), generic);
     });
@@ -234,6 +242,119 @@ void main() {
         authState.sendPasswordReset('test@example.com'),
         throwsA(isA<AuthException>()),
       );
+    });
+  });
+
+  group('AuthState password recovery', () {
+    late StreamController<gotrue.AuthState> changes;
+
+    setUp(() {
+      changes = StreamController<gotrue.AuthState>.broadcast();
+      addTearDown(changes.close);
+      when(() => mockAuthClient.onAuthStateChange)
+          .thenAnswer((_) => changes.stream);
+    });
+
+    Future<void> emit(AuthChangeEvent event) async {
+      changes.add(gotrue.AuthState(event, null));
+      await Future<void>.delayed(Duration.zero);
+    }
+
+    void stubUpdate(Future<UserResponse> Function() answer) =>
+        when(() => mockAuthClient.updateUser(any()))
+            .thenAnswer((_) => answer());
+
+    test('is not recovering until a reset link is followed', () async {
+      final authState = AuthState(authClient: mockAuthClient);
+
+      await emit(AuthChangeEvent.signedIn);
+
+      expect(authState.isRecovering, isFalse);
+    });
+
+    test('is recovering, and tells listeners, once a reset link is followed',
+        () async {
+      final authState = AuthState(authClient: mockAuthClient);
+      var notified = 0;
+      authState.addListener(() => notified++);
+
+      await emit(AuthChangeEvent.passwordRecovery);
+
+      expect(authState.isRecovering, isTrue);
+      expect(notified, 1);
+    });
+
+    test('counts a recovery that happened before it started listening',
+        () async {
+      when(() => mockAuthClient.onAuthStateChange).thenAnswer((_) =>
+          Stream.value(
+              const gotrue.AuthState(AuthChangeEvent.passwordRecovery, null)));
+
+      final authState = AuthState(authClient: mockAuthClient);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(authState.isRecovering, isTrue);
+    });
+
+    test('stays recovering through other events', () async {
+      final authState = AuthState(authClient: mockAuthClient);
+      await emit(AuthChangeEvent.passwordRecovery);
+
+      await emit(AuthChangeEvent.tokenRefreshed);
+      await emit(AuthChangeEvent.userUpdated);
+      await emit(AuthChangeEvent.signedIn);
+
+      expect(authState.isRecovering, isTrue);
+    });
+
+    test('signing out ends it', () async {
+      final authState = AuthState(authClient: mockAuthClient);
+      await emit(AuthChangeEvent.passwordRecovery);
+
+      await emit(AuthChangeEvent.signedOut);
+
+      expect(authState.isRecovering, isFalse);
+    });
+
+    test('updatePassword saves the new password and ends it', () async {
+      stubUpdate(() async => FakeUserResponse());
+      final authState = AuthState(authClient: mockAuthClient);
+      await emit(AuthChangeEvent.passwordRecovery);
+      var notified = 0;
+      authState.addListener(() => notified++);
+
+      await authState.updatePassword('new-secret');
+
+      final saved = verify(() => mockAuthClient.updateUser(captureAny()))
+          .captured
+          .single as UserAttributes;
+      expect(saved.password, 'new-secret');
+      expect(authState.isRecovering, isFalse);
+      expect(notified, 1);
+    });
+
+    test('a refused password leaves it going', () async {
+      stubUpdate(() => Future.error(const AuthException('Too weak')));
+      final authState = AuthState(authClient: mockAuthClient);
+      await emit(AuthChangeEvent.passwordRecovery);
+
+      await expectLater(
+          authState.updatePassword('x'), throwsA(isA<AuthException>()));
+
+      expect(authState.isRecovering, isTrue);
+    });
+
+    test('finishRecovery ends it without saving anything', () async {
+      final authState = AuthState(authClient: mockAuthClient);
+      await emit(AuthChangeEvent.passwordRecovery);
+      var notified = 0;
+      authState.addListener(() => notified++);
+
+      authState.finishRecovery();
+
+      expect(authState.isRecovering, isFalse);
+      expect(notified, 1);
+      verifyNever(() => mockAuthClient.updateUser(any()));
     });
   });
 }

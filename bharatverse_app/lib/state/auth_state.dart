@@ -13,6 +13,8 @@ String describeAuthError(Object error) => switch (error) {
       AuthRetryableFetchException() ||
       AuthUnknownException() =>
         describeError(error),
+      AuthSessionMissingException() =>
+        'Your session has ended. Please sign in again.',
       AuthException(:final message) => message,
       _ => describeError(error),
     };
@@ -28,15 +30,28 @@ class AuthState extends ChangeNotifier {
   /// A phone would need the app registered for a link scheme first.
   final String? _resetRedirectTo;
 
+  bool _recovering = false;
+
   AuthState({GoTrueClient? authClient, String? resetRedirectTo})
       : _authClient = authClient ?? Supabase.instance.client.auth,
         _resetRedirectTo = resetRedirectTo ??
             (kIsWeb ? '${Uri.base.origin}${Uri.base.path}' : null) {
-    _authClient.onAuthStateChange.listen((_) => notifyListeners());
+    _authClient.onAuthStateChange.listen((change) {
+      if (change.event == AuthChangeEvent.passwordRecovery) {
+        _recovering = true;
+      } else if (change.event == AuthChangeEvent.signedOut) {
+        _recovering = false;
+      }
+      notifyListeners();
+    });
   }
 
   User? get currentUser => _authClient.currentUser;
   bool get isAuthenticated => currentUser != null;
+
+  /// True from the moment the reader follows a password-reset link until they
+  /// choose a new password or skip it. The link has already signed them in.
+  bool get isRecovering => _recovering;
 
   /// The signed-in user's access token; null when signed out.
   String? get authToken => _authClient.currentSession?.accessToken;
@@ -57,4 +72,15 @@ class AuthState extends ChangeNotifier {
   /// succeeds the same way whether or not an account exists.
   Future<void> sendPasswordReset(String email) =>
       _authClient.resetPasswordForEmail(email, redirectTo: _resetRedirectTo);
+
+  /// Sets the signed-in user's password, which ends a recovery.
+  Future<void> updatePassword(String password) async {
+    await _authClient.updateUser(UserAttributes(password: password));
+    finishRecovery();
+  }
+
+  void finishRecovery() {
+    _recovering = false;
+    notifyListeners();
+  }
 }

@@ -12,6 +12,7 @@ import 'services/likes_client.dart';
 import 'state/auth_state.dart';
 import 'state/like_state.dart';
 import 'theme/app_theme.dart';
+import 'widgets/recovery_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,7 +45,7 @@ class BharatVerseApp extends StatelessWidget {
       child: MaterialApp(
         title: 'BharatVerse',
         theme: AppTheme.theme,
-        home: HomeScreen(apiClient: apiClient),
+        home: RecoveryGate(child: HomeScreen(apiClient: apiClient)),
       ),
     );
   }
