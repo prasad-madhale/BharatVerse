@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -16,6 +18,14 @@ Widget _wrapWithProvider(MockGoTrueClient mockAuthClient) {
     create: (_) => AuthState(authClient: mockAuthClient),
     child: const MaterialApp(home: AuthScreen()),
   );
+}
+
+Future<void> _submitSignIn(WidgetTester tester) async {
+  await tester.enterText(
+      find.byKey(const Key('email-field')), 'test@example.com');
+  await tester.enterText(
+      find.byKey(const Key('password-field')), 'password123');
+  await tester.tap(find.widgetWithText(ElevatedButton, 'Sign In'));
 }
 
 void main() {
@@ -124,5 +134,71 @@ void main() {
     await tester.pumpWidget(_wrapWithProvider(mockAuthClient));
 
     expect(tester.getSize(find.byType(TextFormField).first).width, 420);
+  });
+
+  testWidgets('says so plainly when the server cannot be reached',
+      (tester) async {
+    when(() => mockAuthClient.signInWithPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        )).thenThrow(AuthRetryableFetchException(
+      message: 'ClientException: Failed to fetch, '
+          'uri=http://127.0.0.1:54321/auth/v1/token',
+    ));
+    await tester.pumpWidget(_wrapWithProvider(mockAuthClient));
+
+    await _submitSignIn(tester);
+    await tester.pumpAndSettle();
+
+    expect(
+        find.text(
+            'Could not reach the server. Check your connection and try again.'),
+        findsOneWidget);
+    expect(find.textContaining('ClientException'), findsNothing);
+  });
+
+  testWidgets('shows a generic message for an unexpected error',
+      (tester) async {
+    when(() => mockAuthClient.signInWithPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        )).thenThrow(StateError('boom'));
+    await tester.pumpWidget(_wrapWithProvider(mockAuthClient));
+
+    await _submitSignIn(tester);
+    await tester.pumpAndSettle();
+
+    expect(
+        find.text('Something went wrong. Please try again.'), findsOneWidget);
+  });
+
+  testWidgets('is left alone when the screen closes before the answer',
+      (tester) async {
+    final answer = Completer<AuthResponse>();
+    when(() => mockAuthClient.signInWithPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        )).thenAnswer((_) => answer.future);
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => ElevatedButton(
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => _wrapWithProvider(mockAuthClient))),
+          child: const Text('Open'),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await _submitSignIn(tester);
+    await tester.pump();
+
+    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.pumpAndSettle();
+    answer.completeError(const AuthException('Invalid login credentials'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AuthScreen), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }

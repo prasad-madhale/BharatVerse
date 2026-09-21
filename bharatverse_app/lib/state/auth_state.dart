@@ -3,6 +3,20 @@ import 'package:flutter/foundation.dart';
 // type since it would otherwise collide with the AuthState class below.
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
+import '../services/api_client.dart';
+
+/// What to show a reader when an auth request fails: Supabase's own message
+/// when it refuses one (wrong password, weak password), a plain one when the
+/// server cannot be reached, and a generic one for anything else.
+String describeAuthError(Object error) => switch (error) {
+      AuthRetryableFetchException(statusCode: null) => unreachableMessage,
+      AuthRetryableFetchException() ||
+      AuthUnknownException() =>
+        describeError(error),
+      AuthException(:final message) => message,
+      _ => describeError(error),
+    };
+
 /// Auth state for the app, backed directly by Supabase Auth's client SDK
 /// (not our own backend's /auth/* REST endpoints) so session persistence
 /// and refresh are handled automatically by the SDK -- see roadmap.md

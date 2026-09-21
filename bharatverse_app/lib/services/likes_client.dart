@@ -95,8 +95,7 @@ class LikesClient {
     try {
       response = await http.Response.fromStream(await _client.send(request));
     } catch (e) {
-      throw ApiException(
-          'Could not reach the server. Check your connection and try again.');
+      throw ApiException(unreachableMessage);
     }
 
     // A conflict on insert is a foreign-key violation: there is no such article.

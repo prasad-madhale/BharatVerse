@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import '../state/auth_state.dart';
 import '../theme/app_colors.dart';
@@ -55,8 +54,8 @@ class _AuthScreenState extends State<AuthScreen> {
         await authState.login(_emailController.text, _passwordController.text);
       }
       if (mounted) Navigator.of(context).pop();
-    } on AuthException catch (e) {
-      setState(() => _errorMessage = e.message);
+    } catch (e) {
+      if (mounted) setState(() => _errorMessage = describeAuthError(e));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

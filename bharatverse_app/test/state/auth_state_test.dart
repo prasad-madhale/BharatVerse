@@ -141,4 +141,61 @@ void main() {
       expect(authState.authToken, isNull);
     });
   });
+
+  group('describeAuthError', () {
+    const unreachable =
+        'Could not reach the server. Check your connection and try again.';
+    const generic = 'Something went wrong. Please try again.';
+
+    test('says so plainly when the server cannot be reached', () {
+      final error = AuthRetryableFetchException(
+        message: 'ClientException: Failed to fetch, '
+            'uri=http://127.0.0.1:54321/auth/v1/token',
+      );
+
+      expect(describeAuthError(error), unreachable);
+    });
+
+    test('does not show a server error body', () {
+      final error = AuthRetryableFetchException(
+        message: '<html>Bad gateway</html>',
+        statusCode: '502',
+      );
+
+      expect(describeAuthError(error), generic);
+    });
+
+    test('does not show what it could not decode', () {
+      final error = AuthUnknownException(
+        message: 'Failed to decode error response',
+        originalError: const FormatException('bad json'),
+      );
+
+      expect(describeAuthError(error), generic);
+    });
+
+    test("keeps Supabase's own message when it refuses a request", () {
+      expect(
+        describeAuthError(const AuthApiException('Invalid login credentials',
+            statusCode: '400')),
+        'Invalid login credentials',
+      );
+      expect(
+        describeAuthError(const AuthException('User already registered')),
+        'User already registered',
+      );
+      expect(
+        describeAuthError(AuthWeakPasswordException(
+          message: 'Password should be at least 6 characters.',
+          statusCode: '422',
+          reasons: const ['length'],
+        )),
+        'Password should be at least 6 characters.',
+      );
+    });
+
+    test('gives anything else a generic message', () {
+      expect(describeAuthError(StateError('boom')), generic);
+    });
+  });
 }

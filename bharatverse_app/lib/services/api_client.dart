@@ -17,6 +17,10 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Shown when a request never reaches the server.
+const unreachableMessage =
+    'Could not reach the server. Check your connection and try again.';
+
 /// What to show a reader when a request fails: the exception's own
 /// plain-language message, or a generic one for anything unexpected.
 String describeError(Object? error) => error is ApiException
@@ -198,8 +202,7 @@ class ApiClient {
     try {
       response = await request();
     } catch (e) {
-      throw ApiException(
-          'Could not reach the server. Check your connection and try again.');
+      throw ApiException(unreachableMessage);
     }
 
     if (response.statusCode != 200) {
