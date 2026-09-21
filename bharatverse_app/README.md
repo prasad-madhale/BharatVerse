@@ -15,8 +15,10 @@ own:
 - The 50 most recently opened articles are saved on the device (`shared_preferences`). When the server cannot be reached,
   the app shows those, with an offline banner. Search needs a connection.
 
-The project URL and anon key are in `lib/config.dart`. Point them at your own project when you set one up; the anon key
-is meant to be public, since row-level security is what protects the data.
+The project URL and anon key are in `lib/config.dart`. Point them at your own project when you set one up, or build
+against another one with `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...` (which is how
+[`tools/local-stack`](../tools/local-stack/README.md) builds the app for its local stand-in). The anon key is meant to be
+public, since row-level security is what protects the data.
 
 ## Run
 

@@ -13,7 +13,7 @@ BharatVerse serves one AI-written story from Indian history a day. Monorepo: `sc
 - `cd backend && pytest -m "not integration"`, and the same in `common/` and `scrapper/`. Each enforces 85% coverage.
 - From the root: `autopep8 --recursive --aggressive --aggressive --max-line-length=127 --exit-code --diff backend/ scrapper/ common/` and `flake8 . --select=E9,F63,F7,F82 --exclude=.venv,.git,.agent,bharatverse_app,scripts`.
 - In `bharatverse_app/`: `dart format --output=none --set-exit-if-changed .`, `flutter analyze`, `flutter test --coverage`, then `../scripts/check_lcov_coverage.sh coverage/lcov.info 85 lib/main.dart`.
-- Don't run `integration` tests, the scraper, or the daily pipeline unless asked: they need live credentials and cost money.
+- Don't run `integration` tests, the scraper, or the daily pipeline unless asked: they need live credentials and cost money. `tools/local-stack/` runs a local Supabase stand-in to test against a real database instead (see its README; `BV_STACK_OFFSET` gives a second stack).
 
 ## Conventions
 - Follow `design.md` for endpoint paths, service interfaces, and Flutter class and method names. Record any deviation in the roadmap under "Deviations from design.md".
