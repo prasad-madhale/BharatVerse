@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Tells scripts/run-device.sh's user where a phone can reach this machine: addresses, a QR code, the firewall rule."""
 
+from __future__ import annotations
+
 import argparse
 import ipaddress
 import re
