@@ -1,4 +1,4 @@
-"""Unit tests for the backend's JSON-line logging."""
+"""Unit tests for the JSON-line logging the backend and the pipeline share."""
 
 import json
 import logging
@@ -7,7 +7,7 @@ from datetime import datetime
 
 import pytest
 
-from backend.utils.logging_config import JsonFormatter, configure_logging
+from common.logging_config import JsonFormatter, configure_logging
 
 
 def record(message="hello", level=logging.INFO, args=(), exc_info=None, **extra):
@@ -55,12 +55,14 @@ class TestJsonFormatter:
 
 @pytest.fixture
 def clean_logging():
-    """Gives the test a backend logger with no handlers, and puts it back after."""
-    backend = logging.getLogger("backend")
-    handlers, level = backend.handlers[:], backend.level
-    backend.handlers = []
-    yield backend
-    backend.handlers, backend.level = handlers, level
+    """Gives the test backend and scrapper loggers with no handlers, and puts them back after; yields the backend one."""
+    loggers = [logging.getLogger(name) for name in ("backend", "scrapper")]
+    saved = [(logger.handlers[:], logger.level) for logger in loggers]
+    for logger in loggers:
+        logger.handlers = []
+    yield loggers[0]
+    for logger, (handlers, level) in zip(loggers, saved):
+        logger.handlers, logger.level = handlers, level
 
 
 @contextmanager
@@ -77,7 +79,7 @@ def bare_root_logger():
 class TestConfigureLogging:
     def test_sends_backend_logs_to_stdout_as_json_at_the_level(self, clean_logging, capsys):
         with bare_root_logger():
-            configure_logging("WARNING")
+            configure_logging("WARNING", "backend")
 
             logging.getLogger("backend.services.thing").info("too quiet")
             logging.getLogger("backend.services.thing").warning("loud enough")
@@ -87,7 +89,7 @@ class TestConfigureLogging:
 
     def test_leaves_other_libraries_at_their_defaults(self, clean_logging, capsys):
         with bare_root_logger():
-            configure_logging("DEBUG")
+            configure_logging("DEBUG", "backend")
 
             logging.getLogger("httpx").info("a library talking")
 
@@ -95,18 +97,29 @@ class TestConfigureLogging:
 
     def test_is_safe_to_call_again(self, clean_logging, capsys):
         with bare_root_logger():
-            configure_logging("INFO")
-            configure_logging("INFO")
+            configure_logging("INFO", "backend")
+            configure_logging("INFO", "backend")
 
             logging.getLogger("backend").info("once")
 
         assert len(capsys.readouterr().out.strip().splitlines()) == 1
 
+    def test_configures_every_logger_it_is_given(self, clean_logging, capsys):
+        with bare_root_logger():
+            configure_logging("INFO", "backend", "scrapper")
+
+            logging.getLogger("backend.api").info("from the backend")
+            logging.getLogger("scrapper.scheduler").info("from the pipeline")
+            logging.getLogger("elsewhere").info("from another library")
+
+        lines = capsys.readouterr().out.strip().splitlines()
+        assert [json.loads(line)["message"] for line in lines] == ["from the backend", "from the pipeline"]
+
     def test_leaves_a_host_that_already_logs_alone(self, clean_logging):
         with bare_root_logger() as root:
             root.addHandler(logging.NullHandler())
 
-            configure_logging("INFO")
+            configure_logging("INFO", "backend")
 
         assert clean_logging.handlers == []
         assert clean_logging.level == logging.INFO

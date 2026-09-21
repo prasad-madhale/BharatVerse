@@ -13,12 +13,12 @@ from backend.api.likes import router as likes_router
 from backend.api.middleware import add_request_middleware
 from backend.api.search import router as search_router
 from backend.config import Settings, get_settings
-from backend.utils.logging_config import configure_logging
+from common.logging_config import configure_logging
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level, "backend")
     app = FastAPI(title=settings.app_name, version=settings.app_version)
 
     add_request_middleware(app, settings.rate_limit_requests_per_minute)

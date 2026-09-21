@@ -164,7 +164,6 @@ backend/
 │   └── supabase_client.py  # Supabase client wrapper
 ├── utils/              # Utility functions
 │   ├── llm_provider.py # Unified LLM interface
-│   ├── logging_config.py # JSON-line logging
 │   ├── rate_limit.py   # Sliding-window rate limiter
 │   └── validators.py
 ├── tests/              # Test suite
@@ -479,7 +478,7 @@ Ensure your Supabase project has:
 
 ### Logs
 
-The backend's logs are written to stdout as JSON lines, at the level set by `LOG_LEVEL`. Every request is logged
+The backend's logs are written to stdout as JSON lines (the formatter is `common/logging_config.py`, shared with the content pipeline), at the level set by `LOG_LEVEL`. Every request is logged
 once it finishes, with its method, path (no query string), status, duration and client address:
 
 ```json

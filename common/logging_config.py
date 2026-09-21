@@ -1,4 +1,4 @@
-"""JSON-line logging for the backend, with any `extra` fields as keys of their own."""
+"""JSON-line logging shared by the backend and the content pipeline, with any `extra` fields as keys of their own."""
 
 import json
 import logging
@@ -22,11 +22,15 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(entry, default=str)
 
 
-def configure_logging(level: str) -> None:
-    """Sends the backend's own logs to stdout as JSON lines at `level`; other libraries keep their defaults."""
-    logger = logging.getLogger("backend")
-    logger.setLevel(level)
-    if not logger.handlers and not logging.getLogger().handlers:  # a host that already logs (pytest) keeps its own
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(JsonFormatter())
-        logger.addHandler(handler)
+def configure_logging(level: str, *loggers: str) -> None:
+    """Sends the named loggers' output (and their children's) to stdout as JSON lines at `level`.
+
+    Other libraries keep their defaults, and a host that already logs (pytest, say) keeps its own handlers.
+    """
+    for name in loggers:
+        logger = logging.getLogger(name)
+        logger.setLevel(level)
+        if not logger.handlers and not logging.getLogger().handlers:
+            handler = logging.StreamHandler(sys.stdout)
+            handler.setFormatter(JsonFormatter())
+            logger.addHandler(handler)
