@@ -29,6 +29,7 @@ CREATE TRIGGER update_search_suggestions_updated_at BEFORE UPDATE ON search_sugg
 CREATE TABLE article_embeddings (id UUID PRIMARY KEY DEFAULT uuid_generate_v4(), article_id TEXT REFERENCES articles(id), embedding TEXT);
 DROP FUNCTION search_articles(text, int);
 ALTER TABLE articles DROP COLUMN search_vector;
+CREATE INDEX idx_articles_fts ON articles USING GIN (to_tsvector('english', title || ' ' || summary));
 GRANT INSERT, UPDATE, DELETE, TRUNCATE ON articles TO anon, authenticated;
 """
 ARTICLES = [("a1", "The Mauryan Empire: India's First Great Dynasty", ["mauryan-empire", "ancient-india", "ashoka"]),
@@ -52,6 +53,22 @@ def behaviour(conn):
         "table": conn.run("SELECT term_key, term, category, article_count FROM search_suggestions ORDER BY term_key"),
         "lookups": {p: conn.run("SELECT term FROM autocomplete_suggestions(:p, 10)", p=p) for p in PREFIXES},
         "searches": {q: conn.run("SELECT id FROM search_articles(:q, 10)", q=q) for q in ("chola", "empire", "mauryan empire", "1857")},
+    }
+
+
+def objects(conn):
+    """Everything in the schema by kind and name, so a leftover (or a missing) index, table, function, trigger or policy shows."""
+    def names(sql):
+        return sorted(row[0] for row in conn.run(sql))
+
+    return {
+        "tables": names("SELECT tablename FROM pg_tables WHERE schemaname = 'public'"),
+        "indexes": names("SELECT indexname FROM pg_indexes WHERE schemaname = 'public'"),
+        "functions": names("SELECT proname || '(' || pg_get_function_identity_arguments(oid) || ')' FROM pg_proc "
+                           "WHERE pronamespace = 'public'::regnamespace"),
+        "triggers": names("SELECT tgrelid::regclass || '.' || tgname FROM pg_trigger WHERE NOT tgisinternal"),
+        "policies": names("SELECT tablename || '.' || policyname FROM pg_policies WHERE schemaname = 'public'"),
+        "columns": names("SELECT table_name || '.' || column_name FROM information_schema.columns WHERE table_schema = 'public'"),
     }
 
 
@@ -79,6 +96,7 @@ def test_the_migration_brings_an_older_project_to_what_schema_sql_makes_and_can_
     apply(older, migration)
 
     assert behaviour(older) == behaviour(fresh)
+    assert objects(older) == objects(fresh)
     assert older.run("SELECT to_regclass('article_embeddings')") == [[None]]
     assert older.run("SELECT relrowsecurity FROM pg_class WHERE relname = 'search_suggestions'") == [[True]]
     with pytest.raises(pg8000.exceptions.DatabaseError, match="permission denied for table articles"):

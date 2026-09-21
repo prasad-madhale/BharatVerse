@@ -29,9 +29,10 @@ there, and so does the autocomplete endpoint, while the app simply shows no sugg
 The suggestions live in `search_suggestions`, which a trigger rebuilds from `articles` after every insert, update or
 delete, so publishing needs no extra step. A phrase is kept only if searching for it finds the article it came from, and a
 rebuild that fails is reported as a warning and never stops an article being written. A rebuild scans every article (about
-0.4 s at 2,000), which suits one article a day; make it incremental if writes ever become frequent. Only that trigger
-writes the suggestions and only the service role writes `articles`: the public key has no write rights, so a request it
-should not make fails at once instead of running the trigger. A restore or replication that switches triggers off leaves
+0.4 s at 2,000, 1.2 s at 10,000), which suits one article a day; make it incremental if writes ever come faster than about
+one a second, since concurrent writers queue behind each other's rebuild. Only that trigger writes the suggestions and
+only the service role writes `articles`: the public key cannot write either, so a request it should not make fails at
+once instead of running the trigger. A restore or replication that switches triggers off leaves
 the suggestions stale; run `SELECT rebuild_search_suggestions();` as `postgres` afterwards.
 
 ## Run

@@ -41,9 +41,10 @@ AS $$
     LIMIT match_limit
 $$;
 
--- Autocomplete: the table (an earlier, unused one is dropped, as is the equally unused article_embeddings), its security,
--- the trigger that keeps it current, and the lookup
+-- Autocomplete: the table (an earlier, unused one is dropped, as are the equally unused article_embeddings and the earlier
+-- full-text index that nothing queries), its security, the trigger that keeps it current, and the lookup
 DROP TABLE IF EXISTS article_embeddings;
+DROP INDEX IF EXISTS idx_articles_fts;
 
 -- Search suggestions for autocomplete: every phrase a reader may type to find an article, once, with how many articles
 -- carry it -- each part of a title (split at a colon or a dash, so "The Mauryan Empire: India's First Great Dynasty" gives
@@ -70,9 +71,10 @@ CREATE POLICY "Search suggestions are viewable by everyone"
     ON search_suggestions FOR SELECT
     USING (true);
 
+-- client_min_messages: a phrase of only stop words ("Of The") makes websearch_to_tsquery send a NOTICE to whoever is writing
 CREATE OR REPLACE FUNCTION rebuild_search_suggestions()
 RETURNS void
-LANGUAGE plpgsql SET search_path = public, pg_temp
+LANGUAGE plpgsql SET search_path = public, pg_temp SET client_min_messages = warning
 AS $$
 BEGIN
     LOCK TABLE search_suggestions IN EXCLUSIVE MODE;  -- one rebuild at a time; readers are not held up
@@ -87,11 +89,12 @@ BEGIN
              LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(a.tags) = 'array' THEN a.tags ELSE '[]'::jsonb END) AS tag
         WHERE jsonb_typeof(tag) = 'string'
     ), raw AS (
-        -- "medieval-india" reads as "Medieval India"; a search that cannot find it that way (it tokenizes a number after a
-        -- hyphen together with the hyphen, so "revolt-1857" is not "Revolt 1857") is offered with its hyphens
+        -- "medieval-india" reads as "Medieval India"; where a search cannot find it that way because of a number (it tokenizes
+        -- one after a hyphen together with the hyphen, so "covid-19" is not "Covid 19") the tag is offered with its hyphens
         SELECT t.id,
                CASE WHEN a.search_vector @@ websearch_to_tsquery('english', initcap(replace(t.slug, '-', ' ')))
-                    THEN initcap(replace(t.slug, '-', ' ')) ELSE initcap(t.slug) END AS phrase,
+                    THEN initcap(replace(t.slug, '-', ' '))
+                    WHEN t.slug ~ '[0-9]' THEN initcap(t.slug) END AS phrase,
                'tag' AS category
         FROM tags t JOIN articles a ON a.id = t.id
         UNION ALL SELECT id, part, 'title' FROM parts
@@ -136,7 +139,7 @@ REVOKE ALL ON FUNCTION rebuild_search_suggestions(), refresh_search_suggestions(
 
 -- Only that trigger writes the suggestions, and only the service role writes articles. Row-level security already keeps the
 -- public key from changing either, but a request it refuses that way still runs its statement, and so the trigger's full
--- rebuild; with no right to write, the request fails at once.
+-- rebuild; with no right to write those tables, the request fails at once.
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON search_suggestions FROM anon, authenticated, service_role;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON articles FROM anon, authenticated;
 

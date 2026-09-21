@@ -55,7 +55,10 @@ def suggestions(articles, matches):
         if isinstance(tags, list):
             for tag in (tag for tag in tags if isinstance(tag, str)):
                 spaced = initcap(tag.replace("-", " "))
-                found.append((spaced if matches(article_id, spaced) else initcap(tag), "tag"))
+                if matches(article_id, spaced):
+                    found.append((spaced, "tag"))
+                elif re.search(r"[0-9]", tag):  # a number after a hyphen is the one reason a spaced tag is not found
+                    found.append((initcap(tag), "tag"))
         parts = re.split(r"\s*[:\u2013\u2014]+\s*|\s+-\s+", title)
         found += [(part, "title") for part in parts]
         found += [(re.sub(r"^(the|a|an)\s+", "", part, flags=re.I), "title") for part in parts]
@@ -85,7 +88,7 @@ WORDS = ["Maurya", "MauRya", "maurya", "MAURYA", "Empire", "empire", "Ancient", 
          "50%", "a_b", "The", "the", "A", "An", "an", "Of", "History"]
 GAPS = [" ", "  ", "\t", ": ", ":", " – ", "—", " - ", " -- ", "-"]
 SLUGS = ["maurya", "maurya-empire", "ancient-india", "gupta-empire", "empire", "-maurya-", "maurya--empire", "1857-revolt", "a_b",
-         "50%", "The-Empire", "MAURYA", "", "-", "ancient--", "Maurya-Empire", "the-maurya", "a-history"]
+         "50%", "The-Empire", "MAURYA", "", "-", "ancient--", "Maurya-Empire", "the-maurya", "a-history", "the-and", "a-an", "covid-19", "act-1935"]
 TIES = ["Maurya", "MauRya", "mAUrya", "Maurya Empire", "Mauryan", "Mauryan Art", "Maurya  Empire", "MAURYA ART", "The Maurya",
         "A Maurya", "An Maurya", "an maurya", "Maurya - Art", "Maurya: Art", "Maurya – Art", "Maurya—Art"]
 TIE_PREFIXES = ["m", "ma", "maur", "maurya", "maurya ", "maurya e", "maurya   e", "the m", "an m", "a m", "MAUR", "  Ma", "maurya a"]
@@ -142,13 +145,17 @@ def cases(draw):
 
 
 SEARCHY = [("The Revolt: Uprising of 1857", ["revolt-1857", "covid-19", "world-war-2", "medieval-india"]),
-           ("Ashoka -Kalinga Aftermath", []), ("Sher Shah Suri --- Road Builder", ["sher-shah"]), ("The", []),
+           ("Ashoka -Kalinga Aftermath", []), ("Sher Shah Suri --- Road Builder", ["sher-shah"]),
+           ("The", ["the-and", "a-an", "of-the"]),
            ('The "Iron" Pillar of Delhi', ["iron-pillar", "rise-or-fall"]), ("Rise or Fall of Empires", [])]
 
 
 def explicit_cases():
-    yield from ((SEARCHY, prefix, None, [], None) for prefix in ("co", "rev", "world", "ash", "sher", "the", "iron", "rise", "up", "a"))
+    yield from ((SEARCHY, prefix, None, [], None) for prefix in ("co", "rev", "world", "ash", "sher", "the", "iron", "rise", "up", "a", "of"))
     yield (SEARCHY, "co", None, [(1, "Covid Kalinga Aftermath", ["covid-19"])], 0)
+    odd = [("Odd Tags", ["ok-tag", 1, None, True, {"k": "v"}, ["x"]]), ("Object Tags", {"a": 1}), ("String Tags", "just-a-string"),
+           ("Number Tags", 42), ("Null Tags", None)]  # elements that are not strings, and a `tags` that is not a list at all
+    yield from ((odd, prefix, None, [], None) for prefix in ("ok", "1", "true", "x", "k", "just", "42", "o"))
     poison = [("x" * 3000, ["y" * 3000]), ("Long title " + "word " * 80 + "end", ["-".join(["long"] * 300)]), ("Short", [])]
     yield from ((poison, prefix, None, [], None) for prefix in ("x", "y", "long title word", "long long", "s"))
     yield ([("a " * 150 + "b", [])], "a a a", None, [], None)
@@ -236,6 +243,16 @@ def test_only_the_trigger_writes_suggestions_and_only_the_service_role_writes_ar
     # The service role writes articles without any right to the suggestions or the functions, and the trigger still runs
     attempt("service_role", write.replace("'h', 'h', 'h'", "'svc', 'Zzqsvc Written', 's'"))
     assert db.run("SELECT term FROM autocomplete_suggestions('zzqsvc w')") == [["Zzqsvc Written"]]
+
+
+def test_stop_word_phrases_send_the_writer_no_notices(db):
+    replace_articles(db, [("Existing", [])])
+    db.notices.clear()
+
+    db.run(INSERT, i="raj", t="The Raj: - The And Of", g=json.dumps(["the-and", "of-the"]))
+    db.run(INSERT, i="ab", t="A: B", g="[]")
+
+    assert list(db.notices) == []
 
 
 def test_a_broken_suggestions_table_never_stops_an_article_being_written(db):
