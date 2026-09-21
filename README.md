@@ -14,8 +14,9 @@ for the authoritative, phase-by-phase status and the remaining build order. In s
   email/password auth via Supabase Auth. Search and likes are verified against a local Postgres and PostgREST
   running `schema.sql`, not yet against the hosted Supabase project. The mobile app reads articles, searches
   them, and reads and writes likes directly against Supabase, not through this API.
-- `bharatverse_app/`: Home, Article Detail, Sign-in, Search, Liked articles, and Archive screens are built in the "Vintage Broadsheet" design
-  system, the article screen has a like button, and articles are saved for offline reading.
+- `bharatverse_app/`: Home, Article Detail, Sign-in (with password reset by email), Search, Liked articles, and Archive
+  screens are built in the "Vintage Broadsheet" design system, the article screen has a like button, and articles are
+  saved for offline reading.
 
 ## 🏗️ Project Structure (Monorepo)
 
@@ -106,9 +107,10 @@ cd BharatVerse
 Create a project at [supabase.com](https://supabase.com), then run
 [`backend/database/schema.sql`](backend/database/schema.sql) in the Supabase SQL Editor to create all tables,
 indexes, and Row-Level Security policies. Create a public Storage bucket named `articles` for storing generated
-article content. If you plan to support Google/Facebook login, enable those providers under
-**Authentication > Providers** in the Supabase dashboard (no backend configuration needed — Supabase Auth
-handles the OAuth flow directly).
+article content. For password-reset emails, add the app's URL under **Authentication > URL Configuration >
+Redirect URLs**, since the emailed link returns there. If you plan to support Google/Facebook login, enable those
+providers under **Authentication > Providers** in the Supabase dashboard (no backend configuration needed — Supabase
+Auth handles the OAuth flow directly).
 
 ### 3. Set Up Environment Variables
 
