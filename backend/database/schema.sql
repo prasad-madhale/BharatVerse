@@ -148,20 +148,27 @@ CREATE POLICY "Article embeddings are insertable by service role"
     ON article_embeddings FOR INSERT 
     WITH CHECK (auth.role() = 'service_role');
 
--- Full-text search over title/summary. A generated, stored column (rather
+-- Full-text search over title, tags and summary, weighted so a title term counts most (A), then a tag (B),
+-- then a summary term (C). Tags are lowercase hyphenated slugs, which the parser splits, so a search for
+-- "medieval" or "empire" finds "medieval-india" and "gupta-empire". A generated, stored column (rather
 -- than an index on a bare to_tsvector(...) expression) is required here
 -- because PostgREST's text_search() filter -- what supabase-py's
 -- .text_search() ultimately sends -- takes a column name, not an
 -- expression; it can't reference an expression index directly.
+-- A database that already has an earlier version of this column must drop it first
+-- (ALTER TABLE articles DROP COLUMN search_vector) for the new definition to apply.
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS search_vector tsvector
-    GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || summary)) STORED;
+    GENERATED ALWAYS AS (
+        setweight(to_tsvector('english', title), 'A') ||
+        setweight(to_tsvector('english', tags), 'B') ||
+        setweight(to_tsvector('english', summary), 'C')
+    ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_articles_search_vector ON articles USING GIN(search_vector);
 
 -- Search ranked by relevance, called as rpc/search_articles by the backend and the app (a PostgREST
--- filter cannot rank). A term in the title is weighted A, ten times the default weight a summary term
--- gets, so a title match beats a few passing mentions; date, then created_at and id, break ties so the
--- order is stable.
+-- filter cannot rank). The vector's weights make a title match beat a tag match, and a tag match beat a
+-- few passing mentions in the summary; date, then created_at and id, break ties so the order is stable.
 CREATE OR REPLACE FUNCTION search_articles(search_query TEXT, match_limit INT DEFAULT 20)
 RETURNS SETOF articles
 LANGUAGE sql STABLE
@@ -169,8 +176,7 @@ AS $$
     SELECT a.*
     FROM articles a, websearch_to_tsquery('english', search_query) AS q
     WHERE a.search_vector @@ q
-    ORDER BY ts_rank_cd(setweight(to_tsvector('english', a.title), 'A'), q) + ts_rank_cd(a.search_vector, q) DESC,
-             a.date DESC, a.created_at DESC, a.id DESC
+    ORDER BY ts_rank_cd(a.search_vector, q) DESC, a.date DESC, a.created_at DESC, a.id DESC
     LIMIT match_limit
 $$;
 

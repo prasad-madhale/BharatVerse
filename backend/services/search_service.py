@@ -1,4 +1,4 @@
-"""Full-text search over article title/summary, ranked by relevance (autocomplete and semantic search are deferred)."""
+"""Full-text search over article title, tags and summary, ranked by relevance (autocomplete and semantic search are deferred)."""
 
 import logging
 
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class SearchService:
-    """Searches published articles by title/summary using Postgres full-text search."""
+    """Searches published articles by title, tags and summary using Postgres full-text search."""
 
     def __init__(self):
         self.article_service = ArticleService()

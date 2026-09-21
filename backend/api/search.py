@@ -13,5 +13,5 @@ async def search_articles(
     q: str = Query(..., min_length=1),
     limit: int = Query(default=20, ge=1, le=50),
 ) -> list[Article]:
-    """Full-text search articles by title/summary, most recent match first."""
+    """Full-text search articles by title, tags and summary, most relevant first."""
     return await SearchService().search_articles(q, limit=limit)
