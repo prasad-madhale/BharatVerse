@@ -1,9 +1,11 @@
 """Unit tests for ArticleService.list_recent_articles: the paging query it sends and the articles it returns."""
 
+import asyncio
 from unittest.mock import patch
 
 import httpx
 import pytest
+from hypothesis import given, settings, strategies as st
 
 from backend.services.article_service import ArticleService
 from backend.tests.wire import article_blob, article_row, rows, use_wire
@@ -52,18 +54,25 @@ class TestListRecentArticles:
 
         assert await ArticleService().list_recent_articles() == []
 
-    @pytest.mark.asyncio
-    @patch("backend.services.article_service.get_supabase")
-    async def test_pages_together_cover_every_article_exactly_once(self, mock_get_supabase):
-        every = [article_row(f"art_{n:02d}") for n in range(7, 0, -1)]  # newest first: art_07 ... art_01
+    @settings(max_examples=60, deadline=None)
+    @given(total=st.integers(min_value=0, max_value=60), limit=st.integers(min_value=1, max_value=20))
+    def test_pages_together_cover_every_article_exactly_once(self, total, limit):
+        """Property 20: for any table size and page size, the union of the pages is the whole set, in order."""
+        every = [article_row(f"art_{n:03d}") for n in range(total, 0, -1)]  # newest first
 
         def serve(request):  # stands in for PostgREST honouring offset and limit
-            offset, limit = int(request.url.params["offset"]), int(request.url.params["limit"])
-            return httpx.Response(200, json=every[offset:offset + limit])
+            offset, size = int(request.url.params["offset"]), int(request.url.params["limit"])
+            return httpx.Response(200, json=every[offset:offset + size])
 
-        use_wire(mock_get_supabase, serve, blob=article_blob())
-        service = ArticleService()
+        async def read_every_page():
+            service, seen, offset = ArticleService(), [], 0
+            while True:  # stop on a short page, as the app does
+                page = await service.list_recent_articles(limit=limit, offset=offset)
+                seen += [a.id for a in page]
+                if len(page) < limit:
+                    return seen
+                offset += limit
 
-        pages = [await service.list_recent_articles(limit=3, offset=offset) for offset in (0, 3, 6)]
-
-        assert [a.id for page in pages for a in page] == [row["id"] for row in every]
+        with patch("backend.services.article_service.get_supabase") as mock_get_supabase:
+            use_wire(mock_get_supabase, serve, blob=article_blob())
+            assert asyncio.run(read_every_page()) == [row["id"] for row in every]
