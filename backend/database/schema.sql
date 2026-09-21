@@ -77,25 +77,11 @@ CREATE INDEX IF NOT EXISTS idx_search_suggestions_term ON search_suggestions(ter
 CREATE INDEX IF NOT EXISTS idx_search_suggestions_category ON search_suggestions(category);
 CREATE INDEX IF NOT EXISTS idx_search_suggestions_frequency ON search_suggestions(frequency DESC);
 
--- Article embeddings for semantic search (optional)
--- NOTE: This table requires pgvector extension. 
--- If you get an error about "vector" type, skip this table for now.
--- You can enable pgvector later in Supabase dashboard under Database > Extensions
-CREATE TABLE IF NOT EXISTS article_embeddings (
-    article_id TEXT PRIMARY KEY REFERENCES articles(id) ON DELETE CASCADE,
-    embedding TEXT NOT NULL,  -- Store as JSON array for now (can migrate to vector type later)
-    model TEXT NOT NULL,  -- 'claude-3-embedding' or 'text-embedding-ada-002'
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_embeddings_article ON article_embeddings(article_id);
-
 -- Enable Row Level Security (RLS)
 ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE search_suggestions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE article_embeddings ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for articles (public read, service role write)
 CREATE POLICY "Articles are viewable by everyone" 
@@ -137,15 +123,6 @@ CREATE POLICY "Search suggestions are viewable by everyone"
 
 CREATE POLICY "Search suggestions are insertable by service role" 
     ON search_suggestions FOR INSERT 
-    WITH CHECK (auth.role() = 'service_role');
-
--- RLS Policies for article embeddings (public read, service role write)
-CREATE POLICY "Article embeddings are viewable by everyone" 
-    ON article_embeddings FOR SELECT 
-    USING (true);
-
-CREATE POLICY "Article embeddings are insertable by service role" 
-    ON article_embeddings FOR INSERT 
     WITH CHECK (auth.role() = 'service_role');
 
 -- Full-text search over title, tags and summary, weighted so a title term counts most (A), then a tag (B),

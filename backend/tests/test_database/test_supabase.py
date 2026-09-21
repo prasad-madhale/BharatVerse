@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def check_tables_exist(client):
     """Check if required tables exist."""
     logger.info("\n=== Test 1: Checking tables ===")
-    tables = ['articles', 'users', 'likes', 'search_suggestions', 'article_embeddings']
+    tables = ['articles', 'users', 'likes', 'search_suggestions']
 
     for table_name in tables:
         try:
