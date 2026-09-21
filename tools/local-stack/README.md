@@ -58,7 +58,8 @@ the search suggestions in `schema.sql` have a property test against a Python mod
 project has one that runs it twice and compares with a new project. These need the stack's Postgres running
 (`stack.sh start`) and are skipped without it: each makes and drops databases of its own, and `BV_PROP_EXAMPLES` sets
 how many random cases the property test tries. Run them with `python -m pytest tools/local-stack/tests`, adding
-`BV_STACK_OFFSET` if the stack is not on the default ports. CI does not run them.
+`BV_STACK_OFFSET` if the stack is not on the default ports, or `BV_TEST_LOCALE=en_US.utf8` to build their databases with
+Supabase's collation instead of the stand-in's `C.UTF-8`. CI does not run them.
 
 ## A second stack
 

@@ -45,7 +45,8 @@ def new_database():
     def make(schema_sql):
         name = f"scratch_{os.getpid()}_{len(made)}"
         admin.run(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)")
-        admin.run(f"CREATE DATABASE {name}")
+        locale = os.environ.get("BV_TEST_LOCALE")  # e.g. en_US.utf8, the collation Supabase uses (the stand-in's is C.UTF-8)
+        admin.run(f"CREATE DATABASE {name}" + (f" TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE '{locale}' LC_CTYPE '{locale}'" if locale else ""))
         conn = connect(name)
         made.append((name, conn))
         # The roles already exist in the cluster; the auth stand-ins and the schema go into the new database
