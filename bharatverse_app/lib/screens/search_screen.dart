@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/article.dart';
@@ -11,10 +13,12 @@ import '../widgets/article_card.dart';
 import '../widgets/content_column.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/highlighted_text.dart';
+import '../widgets/suggestion_tile.dart';
 import 'article_detail_screen.dart';
 
 /// Full-text search over the archive. Searches on submit and highlights the
-/// matched terms in the results.
+/// matched terms in the results. While the reader types, the titles and tags
+/// that start with the text are suggested in place of the results.
 class SearchScreen extends StatefulWidget {
   final ApiClient apiClient;
 
@@ -25,14 +29,65 @@ class SearchScreen extends StatefulWidget {
 }
 
 class _SearchScreenState extends State<SearchScreen> {
+  /// How long typing must pause before suggestions are asked for.
+  static const _suggestDelay = Duration(milliseconds: 200);
+
   final _controller = TextEditingController();
+  Timer? _suggestTimer;
+  int _suggestRequest = 0;
+  List<String> _suggestions = [];
+  String _suggestedFor = '';
   String _query = '';
   Future<List<Article>>? _results;
 
   @override
   void dispose() {
+    _suggestTimer?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  /// Drops the suggestions, and any request for them that is waiting or in
+  /// flight, so a late answer cannot bring them back.
+  void _clearSuggestions() {
+    _suggestTimer?.cancel();
+    _suggestRequest++;
+    _suggestions = [];
+  }
+
+  void _onChanged(String text) {
+    _suggestTimer?.cancel();
+    if (text.trim().isEmpty) {
+      setState(_clearSuggestions);
+      return;
+    }
+    _suggestTimer = Timer(_suggestDelay, () => _suggest(text));
+  }
+
+  Future<void> _suggest(String text) async {
+    final request = ++_suggestRequest;
+    List<String> found;
+    try {
+      found = await widget.apiClient.getAutocompleteSuggestions(text);
+    } catch (_) {
+      // Suggestions are a convenience: when they cannot be had, show none.
+      found = [];
+    }
+    if (mounted && request == _suggestRequest) {
+      setState(() {
+        _suggestions = found;
+        _suggestedFor = text;
+      });
+    }
+  }
+
+  void _pickSuggestion(String term) {
+    _controller.value = TextEditingValue(
+      text: term,
+      selection: TextSelection.collapsed(offset: term.length),
+    );
+    FocusScope.of(context).unfocus(); // the keyboard would cover the results
+    _search(term);
   }
 
   void _search([String? query]) {
@@ -41,11 +96,33 @@ class _SearchScreenState extends State<SearchScreen> {
       return;
     }
     setState(() {
+      _clearSuggestions();
       _query = text;
       // The FutureBuilder shows the error; without this a fast failure is also
       // reported as unhandled if it lands before the next frame subscribes.
       _results = widget.apiClient.searchArticles(text)..ignore();
     });
+  }
+
+  Widget _buildSuggestions() {
+    final count = _suggestions.length;
+    return Semantics(
+      container: true,
+      liveRegion: true, // a screen reader announces that suggestions appeared
+      label: count == 1 ? '1 suggestion' : '$count suggestions',
+      child: ListView.builder(
+        padding: columnPadding(context, vertical: AppSpacing.space1),
+        itemCount: count,
+        itemBuilder: (context, index) {
+          final term = _suggestions[index];
+          return SuggestionTile(
+            term: term,
+            typed: _suggestedFor,
+            onTap: () => _pickSuggestion(term),
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildResults() {
@@ -129,6 +206,7 @@ class _SearchScreenState extends State<SearchScreen> {
                         controller: _controller,
                         placeholder: 'Ashoka, Chola, "Bay of Bengal"',
                         textInputAction: TextInputAction.search,
+                        onChanged: _onChanged,
                         onSubmitted: (_) => _search(),
                         autofocus: true,
                       ),
@@ -137,7 +215,9 @@ class _SearchScreenState extends State<SearchScreen> {
                           label: 'Search', wide: true, onPressed: _search),
                     ],
                   ))),
-          Expanded(child: _buildResults()),
+          Expanded(
+              child:
+                  _suggestions.isEmpty ? _buildResults() : _buildSuggestions()),
         ],
       ),
     );

@@ -13,6 +13,7 @@ class AppInput extends StatelessWidget {
   final TextInputType? keyboardType;
   final String? placeholder;
   final String? Function(String?)? validator;
+  final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final TextInputAction? textInputAction;
   final bool autofocus;
@@ -30,6 +31,7 @@ class AppInput extends StatelessWidget {
     this.keyboardType,
     this.placeholder,
     this.validator,
+    this.onChanged,
     this.onSubmitted,
     this.textInputAction,
     this.autofocus = false,
@@ -49,6 +51,7 @@ class AppInput extends StatelessWidget {
           obscureText: obscureText,
           keyboardType: keyboardType,
           validator: validator,
+          onChanged: onChanged,
           onFieldSubmitted: onSubmitted,
           textInputAction: textInputAction,
           autofocus: autofocus,

@@ -36,8 +36,18 @@ Map<String, dynamic> sampleArticleContent() => {
 
 /// A MockClient serving [rows] for the PostgREST call and a fixed content
 /// blob for the Storage call. [onRequest] sees each PostgREST request.
+/// Suggestion requests get no suggestions; see [searchMockClient] to script them.
 MockClient articlesMockClient(
   List<Map<String, dynamic>> Function() rows, {
+  void Function(http.Request request)? onRequest,
+}) =>
+    searchMockClient(rows: rows, onRequest: onRequest);
+
+/// Like [articlesMockClient], and [suggest] answers each request for search
+/// suggestions with the terms for the typed prefix, or null for a server error.
+MockClient searchMockClient({
+  List<Map<String, dynamic>> Function()? rows,
+  Future<List<String>?> Function(String prefix)? suggest,
   void Function(http.Request request)? onRequest,
 }) =>
     MockClient((request) async {
@@ -45,7 +55,19 @@ MockClient articlesMockClient(
         return http.Response(jsonEncode(sampleArticleContent()), 200);
       }
       onRequest?.call(request);
-      return http.Response(jsonEncode(rows()), 200);
+      if (request.url.path.endsWith('/rpc/autocomplete_suggestions')) {
+        final prefix = (jsonDecode(request.body) as Map)['prefix'] as String;
+        final terms = await (suggest ?? (_) async => <String>[])(prefix);
+        return terms == null
+            ? http.Response('boom', 500)
+            : http.Response(
+                jsonEncode([
+                  for (final term in terms) {'term': term}
+                ]),
+                200);
+      }
+      return http.Response(
+          jsonEncode((rows ?? () => [sampleArticleRow()])()), 200);
     });
 
 /// A full [Article], assembled the way ApiClient does from a row and its

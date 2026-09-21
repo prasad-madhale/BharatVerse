@@ -110,6 +110,26 @@ class ApiClient {
         .cast<Map<String, dynamic>>());
   }
 
+  /// The titles and tags that start with [prefix], the ones more articles
+  /// share first, from the same `autocomplete_suggestions` database function as
+  /// the backend's `/articles/search/autocomplete`. Blank text asks nothing.
+  /// Not available offline.
+  Future<List<String>> getAutocompleteSuggestions(String prefix,
+      {int limit = 10}) async {
+    final typed = prefix.trim();
+    if (typed.isEmpty) {
+      return [];
+    }
+    final response =
+        await _post('$baseUrl/rest/v1/rpc/autocomplete_suggestions', {
+      'prefix': typed,
+      'match_limit': limit,
+    });
+    return (jsonDecode(response.body) as List<dynamic>)
+        .map((row) => (row as Map<String, dynamic>)['term'] as String)
+        .toList();
+  }
+
   /// Builds full articles from `articles` rows, fetching each one's content,
   /// and saves them for offline reading.
   Future<List<Article>> loadArticles(List<Map<String, dynamic>> rows) async {
