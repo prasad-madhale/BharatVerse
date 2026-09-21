@@ -1,5 +1,8 @@
 # Design Document: BharatVerse MVP
 
+> The contract for endpoints, services and Flutter classes. What is built, and where it differs from this document, is in
+> [roadmap.md](roadmap.md).
+
 ## Overview
 
 BharatVerse MVP is a mobile-first application that delivers daily curated historical articles about Indian history. The system consists of three main components:

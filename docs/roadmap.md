@@ -1,154 +1,91 @@
-# BharatVerse MVP: Build Roadmap
+# Roadmap
 
-## Status as of 2026-09-20
+Status and sequencing. [`design.md`](design.md) is the architectural reference and [`requirements.md`](requirements.md)
+the requirements; this file records what is built, where it differs from the design, and what is left. Status as of
+2026-09-20.
 
-A direct code audit (not just a doc review) found this project earlier-stage than `requirements.md`/`design.md` suggest. No article had ever gone end-to-end: scrape → LLM-generate → validate → store → serve → display. This roadmap sequences the rebuild as a **vertical slice first**, then broadens phase by phase toward full MVP scope. That vertical slice, plus Phase 4 (pulled forward out of numeric order at explicit request), are now both done and verified live — see below.
+## Phases
 
-This doc governs *sequencing*. `design.md` remains the architectural reference, including the 36 correctness properties.
+| Phase | Scope | Status |
+|---|---|---|
+| 0 | Vertical slice: scrape, generate, store, serve, display | Done, verified live |
+| 1 | Auth: Supabase email and password, password reset | Done, verified live; OAuth not started |
+| 2 | Search: full-text, then autocomplete, then semantic | Full-text done; autocomplete is next; semantic undecided |
+| 3 | Likes and offline reading | Done |
+| 4 | Validator, scheduler and daily automation | Done, verified live; the cron is off on purpose |
+| 5 | Remaining mobile screens and polish | Done except a profile screen |
+| 6 | Deployment | Not started |
 
-### What's actually real today
-- **common/**: `llm_provider.py` + `config.py` (multi-provider LLM abstraction, shared settings) and `models.py` (`Article`/`Section`/`Citation`, shared by scrapper and backend). The Anthropic provider's default model is **Claude Sonnet 5**, which the daily workflow selects explicitly with `LLM_PROVIDER=anthropic`. `common/config.py` itself still defaults to `gemini`, so a local run without `LLM_PROVIDER` uses Gemini (the pipeline moved to Claude after Gemini's free daily quota ran out mid-testing; Groq's free tier was tried and rejected — weaker instruction-following on word-count targets).
-- **scrapper/**: `WebScraper`, `ArticleGenerator`, `TopicGenerator`, `ContentValidator`, `scheduler.py`, and three registered sources (`WikipediaSource`, `ArchiveOrgSource`, `NewWorldEncyclopediaSource`) — all real, tested, and verified end-to-end against live Claude Sonnet 5 + real multi-source scrapes. `scrapper_main.py` is now a thin `--count N` CLI wrapper around the scheduler, not a hardcoded topic. Ground rules (85% coverage gate, blocking format/lint) enforced on every commit. `WikipediaSource.search_topic` now unpacks `wikipedia.search`'s `(titles, suggestion)` tuple and skips duplicate URLs; before, the default path scraped the wrong pages (confirmed against the live API), which was also the cause of the duplicate-URL symptom.
-- **backend/**: `config.py`, the Supabase client wrapper, `database/schema.sql`, `models/article.py` (`ArticleRecord`), `services/article_service.py` (`list_recent_titles` for topic dedup, `list_recent_articles` for the home screen, `load_article` now public so `SearchService` can reuse it, `get_daily_article` breaking date ties on `created_at`), `api/articles.py` (`GET /articles` list, paged with `limit` and `offset` in a stable newest-first order, + `/daily` + `/{id}`), and `main.py` are all real and verified live end-to-end. `services/search_service.py` + `api/search.py` (`GET /articles/search?q=...`, registered before the articles router so `/articles/{id}` cannot capture it) and `services/like_service.py` + `api/likes.py` (`POST`/`DELETE /articles/{id}/like`, `GET /users/me/likes`, matching `design.md`) are done and verified against a local Postgres and PostgREST running `schema.sql`, but not yet against the hosted Supabase project (see Phases 2 and 3 below). Sign-in and sign-up now run on a throwaway Supabase client, so a user's session can no longer leak into the shared anon client used for public reads.
-- **bharatverse_app/**: `lib/models/article.dart`, `lib/services/api_client.dart`, `lib/screens/home_screen.dart`, `lib/screens/article_detail_screen.dart` are real. Home screen now shows up to 5 recent articles (`ApiClient.getRecentArticles`), not just one. **Visually verified live**: `flutter run -d web-server` + Firefox renders real generated articles correctly end-to-end (home screen list → detail screen, tags, sections, citations all correct). A search screen (`lib/screens/search_screen.dart`, opened from the header's search icon), a liked-articles screen (`lib/screens/liked_articles_screen.dart`, opened from a header heart icon while signed in), an archive screen (`lib/screens/archive_screen.dart`, opened from a "Browse the archive" link under Home's recent articles, which pages through every article as you scroll; every list row shows its date and reading time), and a like button (`lib/services/likes_client.dart`, `lib/state/like_state.dart`, `lib/widgets/like_button.dart`, in the article screen's header) are built. On wide screens content sits in a 720px reading column (forms 420px) with the header rules spanning the window; errors read in plain language; tooltips, snackbars, hover and ripple use the parchment and ink palette; and the like heart animates, as `design.md` describes. Articles the app loads or opens are saved on the device (`lib/services/article_cache.dart`, up to 50) and shown with an offline notice when the server cannot be reached.
-- **`ApiClient` no longer proxies through the FastAPI backend for reads** — it calls Supabase's REST (PostgREST) and Storage HTTP APIs directly with the anon key, the same credentials/RLS path the backend's read endpoints already used (`article_service.py`'s `get_client()`, not the service-role client). This removes the `localhost`/`10.0.2.2` (Android emulator) dependency entirely, which was the real blocker for real-device testing — a physical phone's own "localhost" doesn't resolve to the dev machine. Verified live: REST + Storage calls confirmed directly via `curl` against the live project, full `flutter test` suite green, CORS confirmed permissive (`access-control-allow-origin: *`) for the web path. The FastAPI backend is untouched and still serves the content-generation pipeline's writes (service-role key) — only the app's read path changed.
-- **Design system**: a full "Vintage Broadsheet" design system exists (claude.ai/design project `1d724d26-356e-4774-8711-3d34c0e1124a` — parchment/saffron/India-green palette, Newsreader serif + Work Sans sans, horizontal rules over rounded cards, uppercase tracked headlines, drop cap). Applied to the three built screens only (Home, Article Detail, Auth) via new `lib/theme/` (colors/typography/spacing tokens) and `lib/widgets/` (`AppButton`, `AppInput`, `ArticleCard`, `AppHeader`, `CitationItem`, `EmptyState`, etc.), visually verified live. The design's Search/Profile screens, category tabs, `LikeButton`, and `BottomNav` are intentionally not implemented yet — held off until Phase 2/3/5 build the functionality they'd represent; the design stays as reference for then.
-- **Local dev toolchain**: Xcode + CocoaPods + Android SDK (cmdline-tools, licenses) are now fully installed and verified via the new `scripts/doctor.sh` preflight check.
-- **Real-device (physical iPhone) testing — DONE, VERIFIED LIVE**: `flutter run` (Debug) and `flutter run --release` both confirmed working on a real iPhone via Xcode's free "Personal Team" signing (no paid Apple Developer Program needed for this). `scripts/run-device.sh` added — auto-detects the first connected physical device (iOS or Android, wired or wirelessly paired) via `flutter devices --machine` and runs it, forwarding any extra flags (e.g. `--release`) through. **Found via live testing**: a Debug/JIT build will not launch standalone from the home screen at all — iOS only grants the JIT permission Flutter's Debug mode needs to a process with an attached debugger, so disconnecting Xcode kills the app's ability to (re)launch. `--release` (AOT-compiled, no JIT) is required for "install once, use like a normal app" testing; Debug stays the right mode for active hot-reload development. Wireless deploy (no cable) is set up as far as trusting/pairing the device and enabling Developer Mode; the actual "connect via network" step in this Xcode build's redesigned Device Hub UI wasn't located yet (neither the classic checkbox nor the documented "Connect via IP Address" right-click item matched what's on screen) — deferred, cable-based deploy works fine meanwhile. iOS Simulator: toolchain fully set up and the build succeeds (see prior note below on the `10.0.2.2` fix), but on-screen visual confirmation on the simulator specifically (vs. the now-proven web and real-device paths) is still outstanding.
-- Found and fixed a real bug getting the app onto a real iOS Simulator for the first time: `ApiClient` defaulted every non-web platform to the Android emulator's `10.0.2.2` alias, which doesn't resolve on iOS Simulator — now moot for the Simulator/device paths since `ApiClient` talks to Supabase directly rather than a local backend at all (see bullet above), but left here for history.
-- **Daily automation**: `.github/workflows/daily-pipeline.yml` exists but its `schedule:` trigger is **intentionally commented out** (`workflow_dispatch` only) until output quality is trusted over more unattended runs — do not re-enable without discussing first. 5 real articles have now been generated and published across varied eras/themes (ancient metallurgy, Buddhist history, colonial-era battles, the independence movement), confirming the topic generator's dedup + variety instructions work in practice.
+"Verified live" means run against the real project and a real browser; the later features were verified against a local
+Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 
-### Known gaps surfaced by live testing (not yet fixed, low priority)
-- **Time-sensitive**: the hosted dev project (`jicmqxfqpbtjhwhuiohq`) did not resolve on 2026-09-20. If the dashboard shows it paused, restore it: Supabase permanently deactivates free-tier projects paused past 90 days, which is what happened to the project it replaced (see above).
-- Deviations from `design.md`: auth is `POST /auth/signup`, `/login`, `/logout`, while the design documents `/auth/register`, `/auth/refresh` and OAuth routes, which do not exist yet. Article responses do not include `is_liked`, which the design's examples show. `LikeButton` reads `LikeState` and `AuthState` itself instead of taking `isLiked` and `onToggle`, and `LikeState` loads a user's likes on sign-in itself, so it has no public `fetchUserLikes` or `likedArticleIds`. Liked articles open from a header icon, since there is no `ProfileScreen` yet.
+## What is built
 
-### Standing architectural decisions (confirmed with product owner)
-1. **Build order**: vertical slice first — one real article through the whole pipeline before broadening any layer.
-2. **Auth**: Supabase Auth, not custom JWT. Drop `password_hash`/`oauth_provider`/`oauth_id` from the `users` table; rely on Supabase's built-in auth + `supabase_flutter` SDK.
-3. **Mobile timing**: start in parallel, early — scaffold real screens against mock/fixture data as soon as the API contract shape is agreed, don't wait for the full backend.
+- **Pipeline** (`scrapper/`): an LLM proposes topics that are not yet published; Wikipedia, archive.org and New World
+  Encyclopedia are scraped; an LLM writes the article; automated checks (length, sections, citations) accept it; the
+  service-role client publishes it. A generation failure retries with backoff, and one bad topic never stops the batch.
+  The daily GitHub Actions workflow runs on demand only: its schedule stays commented out until the output is trusted
+  over more unattended runs, so do not enable it without deciding that first. The daily workflow uses Claude Sonnet 5;
+  a local run defaults to Gemini. Groq's free tier was tried and rejected for weak adherence to the word-count target.
+- **API** (`backend/`): articles (`daily`, by id, paged list), full-text search, sign-up, login and logout, likes,
+  rate limiting and JSON request logs.
+- **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms, likes,
+  sign-in and password reset, offline reading of the 50 most recently opened articles. It reads Supabase directly, so it
+  works on a real phone without a local server. The design system is "Vintage Broadsheet" (parchment, saffron and India
+  green; Newsreader and Work Sans) in `lib/theme/` and `lib/widgets/`.
+- **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags and summary (not
+  article bodies, which live in Storage), so a tag-only match is found too. PostgREST's `text_search` takes a column
+  name, not an expression, which is why the vector is a stored column with a GIN index.
 
----
+## Next
 
-## Phase 0 — Vertical Slice (do first, highest priority)
+1. **Autocomplete** (Phase 2): `GET /articles/search/autocomplete?q=` and `ApiClient.getAutocompleteSuggestions`, as in
+   the design. The `search_suggestions` table exists but nothing fills it.
+2. **Semantic search**: the placeholder `article_embeddings` table was removed. It needs pgvector and an embeddings
+   provider, and is worth deferring past the rest of the MVP.
+3. **Deployment** (Phase 6): a backend Dockerfile, a hosting choice, the scheduler on that host, and app store
+   preparation (icons, signing, review lead time, especially on iOS).
 
-**Goal**: one real article — scraped → LLM-generated → stored in Supabase → served by the API → rendered on a Flutter screen. No search, auth, likes, scheduler, or rigorous validation yet.
+## Needs a person
 
-### Scrapper — DONE
-- `scrapper/scrapper/article_generator.py` — `ArticleGenerator`, using the new shared `common.llm_provider` (relocated from `backend/utils/` per the open design question — scrapper no longer depends on backend). Parses LLM output into the existing `scrapper/scrapper/models/article.py` Pydantic models; citations/reading-time/content assembly are derived from scraped data, not trusted from the LLM.
-- `scrapper/scrapper_main.py` — minimal runner: hardcoded topic ("Mauryan Empire") → `WebScraper.search_and_scrape` → `ArticleGenerator.generate_article`. No validator, no scheduling yet.
-- Verified end-to-end against the live Gemini API and real Wikipedia scrapes (1921 words / 13 min reading time, 5 sections, deduplicated citations).
+- **Hosted Supabase project.** Apply changes to `schema.sql` by hand. As last checked it lacked the `search_vector`
+  column and the `search_articles` function, so search fails there until they are applied (drop an older
+  `search_vector` first). Supabase permanently deactivates free projects paused for over 90 days, which is how the first
+  project was lost: restore a paused one promptly. Add the app's URL under Authentication > URL Configuration >
+  Redirect URLs for password reset, and keep email confirmation off, or sign-up returns no session.
+- **OAuth.** Google and Facebook app registration has days of review lead time and has not been started.
+- **Hosting**, the daily cron, and app store accounts.
 
-### Backend — DONE, VERIFIED LIVE
-- `backend/main.py` — FastAPI entry point (`create_app(settings)`), wires config, CORS, `/health`, and the articles router. It also applies **rate limiting** (requirement 9.7: `RATE_LIMIT_REQUESTS_PER_MINUTE` per client address, default 100, in memory per worker process; a 429 with `Retry-After` beyond it, `/health` exempt) and **request logging** (requirements 11.3 and 11.4: one JSON line per request with method, path, status, duration and client, at INFO, WARNING for 4xx and ERROR for 5xx or a crash, at the `LOG_LEVEL` level), in `api/middleware.py`. CORS is outermost so a refusal is still readable by a browser. Verified against the running server: 100 requests answered, the rest refused, `/health` unaffected, and the log lines as described. Not built: alerting administrators on critical errors (11.5), and a limit shared across workers, which would need something like Redis. Booted the server and confirmed `/health` (200) and `GET /api/v1/articles/daily` return a real article over real HTTP.
-- `backend/models/article.py` — `ArticleRecord`, the metadata-only DB row shape (`common.models.Article` is used directly as the API response model — no separate response class needed).
-- `backend/services/article_service.py` — `save_article`/`get_article_by_id`/`get_daily_article`, following the `content_file_path` + Supabase Storage pattern from `schema.sql`. Verified against the live project: saved a real generated article (Postgres row + Storage JSON blob), read it back via both the service directly and the anon-key client path, content and sections matched exactly.
-- `backend/api/articles.py` — `GET /api/v1/articles/daily`, `GET /api/v1/articles/{id}`, and `GET /api/v1/articles` (list, `limit` query param default 5 max 20) added later to back the mobile home screen's multi-article view. Full CRUD/pagination/search is Phase 2.
-- **New Supabase project**: `bvpwlzcertsoqetxpozn` (dead, permanently deactivated) replaced by `jicmqxfqpbtjhwhuiohq` ("BharatVerse-v2", same org, `us-west-2`), created via `supabase projects create`. `schema.sql` applied via `supabase db query --file ... --linked`; `articles` Storage bucket created (public, with an explicit `storage.objects` SELECT policy for the `articles` bucket -- needed because `ArticleService._load_article` downloads via the anon-key client, and the bucket's "public" flag alone doesn't bypass storage RLS for SDK downloads). `.env` updated directly (never pasted in chat). The project's Postgres password was generated locally and is not needed for the app itself (only for direct psql/CLI DB access, not used by `supabase-py`).
+## Deviations from the design
 
-### Mobile — DONE, VERIFIED LIVE (web + real device); iOS Simulator toolchain ready, on-screen confirmation still pending
-- `pubspec.yaml` — added `http` and `flutter_markdown_plus` (the original plan said `flutter_markdown`, but that package is discontinued -- replaced by the community fork); dropped unused `english_words`. `supabase_flutter` added in Phase 1.
-- `lib/models/article.dart`, `lib/services/api_client.dart`, `lib/screens/home_screen.dart` (now a multi-article list, see above), `lib/screens/article_detail_screen.dart` — replace the counter-app template in `main.dart`. `ApiClient` takes an injectable `http.Client` for testability; it now calls Supabase's REST/Storage APIs directly rather than proxying through the FastAPI backend (see toolchain note above).
-- Visually verified live via `flutter run -d web-server` + Firefox against the real backend, and via `flutter run`/`flutter run --release` on a real physical iPhone (see toolchain note above for what that surfaced). iOS Simulator: toolchain fully set up and the build succeeds; full visual on-device confirmation on the simulator specifically not yet done in-session.
+- Auth routes are `POST /auth/signup`, `/login` and `/logout`; the design's `/auth/register`, `/auth/refresh` and OAuth
+  routes do not exist. The app signs in through `supabase_flutter`, not these endpoints.
+- The app reads articles straight from Supabase's REST and Storage APIs instead of proxying through the backend, which
+  is what lets a physical phone work without the dev machine.
+- Articles do not carry `is_liked`. `LikeButton` reads `LikeState` and `AuthState` itself, and `LikeState` loads a user's
+  likes on sign-in, so neither has the design's `fetchUserLikes` or `likedArticleIds`. Likes open from a header icon,
+  as there is no `ProfileScreen`.
+- Offline storage is `shared_preferences` rather than sqflite, which has no web support, and eviction is by capacity, so
+  there is no `clearOldCache`.
+- `ContentValidator.validate` returns `(valid, issues)`, not a `ValidationResult`.
+- The `users` table has no `password_hash` or OAuth columns: Supabase Auth owns them.
 
-### Risks / open questions
-- ~~`llm_provider.py`'s default `max_tokens` (2000) is likely too low~~ — raised to 4000 in `ArticleGenerator.generate_article`. Resolved.
-- ~~First-pass strict-JSON parsing from the LLM will need prompt iteration~~ — confirmed in practice: the default Gemini model name was retired (`gemini-1.5-flash` → `gemini-2.5-flash`), and the initial word-count prompt was too weak (a live run produced 4121 words / 27 min against target; strengthened to a strict 1500-2000 word / 4-6 section instruction, now consistently within range). Resolved for gemini; anthropic/openai/groq default model names in `common/llm_provider.py` are unverified against live keys and may also be stale.
-- ~~Confirm `crawl4ai==0.4.24` still installs cleanly~~ — confirmed, live scrapes work.
-- New: Wikipedia search can return the same URL twice as separate scraped pages — citations are now deduplicated by `source_url` in `ArticleGenerator`, but the underlying duplicate-result behavior in `WikipediaSource` itself is still there and may be worth fixing at the source later.
-- ~~The dev Supabase project is stuck-paused~~ — **resolved**. Diagnosed as permanent: status was `INACTIVE` (not `PAUSED`), project was ~140 days old, and Supabase permanently deactivates free-tier projects paused past 90 days (not reversible; support ticket SU-411542 was moot). No data was lost since Phase 0 never got past this project's pause. Replaced with a fresh project (`jicmqxfqpbtjhwhuiohq`) via the Supabase CLI -- schema applied, bucket created, `.env` updated, full pipeline (scrape → generate → save → serve over HTTP) verified live. See Backend section above for details.
-- **Security note**: a `SUPABASE_ACCESS_TOKEN` was exposed in plaintext in a separate session while diagnosing the pause issue. Flagged immediately for revocation. All Supabase CLI operations for the new project setup used the CLI's own stored auth (already logged in) and freshly-generated values written directly to `.env` -- no tokens or passwords were pasted in chat during that work.
-- ~~**Hard environment limitation**: no way to get a real, visually-representative screenshot~~ — **resolved**. `flutter run -d web-server` + a real Playwright-driven browser (not headless `flutter test`'s fake renderer) has been the proven path since Phase 0's exit criteria were met, and Xcode/CocoaPods/Android SDK are now all fully installed and verified via `scripts/doctor.sh`. `integration_test/app_screenshot_test.dart` (real-device rendering via `integration_test`) is still unexercised — the web-server + Playwright path has covered every visual-verification need so far instead.
+## Not built
 
-### Testing pyramid (mobile)
-Clarifying this since it came up: "simulator" isn't a stage after `flutter test` — a real simulator/emulator/browser run *is* how integration tests execute.
-1. **Unit tests** (`test/models/`, `test/services/`) — pure Dart logic, headless Dart VM.
-2. **Widget tests** (`test/screens/`) — renders the widget tree and checks structure/text/state transitions, still headless Dart VM with a fake renderer. Good for logic, **not** for visual review (this is what produced the illegible screenshot above).
-3. **Integration tests** (`integration_test/app_screenshot_test.dart`) — real rendering on an actual simulator/emulator/browser/device via `flutter test integration_test/... -d <device>`. This is where real screenshots come from. Runnable now that toolchains are set up, but not yet actually run — Playwright against `web-server` has covered visual verification instead so far.
-4. **Manual on-device testing** — a human actually using the app on a simulator or device.
+- robots.txt is not checked before scraping: `WebScraper.check_robots_txt` exists, but `respect_robots` is accepted and
+  ignored.
+- Alerting on critical errors (requirement 11.5) beyond a failed Actions run when nothing was published, and a rate
+  limit shared across backend workers (it would need something like Redis).
+- Native deep links for password reset: a phone app has to register a link scheme first. On the web, the link must be
+  opened in the browser that asked for it (PKCE keeps the verifier there), and reloading while the new-password form is
+  up leaves the reader signed in without one.
+- `SearchFilters`, highlighting of stemmed forms (searching "empires" finds "Empire" but does not mark it), and search or
+  likes while offline.
 
-### Exit criteria — MET
-One documented sequence takes a hardcoded topic through scrapper → Supabase → backend API → Flutter screen, showing real LLM-generated content on a simulator/device. **Fully proven live end-to-end**, including the Flutter render: `flutter run -d web-server` + Firefox showed a real generated article correctly (home screen and detail screen, tags/sections/citations all correct). No Xcode/Android Studio/native simulator was needed — `web-server` is browser-agnostic and sidesteps that environment limitation entirely.
+## Decisions
 
----
-
-## Phase 1 — Auth (Supabase Auth, backend + mobile) — DONE, VERIFIED LIVE
-
-Email/password only; OAuth deferred as a fast-follow (real external review lead time, per the risk noted below — not yet started). Anonymous browsing is unchanged; auth is an optional path via an account icon, not a login wall.
-
-- `backend/services/auth_service.py`, `backend/api/auth.py` (`/auth/signup`, `/login`, `/logout`) — thin wrappers over Supabase Auth, no bcrypt/JWT issuance code.
-- `backend/api/deps.py`'s `get_current_user` — the JWT-validation dependency for protecting later endpoints (likes). Verifies via `client.auth.get_user(token)` (network round-trip, no new JWT dependency) rather than local signature verification. Not consumed by any endpoint yet — Phase 3 is the first real consumer.
-- Mobile: `Supabase.initialize(...)` + `lib/state/auth_state.dart` + `lib/screens/auth_screen.dart`, using the SDK's built-in sign-up/sign-in directly (not proxied through our own `/auth/*` endpoints) so session persistence/refresh is handled automatically.
-- Verified live end-to-end: signup, login (incl. wrong-password rejection), the existing `on_auth_user_created` trigger populating `public.users`, token verification (valid + garbage), logout, and the full flow through the real Flutter web UI.
-- **Found via live testing**: the target Supabase project had email confirmation enabled, which silently prevented signup from returning a session (would have broken the mobile flow). Disabled via the dashboard after confirming with the user — a blind `supabase config push` was considered and rejected as too risky (would overwrite other live auth settings not visible locally).
-- **Password reset (requirement 12.9)**: "Forgot password?" on the sign-in screen asks for an address and calls Supabase's `resetPasswordForEmail` through `AuthState`, like sign-in and sign-up (no backend endpoint; `design.md` has none). It answers the same whether or not an account exists. The emailed link returns to the app (`redirectTo` is the page's own address on the web), the SDK exchanges its PKCE code, and `RecoveryGate` shows `ResetPasswordScreen` in place of Home until the reader saves a new password or skips it (the link has already signed them in). Following a link that cannot be used (expired, already used, or opened in a different browser from the one that asked, because PKCE keeps the code verifier there) leaves its parameters in the address, and the gate says so with a notice. The sign-in, reset and new-password pages share `AuthFormPage`, which scrolls on short screens, and auth failures now show plain messages through `describeAuthError` instead of the SDK's raw error (which had shown `ClientException: Failed to fetch, uri=...` on sign-in). Verified end to end in a real browser against the local stand-in, whose `/recover`, `/verify`, PKCE code exchange and `PUT /user` follow GoTrue. **Hosted project unchecked**; it needs the app's URL added under **Authentication > URL Configuration > Redirect URLs** (otherwise the link goes to the Site URL), and Supabase's default email sender is rate limited. Not built: native deep links (a phone needs the app registered for a link scheme first), and reloading the page while the new-password form is up leaves the reader signed in without one, because the SDK does not repeat the recovery event.
-- **Risk (unchanged, still applies to the OAuth fast-follow)**: Google/Facebook OAuth app registration has real external review lead time (days) — not yet started.
-
----
-
-## Phase 2 — Search (priority: FTS → autocomplete → semantic) — FTS SLICE DONE, VERIFIED LOCALLY (hosted project unchecked)
-
-Scoped to FTS only for this pass, per the open question below -- autocomplete and semantic search are not started.
-
-- `backend/services/search_service.py` (`SearchService.search_articles`) + `backend/api/search.py` (`GET /api/v1/articles/search?q=...&limit=...`, the path `design.md` specifies), wired into `main.py`. Searches `title`, `tags` and `summary` (still not full article content, which lives in Storage) through the `search_articles` SQL function in `schema.sql` (called with `rpc`), so a period, person or keyword that is only a tag is found too (requirement 7.6): tags are hyphenated slugs the parser splits, so `medieval` finds `medieval-india` and a phrase like `"gupta empire"` matches across `gupta-empire`. The `search_vector` column weights a title term A, a tag B and a summary term C, and the function ranks by it, so a title match beats a tag match, which beats a few passing mentions, with date, `created_at` and id breaking ties. **The function is part of the manual migration** along with the `search_vector` column: search fails until it exists, and a project that already has the earlier title-and-summary `search_vector` must drop that column first (`ALTER TABLE articles DROP COLUMN search_vector`) for the new definition to apply. Verified against the local Postgres with articles crafted so date order and relevance order disagree, including tag-only matches, a hyphenated tag's parts, a phrase across one, and an exclusion that names a tag.
-- `schema.sql`: replaced the old `idx_articles_fts` expression index with a generated, stored `search_vector tsvector` column + a GIN index on it. This was a required correction, not a style choice -- PostgREST's `text_search()` filter (what `supabase-py`'s `.text_search()` sends) takes a column name, not an expression, so the old expression-only index was never actually reachable through the Supabase client the rest of the codebase uses.
-- `ArticleService._load_article` was renamed to public `load_article` so `SearchService` can reuse the same Postgres-row + Storage-blob assembly logic rather than duplicating it.
-- Unit-tested by running the real service through a real postgrest query builder with a stub HTTP transport (`backend/tests/wire.py`), so the emitted query string is asserted rather than a mock's call list. The earlier mock-based tests hid two defects, both now fixed: a wrong `text_search` option name, and a call order that raised `AttributeError` on every request. Verified against a local Postgres 17 and PostgREST 16 running the repo's `schema.sql`: the `search_vector` column and GIN index apply, and `wfts` queries (multi-word, quoted phrase, exclusion) round-trip. **The hosted Supabase project is unchecked**: its hostname did not resolve on 2026-09-20 (project paused or removed), so the `search_vector` migration and the `search_articles` function still have to be applied there.
-- Mobile: `SearchScreen` (header search icon) calls `ApiClient.searchArticles`, which calls the same `search_articles` function through PostgREST's `rpc` endpoint, as article reads and likes already go straight to PostgREST, so no backend deploy is needed. It searches on submit, lists most relevant first with a result count, highlights the typed terms (quoted phrases whole, `-exclusions` skipped), and says so when nothing matches. A result found only through a tag would show no visible reason, so its card lists the tags a term appears in (`Tagged: medieval-india`, the term marked). Verified end to end in the web build against the local stack. Not built: `SearchFilters`, autocomplete, and highlighting of stemmed forms (a search for "empires" matches "Empire" but doesn't highlight it).
-- `search_suggestions` table still exists but is never populated (autocomplete, not started).
-- `article_embeddings` still stores embeddings as `TEXT`/JSON, not pgvector (semantic search, not started).
-- **Open question to resolve with product owner, still unresolved**: given semantic search's added complexity, consider deferring it past the rest of MVP scope entirely.
-
----
-
-## Phase 3 — Likes + Offline Caching — DONE (offline covers articles; search and likes need the network)
-
-- `backend/services/like_service.py` + `backend/api/likes.py`: backend done and verified against a local Postgres and PostgREST, RLS on `likes` included (hosted project unchecked). The endpoints match `design.md`, and `LikeService` has `like_article`, `unlike_article`, `is_liked`, `get_user_likes` (full articles) and `get_article_like_count`. It uses the service-role client, which bypasses RLS, so every per-user query filters on `user_id` explicitly and the tests assert that on the wire. Liking an unknown article returns 404. The schema and RLS needed no changes.
-- Mobile: `LikesClient` reads and writes `likes` through PostgREST with the user's token, so RLS scopes every call (an insert sends `Prefer: resolution=ignore-duplicates`, since the table has no UPDATE policy). `LikeState` (`isLiked`, `toggleLike`) follows `AuthState`, updates optimistically, and rolls back on failure. `LikeButton` sits in the article screen's header, and a signed-out tap opens sign-in. `LikedArticlesScreen` lists the user's likes newest first through `LikesClient.getLikedArticleRows` (`likes?select=articles(*)`, under RLS) and refreshes when an article is unliked while reading. Verified end to end in the web build against the local stack.
-- `lib/services/article_cache.dart`: `ArticleCache` saves every article the app loads or opens, on `shared_preferences` (which also works on web), and keeps the 50 most recently viewed, dropping the one viewed longest ago first, so a week of daily articles always fits. `ApiClient` falls back to it only when the server cannot be reached (a 500 still shows an error) and sets `offline`; Home and the archive then show an "OFFLINE · SHOWING SAVED ARTICLES" strip, and the next successful request clears it. Every fetch rewrites the saved copy, so it stays in sync. Verified in the web build by blocking the API host and reloading. `design.md` names sqflite and a `clearOldCache`; sqflite has no web support, and eviction here is by capacity, so there is no `clearOldCache`. Offline lists order by date then id (the cache has no `created_at`).
-
----
-
-## Phase 4 — Content Validator + Scheduler/Daily Automation — DONE, VERIFIED LIVE
-
-Pulled forward out of numeric order at explicit request (done before Phases 1-3).
-
-- `scrapper/scrapper/topic_generator.py` — `TopicGenerator` asks the LLM for fresh, Wikipedia-title-shaped topics, excluding titles already in Supabase (`ArticleService.list_recent_titles`).
-- `scrapper/scrapper/content_validator.py` — word count (1500-2000, ±200 tolerance), ≥3 sections, ≥1 citation. Not a semantic/factual check (see gaps below).
-- `scrapper/scrapper/scheduler.py` — `run_daily_pipeline(count)` replaces Phase 0's hardcoded-topic runner: topic selection → multi-source scrape → generate → validate → retry → skip-and-continue on persistent failure, so one bad topic never aborts the rest of the batch. A generation failure (unusable output, or the LLM provider itself failing, such as a rate limit, which used to abort the whole batch because only unparseable output was caught) waits with exponential backoff (5 s, then 10 s; three attempts, requirement 2.6) and a draft that fails validation retries at once. Any other error on a topic is logged with its traceback (requirement 11.1) and skips just that topic. The quality metrics of requirement 10.5 (word count, citation count, section count and generation time) are logged as fields of a JSON line for every article generated, accepted or not, from `content_validator.article_metrics`; `validate` still returns `(valid, issues)`, not the design's `ValidationResult`. The pipeline shares the backend's JSON logging (`common/logging_config.py`, `LOG_LEVEL`) and `scrapper_main.py` exits non-zero when it publishes fewer articles than requested, so a scheduled Actions run that publishes nothing fails and GitHub notifies the watchers; that is the only alert channel built (requirement 11.5). Verified with the real entry point and logging around a stubbed pipeline; the LLM and Supabase paths were not run.
-- Three sources now registered and used: `WikipediaSource`, `ArchiveOrgSource` (existed, was never wired in), `NewWorldEncyclopediaSource` (new — no search API, guesses the direct `/entry/{Topic}` URL and relies on existing extract() failure-filtering if it 404s).
-- `.github/workflows/daily-pipeline.yml` — daily cron exists but is **commented out** pending more confidence in output quality; `workflow_dispatch` works for manual runs.
-- `scrapper/data/web-sources.yaml` deleted — it was an unused placeholder from before the plugin-based source registry existed; the Python registry (`scrapper/scrapper/sources/__init__.py`) is the real source of truth, no code ever read the yaml.
-- **Real bugs found and fixed via live testing** (not caught by unit tests alone — see commit history `14fd71b`, `6214f01`, `07c60b1` for full detail): fair per-source character budget (one oversized source was silently crowding out others), Wikipedia's `#mw-content-text` CSS-selector scoping (crawl4ai was including thousands of characters of nav chrome before any real content), Claude's `ThinkingBlock` handling, symmetric word-count floor/ceiling prompt wording, `json-repair` for LLM JSON escaping mistakes, and the scheduler-crash-on-generation-error fix.
-- **Residual risk, as predicted**: LLM cost/quality tuning took real, non-trivial time — five real bugs across ~10 live API calls before a genuinely good article came out reliably.
-
----
-
-## Phase 5 — Remaining Mobile Screens + Polish
-
-- `lib/screens/search_screen.dart` (needs Phase 2), `lib/screens/profile_screen.dart` (needs Phase 3).
-- Offline-aware UI states: the offline strip is built; search and likes still need the network and say so in plain language.
-- `ArticleState`/`AuthState`/`LikeState` Provider `ChangeNotifier`s (per design.md) — implement per-screen as needed rather than upfront.
-
----
-
-## Phase 6 — Deployment
-
-- Backend `Dockerfile` (referenced by both READMEs but doesn't exist yet).
-- Hosting choice — not yet decided anywhere in the repo.
-- Wire Phase 4's scheduler into the chosen host.
-- Check what the existing root `build.sh` already automates (deps install, autopep8/flake8, pytest, Playwright/Chromium for Crawl4AI) before adding new deployment scripting on top of it.
-- App store release prep (icons, signing, review lead time — especially iOS) — start early once feature-complete.
-
----
-
-## Summary Table
-
-| Phase | Focus | Key new files | Hard external dependency |
-|---|---|---|---|
-| 0 | Vertical slice | `scrapper_main.py`, `article_generator.py`, `backend/main.py`, `api/articles.py`, `services/article_service.py`, `models/article.py`, mobile home/detail screens + `api_client.dart` | Live Supabase project + Storage bucket |
-| 1 | Auth | `services/auth_service.py`, `api/auth.py`, `auth_screen.dart` | Google/Facebook OAuth app registration |
-| 2 | Search | `services/search_service.py`, `api/search.py` | pgvector availability (semantic search) |
-| 3 | Likes + offline | `services/like_service.py`, `api/likes.py`, `article_cache.dart` | none |
-| 4 | Validator + scheduler | `content_validator.py`, `scheduler.py`, `topic_generator.py` | Hosting/cron choice, LLM cost |
-| 5 | Remaining mobile screens | `search_screen.dart`, `profile_screen.dart` | Phase 2/3 APIs |
-| 6 | Deployment | `Dockerfile`, hosting config | Hosting choice, app store review |
+1. Build the vertical slice before broadening any layer.
+2. Authentication is Supabase Auth, with no custom JWT code.
+3. A physical iPhone was verified from a Mac with Xcode's free Personal Team signing. A debug build only launches from
+   Xcode, because iOS grants the JIT permission it needs to a process with a debugger attached; use `--release` for an
+   app that keeps working from the home screen.
