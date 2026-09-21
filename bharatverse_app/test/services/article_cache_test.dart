@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -145,5 +146,57 @@ void main() {
       expect(await savedIds(cache), ['a']);
       expect(await cache.getCachedArticle('bad'), isNull);
     });
+  });
+
+  test('matches a plain model of the eviction rule under random use', () async {
+    final random = Random(7);
+    for (var run = 0; run < 80; run++) {
+      SharedPreferences.setMockInitialValues({});
+      final store = await SharedPreferences.getInstance();
+      final capacity = 1 + random.nextInt(6);
+      var clock = DateTime(2026, 9, 20);
+      final cache = ArticleCache(store, capacity: capacity, now: () => clock);
+      final model = <String, List<Object>>{}; // id -> [viewedAt, date]
+
+      for (var step = 0; step < 40; step++) {
+        if (random.nextBool()) {
+          clock = clock.add(const Duration(minutes: 1));
+        }
+        final batch = [
+          for (var i = 0; i < 1 + random.nextInt(3); i++)
+            sampleArticle(
+              id: 'a${random.nextInt(10)}',
+              date: '2026-07-0${1 + random.nextInt(9)}',
+            ),
+        ];
+
+        await cache.cacheArticles(batch);
+
+        for (final article in batch) {
+          model[article.id] = [
+            clock.millisecondsSinceEpoch,
+            article.toJson()['publication_date'] as String,
+          ];
+        }
+        while (model.length > capacity) {
+          // Drop the entry viewed longest ago; among equals the older
+          // publication, then the smaller id.
+          final victim = model.entries.reduce((a, b) {
+            final byView = (a.value[0] as int).compareTo(b.value[0] as int);
+            if (byView != 0) return byView < 0 ? a : b;
+            final byDate =
+                (a.value[1] as String).compareTo(b.value[1] as String);
+            if (byDate != 0) return byDate < 0 ? a : b;
+            return a.key.compareTo(b.key) < 0 ? a : b;
+          });
+          model.remove(victim.key);
+        }
+
+        final saved = await savedIds(cache);
+        expect(saved, model.keys.toList()..sort(),
+            reason: 'run $run step $step');
+        expect(saved.length, lessThanOrEqualTo(capacity));
+      }
+    }
   });
 }
