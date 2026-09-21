@@ -176,3 +176,6 @@ $RECYCLE.BIN/
 *.bak
 *.backup
 *~
+
+# Local agent runner state: worktree, venv, logs (see scripts/agent_loop.py)
+.agent/
