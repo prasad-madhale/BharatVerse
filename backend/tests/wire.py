@@ -17,7 +17,7 @@ _HEADERS = {"apikey": "test", "Accept": "application/json", "Content-Type": "app
 
 
 class WireClient:
-    """Just enough of the Supabase client for the services: table(), and storage when a blob is given."""
+    """Just enough of the Supabase client for the services: table(), rpc(), and storage when a blob is given."""
 
     def __init__(self, handler, blob: bytes | None = None):
         self.requests: list[httpx.Request] = []
@@ -38,6 +38,9 @@ class WireClient:
 
     def table(self, name: str):
         return self._postgrest.from_(name)
+
+    def rpc(self, name: str, params: dict):
+        return self._postgrest.rpc(name, params)
 
 
 def use_wire(mock_get_supabase, handler, *, admin: bool = False, blob: bytes | None = None) -> WireClient:

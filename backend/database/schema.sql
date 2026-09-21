@@ -158,6 +158,22 @@ ALTER TABLE articles ADD COLUMN IF NOT EXISTS search_vector tsvector
 
 CREATE INDEX IF NOT EXISTS idx_articles_search_vector ON articles USING GIN(search_vector);
 
+-- Search ranked by relevance, called as rpc/search_articles by the backend and the app (a PostgREST
+-- filter cannot rank). A term in the title is weighted A, ten times the default weight a summary term
+-- gets, so a title match beats a few passing mentions; date, then created_at and id, break ties so the
+-- order is stable.
+CREATE OR REPLACE FUNCTION search_articles(search_query TEXT, match_limit INT DEFAULT 20)
+RETURNS SETOF articles
+LANGUAGE sql STABLE
+AS $$
+    SELECT a.*
+    FROM articles a, websearch_to_tsquery('english', search_query) AS q
+    WHERE a.search_vector @@ q
+    ORDER BY ts_rank_cd(setweight(to_tsvector('english', a.title), 'A'), q) + ts_rank_cd(a.search_vector, q) DESC,
+             a.date DESC, a.created_at DESC, a.id DESC
+    LIMIT match_limit
+$$;
+
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
