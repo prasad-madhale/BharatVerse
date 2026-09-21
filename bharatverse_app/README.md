@@ -426,12 +426,12 @@ flutter run --hot
 - [Dart Documentation](https://dart.dev/guides)
 - [Provider Package](https://pub.dev/packages/provider)
 - [Flutter Cookbook](https://docs.flutter.dev/cookbook)
-- [Design Document](../.kiro/specs/bharatverse-mvp/design.md)
+- [Design Document](../docs/design.md)
 - [AGENTS.md](../AGENTS.md)
 
 ## Support
 
 For issues or questions:
-1. Check the [design document](../.kiro/specs/bharatverse-mvp/design.md)
+1. Check the [design document](../docs/design.md)
 2. Review [AGENTS.md](../AGENTS.md) for development guidelines
 3. Check existing issues in the repository

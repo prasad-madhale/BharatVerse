@@ -1,7 +1,7 @@
 """
 CLI entrypoint for the BharatVerse daily content pipeline.
 
-Runs the full pipeline (see .kiro/specs/bharatverse-mvp/roadmap.md, Phase 4):
+Runs the full pipeline (see docs/roadmap.md, Phase 4):
 AI topic selection -> multi-source scrape -> LLM article generation ->
 automated validation -> Supabase persistence. Human-in-the-loop review is
 explicitly deferred for now.

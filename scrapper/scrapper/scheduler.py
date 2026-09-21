@@ -2,9 +2,9 @@
 Daily pipeline orchestrator: AI topic selection -> multi-source scrape ->
 LLM article generation -> automated validation -> Supabase persistence.
 
-Replaces Phase 0's hardcoded-topic runner (see .kiro/specs/bharatverse-mvp/
-roadmap.md, Phase 4). Human-in-the-loop review is explicitly deferred;
-ContentValidator's automated checks stand in for it for now.
+Replaces Phase 0's hardcoded-topic runner (see docs/roadmap.md, Phase 4).
+Human-in-the-loop review is explicitly deferred; ContentValidator's automated
+checks stand in for it for now.
 """
 
 import logging

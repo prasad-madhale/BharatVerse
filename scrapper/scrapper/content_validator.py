@@ -2,7 +2,7 @@
 Automated content validation for generated articles.
 
 Stands in for human-in-the-loop (historian) review, which is explicitly
-deferred for now (see .kiro/specs/bharatverse-mvp/roadmap.md, Phase 4).
+deferred for now (see docs/roadmap.md, Phase 4).
 Checks structural/quality properties that are cheap to verify
 automatically; it cannot verify factual accuracy.
 """

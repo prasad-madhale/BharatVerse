@@ -3,11 +3,11 @@
 FastAPI-based REST API for the BharatVerse mobile application.
 
 > **Status**: the endpoint list below is the target design from
-> [design.md](../.kiro/specs/bharatverse-mvp/design.md). Implemented today: the article endpoints,
+> [design.md](../docs/design.md). Implemented today: the article endpoints,
 > `GET /api/v1/articles/search`, the like endpoints, and email/password auth (`/auth/signup`, `/auth/login`,
 > `/auth/logout`). Search and likes are verified against a local Postgres and PostgREST running `schema.sql`, not yet against the hosted Supabase project.
 > Endpoints marked "not built yet" do not exist. See
-> [.kiro/specs/bharatverse-mvp/roadmap.md](../.kiro/specs/bharatverse-mvp/roadmap.md) for current status and build order.
+> [docs/roadmap.md](../docs/roadmap.md) for current status and build order.
 
 ## Overview
 
@@ -442,7 +442,7 @@ All configuration is managed through `backend/config.py` using pydantic-settings
 ## Deployment
 
 > A `Dockerfile` and hosting configuration are not yet in the repository (planned for Phase 6 of the
-> [roadmap](../.kiro/specs/bharatverse-mvp/roadmap.md)). The commands below describe the target deployment
+> [roadmap](../docs/roadmap.md)). The commands below describe the target deployment
 > approach.
 
 ### Docker (planned)
@@ -585,6 +585,6 @@ wrk -t4 -c100 -d30s http://localhost:8000/api/v1/articles/daily
 ## Support
 
 For issues or questions:
-1. Check the [design document](../.kiro/specs/bharatverse-mvp/design.md)
+1. Check the [design document](../docs/design.md)
 2. Review [AGENTS.md](../AGENTS.md) for development guidelines
 3. Check existing issues in the repository

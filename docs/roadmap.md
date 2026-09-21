@@ -2,9 +2,9 @@
 
 ## Status as of 2026-09-20
 
-A direct code audit (not just a doc review) found this project earlier-stage than `requirements.md`/`design.md`/`tasks.md` suggest. No article had ever gone end-to-end: scrape → LLM-generate → validate → store → serve → display. This roadmap sequences the rebuild as a **vertical slice first**, then broadens phase by phase toward full MVP scope. That vertical slice, plus Phase 4 (pulled forward out of numeric order at explicit request), are now both done and verified live — see below.
+A direct code audit (not just a doc review) found this project earlier-stage than `requirements.md`/`design.md` suggest. No article had ever gone end-to-end: scrape → LLM-generate → validate → store → serve → display. This roadmap sequences the rebuild as a **vertical slice first**, then broadens phase by phase toward full MVP scope. That vertical slice, plus Phase 4 (pulled forward out of numeric order at explicit request), are now both done and verified live — see below.
 
-This doc governs *sequencing*. `tasks.md` remains the granular reference for property-test coverage (36 correctness properties) — each phase below cross-references the relevant `tasks.md` sections rather than duplicating them. `design.md` remains the architectural reference.
+This doc governs *sequencing*. `design.md` remains the architectural reference, including the 36 correctness properties.
 
 ### What's actually real today
 - **common/**: `llm_provider.py` + `config.py` (multi-provider LLM abstraction, shared settings) and `models.py` (`Article`/`Section`/`Citation`, shared by scrapper and backend). The Anthropic provider's default model is **Claude Sonnet 5**, which the daily workflow selects explicitly with `LLM_PROVIDER=anthropic`. `common/config.py` itself still defaults to `gemini`, so a local run without `LLM_PROVIDER` uses Gemini (the pipeline moved to Claude after Gemini's free daily quota ran out mid-testing; Groq's free tier was tried and rejected — weaker instruction-following on word-count targets).
@@ -69,8 +69,6 @@ Clarifying this since it came up: "simulator" isn't a stage after `flutter test`
 ### Exit criteria — MET
 One documented sequence takes a hardcoded topic through scrapper → Supabase → backend API → Flutter screen, showing real LLM-generated content on a simulator/device. **Fully proven live end-to-end**, including the Flutter render: `flutter run -d web-server` + Firefox showed a real generated article correctly (home screen and detail screen, tags/sections/citations all correct). No Xcode/Android Studio/native simulator was needed — `web-server` is browser-agnostic and sidesteps that environment limitation entirely.
 
-**Reference**: `tasks.md` §4–9 cover the underlying scraper/generator/storage tasks in more granular (property-test-driven) form.
-
 ---
 
 ## Phase 1 — Auth (Supabase Auth, backend + mobile) — DONE, VERIFIED LIVE
@@ -84,8 +82,6 @@ Email/password only; OAuth deferred as a fast-follow (real external review lead 
 - **Found via live testing**: the target Supabase project had email confirmation enabled, which silently prevented signup from returning a session (would have broken the mobile flow). Disabled via the dashboard after confirming with the user — a blind `supabase config push` was considered and rejected as too risky (would overwrite other live auth settings not visible locally).
 - **Password reset (requirement 12.9)**: "Forgot password?" on the sign-in screen asks for an address and calls Supabase's `resetPasswordForEmail` through `AuthState`, like sign-in and sign-up (no backend endpoint; `design.md` has none). It answers the same whether or not an account exists. The emailed link returns to the app (`redirectTo` is the page's own address on the web), the SDK exchanges its PKCE code, and `RecoveryGate` shows `ResetPasswordScreen` in place of Home until the reader saves a new password or skips it (the link has already signed them in). Following a link that cannot be used (expired, already used, or opened in a different browser from the one that asked, because PKCE keeps the code verifier there) leaves its parameters in the address, and the gate says so with a notice. The sign-in, reset and new-password pages share `AuthFormPage`, which scrolls on short screens, and auth failures now show plain messages through `describeAuthError` instead of the SDK's raw error (which had shown `ClientException: Failed to fetch, uri=...` on sign-in). Verified end to end in a real browser against the local stand-in, whose `/recover`, `/verify`, PKCE code exchange and `PUT /user` follow GoTrue. **Hosted project unchecked**; it needs the app's URL added under **Authentication > URL Configuration > Redirect URLs** (otherwise the link goes to the Site URL), and Supabase's default email sender is rate limited. Not built: native deep links (a phone needs the app registered for a link scheme first), and reloading the page while the new-password form is up leaves the reader signed in without one, because the SDK does not repeat the recovery event.
 - **Risk (unchanged, still applies to the OAuth fast-follow)**: Google/Facebook OAuth app registration has real external review lead time (days) — not yet started.
-
-**Reference**: `tasks.md` §12.
 
 ---
 
@@ -102,8 +98,6 @@ Scoped to FTS only for this pass, per the open question below -- autocomplete an
 - `article_embeddings` still stores embeddings as `TEXT`/JSON, not pgvector (semantic search, not started).
 - **Open question to resolve with product owner, still unresolved**: given semantic search's added complexity, consider deferring it past the rest of MVP scope entirely.
 
-**Reference**: `tasks.md` §10–11.
-
 ---
 
 ## Phase 3 — Likes + Offline Caching — DONE (offline covers articles; search and likes need the network)
@@ -111,8 +105,6 @@ Scoped to FTS only for this pass, per the open question below -- autocomplete an
 - `backend/services/like_service.py` + `backend/api/likes.py`: backend done and verified against a local Postgres and PostgREST, RLS on `likes` included (hosted project unchecked). The endpoints match `design.md`, and `LikeService` has `like_article`, `unlike_article`, `is_liked`, `get_user_likes` (full articles) and `get_article_like_count`. It uses the service-role client, which bypasses RLS, so every per-user query filters on `user_id` explicitly and the tests assert that on the wire. Liking an unknown article returns 404. The schema and RLS needed no changes.
 - Mobile: `LikesClient` reads and writes `likes` through PostgREST with the user's token, so RLS scopes every call (an insert sends `Prefer: resolution=ignore-duplicates`, since the table has no UPDATE policy). `LikeState` (`isLiked`, `toggleLike`) follows `AuthState`, updates optimistically, and rolls back on failure. `LikeButton` sits in the article screen's header, and a signed-out tap opens sign-in. `LikedArticlesScreen` lists the user's likes newest first through `LikesClient.getLikedArticleRows` (`likes?select=articles(*)`, under RLS) and refreshes when an article is unliked while reading. Verified end to end in the web build against the local stack.
 - `lib/services/article_cache.dart`: `ArticleCache` saves every article the app loads or opens, on `shared_preferences` (which also works on web), and keeps the 50 most recently viewed, dropping the one viewed longest ago first, so a week of daily articles always fits. `ApiClient` falls back to it only when the server cannot be reached (a 500 still shows an error) and sets `offline`; Home and the archive then show an "OFFLINE · SHOWING SAVED ARTICLES" strip, and the next successful request clears it. Every fetch rewrites the saved copy, so it stays in sync. Verified in the web build by blocking the API host and reloading. `design.md` names sqflite and a `clearOldCache`; sqflite has no web support, and eviction here is by capacity, so there is no `clearOldCache`. Offline lists order by date then id (the cache has no `created_at`).
-
-**Reference**: `tasks.md` §13, §18.
 
 ---
 
@@ -129,8 +121,6 @@ Pulled forward out of numeric order at explicit request (done before Phases 1-3)
 - **Real bugs found and fixed via live testing** (not caught by unit tests alone — see commit history `14fd71b`, `6214f01`, `07c60b1` for full detail): fair per-source character budget (one oversized source was silently crowding out others), Wikipedia's `#mw-content-text` CSS-selector scoping (crawl4ai was including thousands of characters of nav chrome before any real content), Claude's `ThinkingBlock` handling, symmetric word-count floor/ceiling prompt wording, `json-repair` for LLM JSON escaping mistakes, and the scheduler-crash-on-generation-error fix.
 - **Residual risk, as predicted**: LLM cost/quality tuning took real, non-trivial time — five real bugs across ~10 live API calls before a genuinely good article came out reliably.
 
-**Reference**: `tasks.md` §6–7.
-
 ---
 
 ## Phase 5 — Remaining Mobile Screens + Polish
@@ -138,8 +128,6 @@ Pulled forward out of numeric order at explicit request (done before Phases 1-3)
 - `lib/screens/search_screen.dart` (needs Phase 2), `lib/screens/profile_screen.dart` (needs Phase 3).
 - Offline-aware UI states: the offline strip is built; search and likes still need the network and say so in plain language.
 - `ArticleState`/`AuthState`/`LikeState` Provider `ChangeNotifier`s (per design.md) — implement per-screen as needed rather than upfront.
-
-**Reference**: `tasks.md` §19–22.
 
 ---
 
@@ -150,8 +138,6 @@ Pulled forward out of numeric order at explicit request (done before Phases 1-3)
 - Wire Phase 4's scheduler into the chosen host.
 - Check what the existing root `build.sh` already automates (deps install, autopep8/flake8, pytest, Playwright/Chromium for Crawl4AI) before adding new deployment scripting on top of it.
 - App store release prep (icons, signing, review lead time — especially iOS) — start early once feature-complete.
-
-**Reference**: `tasks.md` §26.
 
 ---
 

@@ -5,7 +5,7 @@ Discover India's epic past, one story at a time! BharatVerse delivers daily, AI-
 ## 📍 Project Status
 
 This project is early-stage but works end to end: the core scrape, AI-generate, validate, store, serve, and
-display pipeline has been run live. See **[.kiro/specs/bharatverse-mvp/roadmap.md](.kiro/specs/bharatverse-mvp/roadmap.md)**
+display pipeline has been run live. See **[docs/roadmap.md](docs/roadmap.md)**
 for the authoritative, phase-by-phase status and the remaining build order. In short:
 - `scrapper/`: scraping (Wikipedia, archive.org, New World Encyclopedia via Crawl4AI), LLM article generation,
   content validation, and the daily scheduler CLI (`python scrapper/scrapper_main.py --count N`) all work. The
@@ -188,10 +188,9 @@ See [bharatverse_app/README.md](bharatverse_app/README.md) for detailed instruct
 ## 📚 Documentation
 
 - **[BRD](docs/BharatVerse%20MVP%20BRD.md)** - Business Requirements Document
-- **[Requirements](/.kiro/specs/bharatverse-mvp/requirements.md)** - Technical requirements
-- **[Design](/.kiro/specs/bharatverse-mvp/design.md)** - System design and architecture
-- **[Roadmap](/.kiro/specs/bharatverse-mvp/roadmap.md)** - Current implementation status and phased build order
-- **[Tasks](/.kiro/specs/bharatverse-mvp/tasks.md)** - Granular implementation task list (property-test reference)
+- **[Requirements](docs/requirements.md)** - Technical requirements
+- **[Design](docs/design.md)** - System design and architecture
+- **[Roadmap](docs/roadmap.md)** - Current implementation status and phased build order
 - **[AGENTS.md](AGENTS.md)** - Guide for AI agents working on this codebase
 
 ## 🏛️ Architecture Overview
@@ -245,7 +244,7 @@ flutter test --coverage
 ## 🚢 Deployment
 
 Deployment tooling (Dockerfile, hosting configuration) is not yet in place — see Phase 6 of the
-[roadmap](.kiro/specs/bharatverse-mvp/roadmap.md) for the plan. The root [`build.sh`](build.sh) handles
+[roadmap](docs/roadmap.md) for the plan. The root [`build.sh`](build.sh) handles
 dependency install, formatting, linting, and running the full test+coverage suite for every package
 (Python and Flutter). Run `./build.sh` locally to auto-fix formatting, or `./build.sh --check` to verify
 without mutating anything (this is what CI and the pre-push hook run).
@@ -277,7 +276,7 @@ without mutating anything (this is what CI and the pre-push hook run).
 ## 🤝 Contributing
 
 1. Read the [AGENTS.md](AGENTS.md) guide
-2. Check the [roadmap](/.kiro/specs/bharatverse-mvp/roadmap.md) for current priorities
+2. Check the [roadmap](docs/roadmap.md) for current priorities
 3. Follow the development workflow above
 4. Write tests for all new features
 5. Update documentation as needed
@@ -289,6 +288,6 @@ See [LICENSE](LICENSE) file for details.
 ## 🔗 Links
 
 - **API Documentation**: http://localhost:8000/docs (when backend is running)
-- **Design Document**: [.kiro/specs/bharatverse-mvp/design.md](/.kiro/specs/bharatverse-mvp/design.md)
-- **Roadmap**: [.kiro/specs/bharatverse-mvp/roadmap.md](/.kiro/specs/bharatverse-mvp/roadmap.md)
+- **Design Document**: [docs/design.md](docs/design.md)
+- **Roadmap**: [docs/roadmap.md](docs/roadmap.md)
 - **BRD**: [docs/BharatVerse MVP BRD.md](docs/BharatVerse%20MVP%20BRD.md)
