@@ -2,13 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/auth_state.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_spacing.dart';
-import '../theme/app_typography.dart';
-import '../widgets/app_back_bar.dart';
-import '../widgets/content_column.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_input.dart';
+import '../widgets/auth_form_page.dart';
 
 /// Single screen toggling between sign-in and sign-up, email/password only
 /// (OAuth is a fast-follow -- see roadmap.md Phase 1). Pops itself on
@@ -63,85 +59,47 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const AppBackBar(),
-      body: Padding(
-        padding: const EdgeInsets.all(AppSpacing.space8),
-        child: ContentColumn(
-            maxWidth: AppSpacing.formWidth,
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    (_isSignUpMode ? 'Sign Up' : 'Sign In').toUpperCase(),
-                    style: AppTypography.display2,
-                  ),
-                  const SizedBox(height: AppSpacing.space5),
-                  AppInput(
-                    fieldKey: const Key('email-field'),
-                    label: 'Email',
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    placeholder: 'you@example.com',
-                    validator: (value) =>
-                        (value == null || !value.contains('@'))
-                            ? 'Enter a valid email'
-                            : null,
-                  ),
-                  const SizedBox(height: AppSpacing.space4),
-                  AppInput(
-                    fieldKey: const Key('password-field'),
-                    label: 'Password',
-                    controller: _passwordController,
-                    obscureText: true,
-                    placeholder: '••••••••',
-                    validator: (value) => (value == null || value.length < 6)
-                        ? 'Password must be at least 6 characters'
-                        : null,
-                  ),
-                  const SizedBox(height: AppSpacing.space5),
-                  if (_errorMessage != null) ...[
-                    Text(_errorMessage!,
-                        style: AppTypography.caption
-                            .copyWith(color: AppColors.colorError)),
-                    const SizedBox(height: AppSpacing.space4),
-                  ],
-                  AppButton(
-                    label: _isSignUpMode ? 'Sign Up' : 'Sign In',
-                    wide: true,
-                    onPressed: _isSubmitting ? null : _submit,
-                    loadingChild: _isSubmitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2, color: AppColors.textOnAccent),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(height: AppSpacing.space2),
-                  Center(
-                    child: AppButton(
-                      label: _isSignUpMode
-                          ? 'Already have an account? Sign In'
-                          : "Don't have an account? Sign Up",
-                      variant: AppButtonVariant.ghost,
-                      size: AppButtonSize.sm,
-                      onPressed: _isSubmitting
-                          ? null
-                          : () => setState(() {
-                                _isSignUpMode = !_isSignUpMode;
-                                _errorMessage = null;
-                              }),
-                    ),
-                  ),
-                ],
-              ),
-            )),
-      ),
+    final mode = _isSignUpMode ? 'Sign Up' : 'Sign In';
+    return AuthFormPage(
+      title: mode,
+      formKey: _formKey,
+      fields: [
+        AppInput(
+          fieldKey: const Key('email-field'),
+          label: 'Email',
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          placeholder: 'you@example.com',
+          validator: validateEmail,
+        ),
+        AppInput(
+          fieldKey: const Key('password-field'),
+          label: 'Password',
+          controller: _passwordController,
+          obscureText: true,
+          placeholder: '••••••••',
+          validator: validatePassword,
+        ),
+      ],
+      error: _errorMessage,
+      submitLabel: mode,
+      submitting: _isSubmitting,
+      onSubmit: _submit,
+      footer: [
+        AppButton(
+          label: _isSignUpMode
+              ? 'Already have an account? Sign In'
+              : "Don't have an account? Sign Up",
+          variant: AppButtonVariant.ghost,
+          size: AppButtonSize.sm,
+          onPressed: _isSubmitting
+              ? null
+              : () => setState(() {
+                    _isSignUpMode = !_isSignUpMode;
+                    _errorMessage = null;
+                  }),
+        ),
+      ],
     );
   }
 }
