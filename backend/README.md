@@ -16,16 +16,23 @@ a `.env` at the repo root (template: [`.env.example`](../.env.example)):
 | `ARTICLES_STORAGE_BUCKET` | `articles` | Storage bucket that holds article content |
 | `CORS_ORIGINS` | `["*"]` | JSON list of allowed origins |
 
-The backend needs no LLM key. In the Supabase project, run [`database/schema.sql`](database/schema.sql) in the SQL editor
+The backend needs no LLM key. For a new Supabase project, run [`database/schema.sql`](database/schema.sql) in the SQL editor
 (tables, row-level security, the weighted `search_vector` column, the `search_articles` function, and the suggestions
-behind autocomplete) and create a public Storage bucket named `articles`. Later schema changes must be applied by hand.
-A project that already has an older `search_vector` (title and summary only) must drop it first
-(`ALTER TABLE articles DROP COLUMN search_vector`), and one that has the earlier, unused `search_suggestions` table must
-drop that too (`DROP TABLE search_suggestions`), for the new definitions to apply.
+behind autocomplete) and create a public Storage bucket named `articles`.
+
+A project made from an earlier schema must not re-run the whole file: the SQL editor runs it as one transaction, which
+stops at the first policy or trigger that already exists. Run the file in [`database/migrations/`](database/migrations/)
+that brings it up to date instead (`2026-09-search-and-autocomplete.sql` adds search and autocomplete; it can be run twice).
+Every later schema change gets a migration file the same way, applied by hand. Until a project has this one, search fails
+there, and so does the autocomplete endpoint, while the app simply shows no suggestions.
 
 The suggestions live in `search_suggestions`, which a trigger rebuilds from `articles` after every insert, update or
-delete, so publishing needs no extra step. A rebuild scans every article (about 0.3 s at 2,000), which suits one article
-a day; make it incremental if writes ever become frequent.
+delete, so publishing needs no extra step. A phrase is kept only if searching for it finds the article it came from, and a
+rebuild that fails is reported as a warning and never stops an article being written. A rebuild scans every article (about
+0.4 s at 2,000), which suits one article a day; make it incremental if writes ever become frequent. Only that trigger
+writes the suggestions and only the service role writes `articles`: the public key has no write rights, so a request it
+should not make fails at once instead of running the trigger. A restore or replication that switches triggers off leaves
+the suggestions stale; run `SELECT rebuild_search_suggestions();` as `postgres` afterwards.
 
 ## Run
 

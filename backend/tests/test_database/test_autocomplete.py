@@ -9,7 +9,7 @@ import pytest
 from backend.database import get_supabase
 from backend.services.search_service import SearchService
 
-IDS = [f"art_test_ac_{n}" for n in range(1, 10)]
+IDS = [f"art_test_ac_{n}" for n in range(1, 12)]
 
 
 def article(article_id: str, title: str, tags: list[str]) -> dict:
@@ -100,7 +100,7 @@ async def test_the_number_of_suggestions_is_capped_whatever_a_caller_asks_for():
         return client.rpc("autocomplete_suggestions", {"prefix": "zzqlim", **params}).execute().data
 
     try:
-        client.table("articles").insert(article(IDS[8], "Zzqlim", [f"zzqlim-{n:02d}" for n in range(1, 26)])).execute()
+        client.table("articles").insert(article(IDS[7], "Zzqlim", [f"zzqlim-{n:02d}" for n in range(1, 26)])).execute()
 
         assert len(ask()) == 10
         assert len(ask(match_limit=None)) == 10
@@ -109,4 +109,29 @@ async def test_the_number_of_suggestions_is_capped_whatever_a_caller_asks_for():
         assert ask(match_limit=0) == []
         assert ask(match_limit=-1) == []
     finally:
-        client.table("articles").delete().eq("id", IDS[8]).execute()
+        client.table("articles").delete().eq("id", IDS[7]).execute()
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_a_suggestion_is_always_something_a_search_finds_and_a_bad_value_cannot_stop_a_save():
+    client = get_supabase().get_admin_client()
+    suggest = SearchService().autocomplete
+    try:
+        client.table("articles").insert([
+            # A number after a hyphen is indexed with the hyphen, so this tag is offered as it is; a longer slug is not
+            article(IDS[8], "Zzqnum Article", ["zzqcovid-19", "zzqworld-war-2"]),
+            # A word after a space and a hyphen is read by a search as "not", so nothing is offered for the title
+            article(IDS[9], "Zzqnot -Excluded Word", []),
+            # Far more than an index row can hold: the save must still work, and nothing is offered
+            article(IDS[10], "Zzqlong " + "x" * 3000, ["zzqlong-" + "y" * 3000]),
+        ]).execute()
+
+        assert await suggest("zzqcovid") == ["Zzqcovid-19"]
+        assert await suggest("zzqworld") == ["Zzqworld War 2"]
+        assert await suggest("zzqnot") == []
+        assert await suggest("zzqlong") == []
+        for term in await suggest("zzqnum") + await suggest("zzqcovid") + await suggest("zzqworld"):
+            assert client.rpc("search_articles", {"search_query": term, "match_limit": 5}).execute().data, term
+    finally:
+        client.table("articles").delete().in_("id", IDS[8:11]).execute()

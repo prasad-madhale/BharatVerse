@@ -29,5 +29,5 @@ BharatVerse serves one AI-written story from Indian history a day. Monorepo: `sc
 
 ## Good to know
 - The daily cron in `.github/workflows/daily-pipeline.yml` is disabled on purpose. Leave it.
-- Changes to `backend/database/schema.sql` must also be applied to the hosted Supabase project by hand.
+- Changes to `backend/database/schema.sql` must also be applied to the hosted Supabase project by hand, as a file in `backend/database/migrations/` (an existing project cannot re-run schema.sql).
 - A local-model task queue lives in `tools/agent-queue/` (see its README).

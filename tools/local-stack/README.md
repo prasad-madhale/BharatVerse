@@ -54,9 +54,10 @@ BV_ENV_FILE="$PWD/../.local-stack/0/env" pytest -m integration --no-cov
 ```
 
 The stand-in's own logic (the SQL splitter and the gateway's tokens and passwords) has tests that need no database, and
-the search suggestions in `schema.sql` have a property test against a Python model that needs the stack's Postgres
-running (`stack.sh start`) and is skipped without it: it makes and drops a database of its own, and
-`BV_PROP_EXAMPLES` sets how many random cases it tries. Run them with `python -m pytest tools/local-stack/tests`, adding
+the search suggestions in `schema.sql` have a property test against a Python model, and the migration for an older
+project has one that runs it twice and compares with a new project. These need the stack's Postgres running
+(`stack.sh start`) and are skipped without it: each makes and drops databases of its own, and `BV_PROP_EXAMPLES` sets
+how many random cases the property test tries. Run them with `python -m pytest tools/local-stack/tests`, adding
 `BV_STACK_OFFSET` if the stack is not on the default ports. CI does not run them.
 
 ## A second stack
