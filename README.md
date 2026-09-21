@@ -16,7 +16,7 @@ differs from the design, and what still needs a person (hosted-project setup, OA
 | `scrapper/` | Content pipeline: scrape (Wikipedia, archive.org, New World Encyclopedia), generate, validate, publish |
 | `common/` | Shared models, LLM provider and JSON logging |
 | `docs/` | Requirements, design, roadmap and the business requirements document |
-| `scripts/` | Dev helpers: `dev.sh`, `run-device.sh`, `doctor.sh`, the coverage gate |
+| `scripts/` | Dev helpers, including running the app on a phone ([README](scripts/README.md)) |
 | `tools/agent-queue/` | Optional runner that executes specs with a local model |
 
 ## Get started

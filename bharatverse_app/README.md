@@ -30,7 +30,8 @@ flutter run -d chrome        # web; or any device or emulator from `flutter devi
 ```
 
 From the repo root, `./scripts/dev.sh` serves the web app on :8765 together with the API, and
-`./scripts/run-device.sh [--release]` runs on the first physical phone it finds.
+`./scripts/run-device.sh [--release]` runs on a physical phone: natively, or, for an iPhone from Linux or Windows, as the
+web app in the phone's browser ([details](../scripts/README.md)).
 
 Password-reset emails link back to the app, so add the app's URL (for local web, `http://localhost:8765`) under
 Supabase's Authentication > URL Configuration > Redirect URLs.

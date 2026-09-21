@@ -79,6 +79,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 - Native deep links for password reset: a phone app has to register a link scheme first. On the web, the link must be
   opened in the browser that asked for it (PKCE keeps the verifier there), and reloading while the new-password form is
   up leaves the reader signed in without one.
+- Branded native launcher icons: the web icons are a placeholder monogram, and the Android and iOS ones are still
+  Flutter's default.
 - `SearchFilters`, highlighting of stemmed forms (searching "empires" finds "Empire" but does not mark it), and search or
   likes while offline.
 
@@ -88,4 +90,6 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 2. Authentication is Supabase Auth, with no custom JWT code.
 3. A physical iPhone was verified from a Mac with Xcode's free Personal Team signing. A debug build only launches from
    Xcode, because iOS grants the JIT permission it needs to a process with a debugger attached; use `--release` for an
-   app that keeps working from the home screen.
+   app that keeps working from the home screen. From Linux there is no native route (Xcode is Mac-only), so
+   `scripts/run-device.sh` serves the web app to the phone's browser, where it installs from Safari's Add to Home
+   Screen; that path has not been tried on an iPhone yet.
