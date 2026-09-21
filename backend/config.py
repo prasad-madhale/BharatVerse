@@ -22,11 +22,6 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "BharatVerse API"
     app_version: str = "0.1.0"
-    debug: bool = False
-
-    # API
-    api_host: str = "0.0.0.0"
-    api_port: int = 8000
     api_prefix: str = "/api/v1"
 
     # Note: LLM provider/model/API key configuration lives in common.config.LLMSettings,
@@ -41,8 +36,6 @@ class Settings(BaseSettings):
 
     # Content Pipeline
     articles_storage_bucket: str = "articles"  # Supabase Storage bucket
-    scraping_rate_limit_seconds: int = 2
-    max_scraping_retries: int = 3
 
     # CORS
     cors_origins: list[str] = ["*"]
