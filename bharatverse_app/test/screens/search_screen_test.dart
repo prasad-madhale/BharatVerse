@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
+import 'package:bharatverse_app/models/article.dart';
 import 'package:bharatverse_app/screens/article_detail_screen.dart';
 import 'package:bharatverse_app/screens/search_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
@@ -209,7 +210,7 @@ void main() {
       expect(find.text('SEARCH THE ARCHIVE'), findsNothing);
     });
 
-    testWidgets('tells a screen reader how many suggestions appeared',
+    testWidgets('tells a screen reader how many suggestions appeared for what',
         (tester) async {
       final semantics = tester.ensureSemantics();
       await pumpSearch(tester,
@@ -218,10 +219,29 @@ void main() {
               : ['Ma']));
 
       await type(tester, 'ma');
-      expect(find.bySemanticsLabel('2 suggestions'), findsOneWidget);
+      expect(find.bySemanticsLabel('2 suggestions for ma'), findsOneWidget);
+      expect(tester.getSemantics(find.bySemanticsLabel('2 suggestions for ma')),
+          matchesSemantics(label: '2 suggestions for ma', isLiveRegion: true));
 
       await type(tester, 'm');
-      expect(find.bySemanticsLabel('1 suggestion'), findsOneWidget);
+      expect(find.bySemanticsLabel('1 suggestion for m'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('reads each suggestion as a button', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpSearch(tester, client: client((_) async => ['Ashoka']));
+
+      await type(tester, 'ash');
+
+      expect(
+          tester.getSemantics(find.byType(SuggestionTile)),
+          matchesSemantics(
+              label: 'Ashoka',
+              isButton: true,
+              isFocusable: true,
+              hasTapAction: true,
+              hasFocusAction: true));
       semantics.dispose();
     });
 
@@ -404,6 +424,67 @@ void main() {
           }
           return http.Response(jsonEncode([sampleArticleRow()]), 200);
         }),
+      );
+
+      await type(tester, 'ash');
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(SuggestionTile), findsNothing);
+    });
+
+    testWidgets(
+        'keeps the results, their place and no spinner while suggestions come and go',
+        (tester) async {
+      await pumpSearch(
+        tester,
+        client: searchMockClient(
+          rows: () => [
+            for (var n = 0; n < 8; n++)
+              sampleArticleRow(id: 'art_$n', title: 'Article $n')
+          ],
+          suggest: (_) async => ['Ashoka'],
+          onRequest: (request) => requests.add(request),
+        ),
+      );
+      await search(tester, 'mauryan');
+      final scrollable = find.descendant(
+          of: find.byType(FutureBuilder<List<Article>>),
+          matching: find.byType(Scrollable));
+      await tester.drag(find.byType(ArticleCard).first, const Offset(0, -250));
+      await tester.pumpAndSettle();
+      final scrolledTo =
+          tester.state<ScrollableState>(scrollable).position.pixels;
+      expect(scrolledTo, greaterThan(0));
+
+      await type(tester, 'ash');
+      expect(find.byType(SuggestionTile), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '');
+      await tester.pump();
+
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(tester.state<ScrollableState>(scrollable).position.pixels,
+          scrolledTo);
+    });
+
+    testWidgets('suggests in any script and marks what was typed',
+        (tester) async {
+      await pumpSearch(tester,
+          client: client((_) async => ['अशोक', 'अशोक स्तंभ']));
+
+      await type(tester, 'अश');
+
+      expect(tile('अशोक'), findsOneWidget);
+      expect(tile('अशोक स्तंभ'), findsOneWidget);
+      expect(marked(tester), ['अश', 'अश']);
+    });
+
+    testWidgets('shows nothing when the answer is not what was expected',
+        (tester) async {
+      await pumpSearch(
+        tester,
+        client: MockClient((request) async => isSuggestionRequest(request)
+            ? http.Response('not json', 200)
+            : http.Response(jsonEncode([sampleArticleRow()]), 200)),
       );
 
       await type(tester, 'ash');

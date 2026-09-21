@@ -62,6 +62,13 @@ void main() {
       expect(markedText(tester), ['Ashoka']);
     });
 
+    testWidgets('is at least 48 tall so it is easy to tap', (tester) async {
+      await pumpTile(tester);
+
+      expect(tester.getSize(find.byType(SuggestionTile)).height,
+          greaterThanOrEqualTo(48));
+    });
+
     testWidgets('puts the search icon before the term', (tester) async {
       await pumpTile(tester);
 

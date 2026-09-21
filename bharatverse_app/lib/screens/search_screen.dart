@@ -69,7 +69,7 @@ class _SearchScreenState extends State<SearchScreen> {
     List<String> found;
     try {
       found = await widget.apiClient.getAutocompleteSuggestions(text);
-    } catch (_) {
+    } on Exception {
       // Suggestions are a convenience: when they cannot be had, show none.
       found = [];
     }
@@ -109,7 +109,8 @@ class _SearchScreenState extends State<SearchScreen> {
     return Semantics(
       container: true,
       liveRegion: true, // a screen reader announces that suggestions appeared
-      label: count == 1 ? '1 suggestion' : '$count suggestions',
+      label: '${count == 1 ? '1 suggestion' : '$count suggestions'} '
+          'for ${_suggestedFor.trim()}',
       child: ListView.builder(
         padding: columnPadding(context, vertical: AppSpacing.space1),
         itemCount: count,
@@ -215,9 +216,15 @@ class _SearchScreenState extends State<SearchScreen> {
                           label: 'Search', wide: true, onPressed: _search),
                     ],
                   ))),
+          // Both stay mounted, so the results keep their scroll position and
+          // do not reload while suggestions come and go.
           Expanded(
-              child:
-                  _suggestions.isEmpty ? _buildResults() : _buildSuggestions()),
+            child: IndexedStack(
+              sizing: StackFit.expand,
+              index: _suggestions.isEmpty ? 0 : 1,
+              children: [_buildResults(), _buildSuggestions()],
+            ),
+          ),
         ],
       ),
     );

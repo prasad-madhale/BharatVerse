@@ -52,7 +52,7 @@ MockClient searchMockClient({
 }) =>
     MockClient((request) async {
       if (request.url.path.contains('/storage/')) {
-        return http.Response(jsonEncode(sampleArticleContent()), 200);
+        return jsonResponse(sampleArticleContent());
       }
       onRequest?.call(request);
       if (request.url.path.endsWith('/rpc/autocomplete_suggestions')) {
@@ -60,15 +60,20 @@ MockClient searchMockClient({
         final terms = await (suggest ?? (_) async => <String>[])(prefix);
         return terms == null
             ? http.Response('boom', 500)
-            : http.Response(
-                jsonEncode([
-                  for (final term in terms) {'term': term}
-                ]),
-                200);
+            : jsonResponse([
+                for (final term in terms) {'term': term}
+              ]);
       }
-      return http.Response(
-          jsonEncode((rows ?? () => [sampleArticleRow()])()), 200);
+      return jsonResponse((rows ?? () => [sampleArticleRow()])());
     });
+
+/// A 200 response with [body] as UTF-8 JSON, as PostgREST sends it, so text in
+/// any script survives (a plain `http.Response(String)` is Latin-1).
+http.Response jsonResponse(Object body) => http.Response.bytes(
+      utf8.encode(jsonEncode(body)),
+      200,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
 
 /// A full [Article], assembled the way ApiClient does from a row and its
 /// content.
