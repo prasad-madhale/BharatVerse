@@ -33,6 +33,22 @@ for content in contents:
     print(f"{content.title}: {len(content.raw_text)} chars")
 ```
 
+## Running the Pipeline
+
+```bash
+python scrapper/scrapper_main.py --count 1   # from the repo root; needs the LLM and Supabase credentials in .env
+```
+
+For each new topic it scrapes, generates and validates an article, then publishes it. If generating fails (unusable
+output, or the LLM provider erroring or rate limiting) it waits 5 s, then 10 s, and tries again, up to three attempts;
+a draft that fails validation is retried at once. A topic that never succeeds is logged with its traceback and
+skipped, and the rest of the batch carries on.
+
+Logs are JSON lines on stdout at `LOG_LEVEL` (default `INFO`). Every generated article, accepted or not, gets a line
+with its `word_count`, `citation_count`, `section_count` and `generation_seconds`. The exit status is 0 only if every
+requested article was published, so a scheduled GitHub Actions run that publishes nothing fails and notifies the
+repository's watchers.
+
 ## Development Setup
 
 ### Prerequisites
