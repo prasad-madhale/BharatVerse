@@ -11,6 +11,7 @@ Map<String, dynamic> sampleArticleRow({
   String id = 'art_20260703_001',
   String title = 'The Mauryan Empire',
   String date = '2026-07-03',
+  List<String> tags = const ['mauryan-empire'],
 }) =>
     {
       'id': id,
@@ -19,7 +20,7 @@ Map<String, dynamic> sampleArticleRow({
       'date': date,
       'reading_time_minutes': 13,
       'author': 'BharatVerse AI',
-      'tags': ['mauryan-empire'],
+      'tags': tags,
       'image_url': null,
       'content_file_path': 'articles/2026-07-03/$id.json',
     };
@@ -53,9 +54,10 @@ Article sampleArticle({
   String id = 'art_20260703_001',
   String title = 'The Mauryan Empire',
   String date = '2026-07-03',
+  List<String> tags = const ['mauryan-empire'],
 }) =>
     Article.fromJson({
-      ...sampleArticleRow(id: id, title: title, date: date),
+      ...sampleArticleRow(id: id, title: title, date: date, tags: tags),
       'publication_date': date,
       ...sampleArticleContent(),
     });

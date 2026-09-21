@@ -97,7 +97,7 @@ class ApiClient {
         () => _saved((all) => all.skip(page * limit).take(limit)),
       );
 
-  /// Full-text search over title and summary, most relevant first. Calls the
+  /// Full-text search over title, tags and summary, most relevant first. Calls the
   /// same `search_articles` database function as the backend's
   /// `/articles/search`, so quoted phrases and `-exclusions` work. Not
   /// available offline.

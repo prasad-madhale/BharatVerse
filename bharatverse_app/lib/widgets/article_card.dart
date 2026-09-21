@@ -14,7 +14,8 @@ enum ArticleCardSize { featured, compact }
 /// hero (text left, image placeholder right) with a "Today's Article"
 /// badge and a "Read More" link; `compact` is a thumbnail-left list row.
 /// Mirrors the design system's ArticleCard component. In the compact card,
-/// [highlight] terms are set in bold saffron (search results).
+/// [highlight] terms are set in bold saffron (search results), and the tags
+/// they appear in are listed, since a search can match through a tag alone.
 ///
 /// Image placeholders are a flat parchment block, not the mockup's literal
 /// diagonal-hatch texture -- see roadmap/plan notes on why that texture
@@ -96,7 +97,14 @@ class ArticleCard extends StatelessWidget {
     );
   }
 
+  /// The article's tags that contain a search term.
+  List<String> get _matchedTags => article.tags
+      .where((tag) => highlight.any((term) =>
+          term.isNotEmpty && tag.toLowerCase().contains(term.toLowerCase())))
+      .toList();
+
   Widget _buildCompact() {
+    final matchedTags = _matchedTags;
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -130,6 +138,15 @@ class ArticleCard extends StatelessWidget {
                     maxLines: 2,
                     style: AppTypography.caption,
                   ),
+                  if (matchedTags.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    HighlightedText(
+                      'Tagged: ${matchedTags.join(', ')}',
+                      terms: highlight,
+                      maxLines: 1,
+                      style: AppTypography.caption,
+                    ),
+                  ],
                 ],
               ),
             ),
