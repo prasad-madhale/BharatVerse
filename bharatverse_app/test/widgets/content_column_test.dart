@@ -120,6 +120,22 @@ void main() {
       expect(find.text('ARTICLE'), findsNothing);
     });
 
+    testWidgets('keeps its rules but has no back button when told so',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(appBar: AppBackBar(showBack: false, title: 'HOME')),
+      ));
+
+      expect(find.byTooltip('Back'), findsNothing);
+      expect(find.text('HOME'), findsOneWidget);
+      expect(tester.getCenter(find.text('HOME')).dx, closeTo(400, 1));
+      final bar = tester.widget<Container>(find
+          .descendant(
+              of: find.byType(AppBackBar), matching: find.byType(Container))
+          .first);
+      expect((bar.decoration as BoxDecoration).border, isNotNull);
+    });
+
     testWidgets('keeps the back button in the reading column on a wide screen',
         (tester) async {
       useWideScreen(tester);

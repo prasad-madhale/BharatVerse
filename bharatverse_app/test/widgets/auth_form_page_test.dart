@@ -3,7 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bharatverse_app/theme/app_colors.dart';
 import 'package:bharatverse_app/theme/app_spacing.dart';
+import 'package:bharatverse_app/widgets/app_back_bar.dart';
 import 'package:bharatverse_app/widgets/auth_form_page.dart';
+
+import '../support/layout_fixtures.dart';
 
 Widget _page({
   bool submitting = false,
@@ -96,12 +99,34 @@ void main() {
           greaterThan(tester.getTopLeft(find.text('Other way')).dy));
     });
 
+    testWidgets('centres its content when there is room', (tester) async {
+      await tester.pumpWidget(_page(footer: const [Text('Skip')]));
+
+      final top = tester.getTopLeft(find.text('RESET PASSWORD')).dy;
+      final bottom = tester.getBottomLeft(find.text('Skip')).dy;
+      final bar = tester.getBottomLeft(find.byType(AppBackBar)).dy;
+      final room = tester.getBottomLeft(find.byType(Scaffold)).dy;
+      expect((top + bottom) / 2, closeTo((bar + room) / 2, 2));
+    });
+
+    testWidgets('scrolls to its last action on a short screen', (tester) async {
+      useScreenSize(tester, const Size(430, 260));
+      await tester
+          .pumpWidget(_page(footer: const [Text('Other way'), Text('Skip')]));
+
+      await tester.scrollUntilVisible(find.text('Skip'), 100);
+
+      expect(
+          tester.getBottomLeft(find.text('Skip')).dy, lessThanOrEqualTo(260));
+    });
+
     testWidgets('has a back button unless it is the only page', (tester) async {
       await tester.pumpWidget(_page());
       expect(find.byIcon(Icons.arrow_back), findsOneWidget);
 
       await tester.pumpWidget(_page(showBack: false));
       expect(find.byIcon(Icons.arrow_back), findsNothing);
+      expect(find.byType(AppBackBar), findsOneWidget); // the bar's rules stay
     });
   });
 

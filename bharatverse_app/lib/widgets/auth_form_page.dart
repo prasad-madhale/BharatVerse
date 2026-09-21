@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
@@ -46,9 +48,8 @@ class AuthFormPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: showBack ? const AppBackBar() : null,
-      body: Padding(
-        padding: const EdgeInsets.all(AppSpacing.space8),
+      appBar: AppBackBar(showBack: showBack),
+      body: _CenterOrScroll(
         child: ContentColumn(
           maxWidth: AppSpacing.formWidth,
           child: Form(
@@ -91,6 +92,29 @@ class AuthFormPage extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Centers [child] when the screen is tall enough for it and scrolls it when
+/// not: a phone turned sideways, or with the keyboard up.
+class _CenterOrScroll extends StatelessWidget {
+  final Widget child;
+
+  const _CenterOrScroll({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) => SingleChildScrollView(
+        padding: const EdgeInsets.all(AppSpacing.space8),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: math.max(0, box.maxHeight - 2 * AppSpacing.space8),
+          ),
+          child: child,
         ),
       ),
     );

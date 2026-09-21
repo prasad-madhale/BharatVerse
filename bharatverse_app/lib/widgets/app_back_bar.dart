@@ -12,7 +12,16 @@ class AppBackBar extends StatelessWidget implements PreferredSizeWidget {
   final String? title;
   final Widget? trailing;
 
-  const AppBackBar({super.key, this.title, this.trailing});
+  /// False for a page with nothing beneath it, so there is nowhere to go back
+  /// to. The bar keeps its rules.
+  final bool showBack;
+
+  const AppBackBar({
+    super.key,
+    this.title,
+    this.trailing,
+    this.showBack = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -29,11 +38,14 @@ class AppBackBar extends StatelessWidget implements PreferredSizeWidget {
         child: ContentColumn(
           child: Row(
             children: [
-              AppIconButton(
-                icon: Icons.arrow_back,
-                label: 'Back',
-                onPressed: () => Navigator.of(context).pop(),
-              ),
+              if (showBack)
+                AppIconButton(
+                  icon: Icons.arrow_back,
+                  label: 'Back',
+                  onPressed: () => Navigator.of(context).pop(),
+                )
+              else
+                const SizedBox(width: 48),
               Expanded(
                 child: title == null
                     ? const SizedBox.shrink()
