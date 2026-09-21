@@ -24,9 +24,6 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     api_prefix: str = "/api/v1"
 
-    # Note: LLM provider/model/API key configuration lives in common.config.LLMSettings,
-    # not here -- it's shared with the scrapper content pipeline (see common/config.py).
-
     # Supabase (Supabase Auth handles authentication and OAuth directly;
     # Google/Facebook OAuth providers are configured in the Supabase dashboard,
     # not via backend env vars)
