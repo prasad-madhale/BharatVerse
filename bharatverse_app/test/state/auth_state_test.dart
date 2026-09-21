@@ -198,4 +198,42 @@ void main() {
       expect(describeAuthError(StateError('boom')), generic);
     });
   });
+
+  group('AuthState.sendPasswordReset', () {
+    void stubReset(Future<void> Function() answer) =>
+        when(() => mockAuthClient.resetPasswordForEmail(any(),
+            redirectTo: any(named: 'redirectTo'))).thenAnswer((_) => answer());
+
+    test('asks Supabase to email a link that returns to the app', () async {
+      stubReset(() async {});
+      final authState = AuthState(
+          authClient: mockAuthClient, resetRedirectTo: 'https://app.example/');
+
+      await authState.sendPasswordReset('test@example.com');
+
+      verify(() => mockAuthClient.resetPasswordForEmail('test@example.com',
+          redirectTo: 'https://app.example/')).called(1);
+    });
+
+    test('names no page to return to when it is not running on the web',
+        () async {
+      stubReset(() async {});
+      final authState = AuthState(authClient: mockAuthClient);
+
+      await authState.sendPasswordReset('test@example.com');
+
+      verify(() => mockAuthClient.resetPasswordForEmail('test@example.com',
+          redirectTo: null)).called(1);
+    });
+
+    test('propagates AuthException on failure', () async {
+      stubReset(() => Future.error(const AuthException('Too many requests')));
+      final authState = AuthState(authClient: mockAuthClient);
+
+      expect(
+        authState.sendPasswordReset('test@example.com'),
+        throwsA(isA<AuthException>()),
+      );
+    });
+  });
 }

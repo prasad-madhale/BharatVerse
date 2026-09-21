@@ -24,8 +24,14 @@ String describeAuthError(Object error) => switch (error) {
 class AuthState extends ChangeNotifier {
   final GoTrueClient _authClient;
 
-  AuthState({GoTrueClient? authClient})
-      : _authClient = authClient ?? Supabase.instance.client.auth {
+  /// Where the emailed link brings the reader back to: this page on the web.
+  /// A phone would need the app registered for a link scheme first.
+  final String? _resetRedirectTo;
+
+  AuthState({GoTrueClient? authClient, String? resetRedirectTo})
+      : _authClient = authClient ?? Supabase.instance.client.auth,
+        _resetRedirectTo = resetRedirectTo ??
+            (kIsWeb ? '${Uri.base.origin}${Uri.base.path}' : null) {
     _authClient.onAuthStateChange.listen((_) => notifyListeners());
   }
 
@@ -46,4 +52,9 @@ class AuthState extends ChangeNotifier {
   Future<void> logout() async {
     await _authClient.signOut();
   }
+
+  /// Has Supabase email [email] a link for choosing a new password. It
+  /// succeeds the same way whether or not an account exists.
+  Future<void> sendPasswordReset(String email) =>
+      _authClient.resetPasswordForEmail(email, redirectTo: _resetRedirectTo);
 }

@@ -5,6 +5,7 @@ import '../state/auth_state.dart';
 import '../widgets/app_button.dart';
 import '../widgets/app_input.dart';
 import '../widgets/auth_form_page.dart';
+import 'forgot_password_screen.dart';
 
 /// Single screen toggling between sign-in and sign-up, email/password only
 /// (OAuth is a fast-follow -- see roadmap.md Phase 1). Pops itself on
@@ -57,6 +58,13 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  void _forgotPassword() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) =>
+          ForgotPasswordScreen(initialEmail: _emailController.text.trim()),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final mode = _isSignUpMode ? 'Sign Up' : 'Sign In';
@@ -86,6 +94,13 @@ class _AuthScreenState extends State<AuthScreen> {
       submitting: _isSubmitting,
       onSubmit: _submit,
       footer: [
+        if (!_isSignUpMode)
+          AppButton(
+            label: 'Forgot password?',
+            variant: AppButtonVariant.ghost,
+            size: AppButtonSize.sm,
+            onPressed: _isSubmitting ? null : _forgotPassword,
+          ),
         AppButton(
           label: _isSignUpMode
               ? 'Already have an account? Sign In'

@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:bharatverse_app/screens/auth_screen.dart';
+import 'package:bharatverse_app/screens/forgot_password_screen.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import '../support/layout_fixtures.dart';
 
@@ -200,5 +201,45 @@ void main() {
 
     expect(find.byType(AuthScreen), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('offers to reset a forgotten password, keeping the email typed',
+      (tester) async {
+    await tester.pumpWidget(_wrapWithProvider(mockAuthClient));
+    await tester.enterText(
+        find.byKey(const Key('email-field')), '  me@example.com ');
+
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ForgotPasswordScreen), findsOneWidget);
+    final field = tester.widget<TextFormField>(find.byType(TextFormField));
+    expect(field.controller?.text, 'me@example.com');
+  });
+
+  testWidgets('has no reset link while signing up', (tester) async {
+    await tester.pumpWidget(_wrapWithProvider(mockAuthClient));
+
+    await tester.tap(find.text("Don't have an account? Sign Up"));
+    await tester.pump();
+
+    expect(find.text('Forgot password?'), findsNothing);
+  });
+
+  testWidgets('cannot open the reset page while signing in', (tester) async {
+    when(() => mockAuthClient.signInWithPassword(
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        )).thenAnswer((_) => Completer<AuthResponse>().future);
+    await tester.pumpWidget(_wrapWithProvider(mockAuthClient));
+
+    await _submitSignIn(tester);
+    await tester.pump();
+    await tester.tap(find.text('Forgot password?'));
+    await tester.pump(const Duration(seconds: 1));
+
+    // A route pushed by that tap would still be offstage on its first frame.
+    expect(
+        find.byType(ForgotPasswordScreen, skipOffstage: false), findsNothing);
   });
 }
