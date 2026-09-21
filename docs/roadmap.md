@@ -38,10 +38,13 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   name, not an expression, which is why the vector is a stored column with a GIN index.
 - **Autocomplete**: `search_suggestions` holds every phrase a reader may type (the parts of each title split at a colon
   or dash, as they are and without a leading "the", "a" or "an", and the tags with hyphens read as spaces) with the
-  number of articles that carry it. A trigger rebuilds it after every change to `articles`. `autocomplete_suggestions`
-  returns the ones that start with what was typed, the phrases more articles carry first, then tags before titles, then
-  shorter ones, at most 20; a lookup takes about a millisecond at 2,000 articles, against the design's 50 ms. The app
-  asks 200 ms after typing pauses and shows the suggestions in place of the results.
+  number of articles that carry it. A phrase is kept only if searching for it finds the article it came from, so every
+  suggestion leads to a result, and it is at most 200 characters. A trigger rebuilds the table after every change to
+  `articles` (about 0.4 s at 2,000 articles, which suits one article a day) and a failed rebuild only warns, so it never
+  stops a write. `autocomplete_suggestions` returns the ones that start with what was typed, the phrases more articles
+  carry first, then tags before titles, then shorter ones, at most 20; a lookup takes about 3 ms through PostgREST at
+  2,000 articles (about a millisecond in the database), against the design's 50 ms. The app asks 200 ms after typing
+  pauses and shows the suggestions in place of the results, which stay mounted underneath.
 
 ## Next
 
@@ -52,12 +55,14 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 
 ## Needs a person
 
-- **Hosted Supabase project.** Apply changes to `schema.sql` by hand. As last checked it lacked the `search_vector`
-  column and the `search_articles` function, so search fails there until they are applied (drop an older
-  `search_vector` first), and it has the earlier, unused `search_suggestions` table, which must be dropped before the
-  new one, its trigger and `autocomplete_suggestions` can be created. Until then the app simply shows no suggestions. Supabase permanently deactivates free projects paused for over 90 days, which is how the first
-  project was lost: restore a paused one promptly. Add the app's URL under Authentication > URL Configuration >
-  Redirect URLs for password reset, and keep email confirmation off, or sign-up returns no session.
+- **Hosted Supabase project.** Apply schema changes by hand, as a file in `backend/database/migrations/`. As last
+  checked it lacked the `search_vector` column and the `search_articles` function, and it has the earlier, unused
+  `search_suggestions` and `article_embeddings` tables. Run `2026-09-search-and-autocomplete.sql` in the SQL editor: it
+  adds search, replaces those tables with the new suggestions and its trigger, takes the write rights off `articles` from
+  the public key, and can be run twice. Until then search fails there and the app shows no suggestions. Supabase
+  permanently deactivates free projects paused for over 90 days, which is how the first project was lost: restore a
+  paused one promptly. Add the app's URL under Authentication > URL Configuration > Redirect URLs for password reset,
+  and keep email confirmation off, or sign-up returns no session.
 - **OAuth.** Google and Facebook app registration has days of review lead time and has not been started.
 - **Hosting**, the daily cron, and app store accounts.
 
@@ -92,8 +97,9 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   up leaves the reader signed in without one.
 - Branded native launcher icons: the web icons are a placeholder monogram, and the Android and iOS ones are still
   Flutter's default.
-- `SearchFilters`, a search for a tag whose last part is a number (`world-war-2` is indexed as `-2`), highlighting of stemmed forms (searching "empires" finds "Empire" but does not mark it), and search or
-  likes while offline.
+- `SearchFilters`; highlighting of stemmed forms (searching "empires" finds "Empire" but does not mark it); search or
+  likes while offline; and a search for a tag whose last part is a number without its hyphen (`covid 19` for `covid-19`,
+  which the parser indexes as `-19`), so that tag is suggested with its hyphen.
 
 ## Decisions
 
