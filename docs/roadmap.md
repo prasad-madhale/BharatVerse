@@ -2,7 +2,7 @@
 
 Status and sequencing. [`design.md`](design.md) is the architectural reference and [`requirements.md`](requirements.md)
 the requirements; this file records what is built, where it differs from the design, and what is left. Status as of
-2026-09-20.
+2026-09-21.
 
 ## Phases
 
@@ -29,14 +29,17 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   a local run defaults to Gemini. Groq's free tier was tried and rejected for weak adherence to the word-count target.
 - **API** (`backend/`): articles (`daily`, by id, paged list), full-text search, sign-up, login and logout, likes,
   rate limiting and JSON request logs.
-- **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms, likes,
+- **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms (matched by
+  stem with `porter_2_stemmer`, the same algorithm Postgres's search uses, so "empires" marks "Empire" too), likes
+  (queued in `PendingLikes` and sent once the server can be reached, so a tap while offline is not lost),
   sign-in and password reset, offline reading of the 50 most recently opened articles. It reads Supabase directly, so it
   works on a real phone without a local server. The design system is "Vintage Broadsheet" (parchment, saffron and India
   green; Newsreader and Work Sans) in `lib/theme/` and `lib/widgets/`. The Android, iOS and web launcher icons are the
   same saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README).
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags and summary (not
   article bodies, which live in Storage), so a tag-only match is found too. PostgREST's `text_search` takes a column
-  name, not an expression, which is why the vector is a stored column with a GIN index.
+  name, not an expression, which is why the vector is a stored column with a GIN index. A tag like `covid-19` is
+  indexed as typed and with the hyphen read as a space, so both `covid-19` and `covid 19` find it.
 - **Autocomplete**: `search_suggestions` holds every phrase a reader may type (the parts of each title split at a colon
   or dash, as they are and without a leading "the", "a" or "an", and the tags with hyphens read as spaces) with the
   number of articles that carry it. A phrase is kept only if searching for it finds the article it came from, so every
@@ -97,9 +100,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 - Native deep links for password reset: a phone app has to register a link scheme first. On the web, the link must be
   opened in the browser that asked for it (PKCE keeps the verifier there), and reloading while the new-password form is
   up leaves the reader signed in without one.
-- `SearchFilters`; highlighting of stemmed forms (searching "empires" finds "Empire" but does not mark it); search or
-  likes while offline; and a search for a tag whose last part is a number without its hyphen (`covid 19` for `covid-19`,
-  which the parser indexes as `-19`), so that tag is suggested with its hyphen.
+- `SearchFilters`; search while offline (nothing to search but the 50 cached articles' titles, tags and summaries --
+  an offline `search_articles` would need its own copy of that logic).
 
 ## Decisions
 

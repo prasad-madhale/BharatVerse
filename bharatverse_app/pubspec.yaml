@@ -18,6 +18,7 @@ dependencies:
   supabase_flutter: ^2.8.0
   google_fonts: ^6.2.1
   shared_preferences: ^2.5.0
+  porter_2_stemmer: ^3.0.2
 
 dev_dependencies:
   flutter_test:

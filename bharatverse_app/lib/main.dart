@@ -9,6 +9,7 @@ import 'screens/home_screen.dart';
 import 'services/api_client.dart';
 import 'services/article_cache.dart';
 import 'services/likes_client.dart';
+import 'services/pending_likes.dart';
 import 'state/auth_state.dart';
 import 'state/like_state.dart';
 import 'theme/app_theme.dart';
@@ -18,13 +19,22 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
   final cache = await ArticleCache.open();
-  runApp(BharatVerseApp(apiClient: ApiClient(cache: cache)));
+  final pendingLikes = await PendingLikes.open();
+  runApp(BharatVerseApp(
+    apiClient: ApiClient(cache: cache),
+    pendingLikes: pendingLikes,
+  ));
 }
 
 class BharatVerseApp extends StatelessWidget {
   final ApiClient apiClient;
+  final PendingLikes pendingLikes;
 
-  const BharatVerseApp({super.key, required this.apiClient});
+  const BharatVerseApp({
+    super.key,
+    required this.apiClient,
+    required this.pendingLikes,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +49,7 @@ class BharatVerseApp extends StatelessWidget {
           create: (context) => LikeState(
             likesClient: context.read<LikesClient>(),
             authState: context.read<AuthState>(),
+            pendingLikes: pendingLikes,
           ),
         ),
       ],

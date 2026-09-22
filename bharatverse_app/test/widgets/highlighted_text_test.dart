@@ -23,7 +23,9 @@ void main() {
     testWidgets('marks any of several terms', (tester) async {
       await pump(tester, 'Ashoka and the Cholas', ['chola', 'ashoka']);
 
-      expect(marked(tester), ['Ashoka', 'Chola']);
+      // The whole word "Cholas", not just the "Chola" a literal match finds -- see the stemming
+      // group below.
+      expect(marked(tester), ['Ashoka', 'Cholas']);
     });
 
     testWidgets('leaves the text plain when there is nothing to mark',
@@ -42,6 +44,20 @@ void main() {
       await pump(tester, 'Learning c++ (fast)', ['c++', '(fast)']);
 
       expect(marked(tester), ['c++', '(fast)']);
+    });
+
+    testWidgets('marks a word Postgres\'s search would stem the same way',
+        (tester) async {
+      await pump(tester, 'The Mauryan Empire and other empires', ['empires']);
+
+      expect(marked(tester), ['Empire', 'empires']);
+    });
+
+    testWidgets('does not stem a term that is not a plain word',
+        (tester) async {
+      await pump(tester, 'c++ classes', ['c++']);
+
+      expect(marked(tester), ['c++']);
     });
   });
 

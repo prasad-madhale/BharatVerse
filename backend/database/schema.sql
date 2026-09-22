@@ -66,8 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_likes_article ON likes(article_id);
 -- carry it -- each part of a title (split at a colon or a dash, so "The Mauryan Empire: India's First Great Dynasty" gives
 -- two), as it is and without a leading "the", "a" or "an", and the tags with hyphens read as spaces ("medieval-india" is
 -- "Medieval India"). A reader picks one to search for, so a phrase is kept only if searching for it finds the article it
--- came from (which drops one a search would read as "not", or a number a search tokenizes differently), and it is at most
--- 200 characters. rebuild_search_suggestions() fills the table from `articles` and a trigger runs that after every change to
+-- came from (which drops one a search would read as "not"), and it is at most 200 characters. rebuild_search_suggestions() fills the table from `articles` and a trigger runs that after every change to
 -- `articles`, so the pipeline needs no extra step and nothing goes stale. It is derived data, so an earlier version of the
 -- table (this one replaces an unused one) is simply dropped.
 DROP TABLE IF EXISTS search_suggestions;
@@ -127,7 +126,9 @@ CREATE POLICY "Search suggestions are viewable by everyone"
 
 -- Full-text search over title, tags and summary, weighted so a title term counts most (A), then a tag (B),
 -- then a summary term (C). Tags are lowercase hyphenated slugs, which the parser splits, so a search for
--- "medieval" or "empire" finds "medieval-india" and "gupta-empire". A generated, stored column (rather
+-- "medieval" or "empire" finds "medieval-india" and "gupta-empire". A hyphen right before a digit tokenizes
+-- with it instead ("covid-19" indexes as "covid" and "-19", not "19"), so the tag text is indexed a second
+-- time with such hyphens turned to spaces, letting "covid 19" find it too. A generated, stored column (rather
 -- than an index on a bare to_tsvector(...) expression) is required here
 -- because PostgREST's text_search() filter -- what supabase-py's
 -- .text_search() ultimately sends -- takes a column name, not an
@@ -137,7 +138,11 @@ CREATE POLICY "Search suggestions are viewable by everyone"
 ALTER TABLE articles ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
         setweight(to_tsvector('english', title), 'A') ||
-        setweight(to_tsvector('english', tags), 'B') ||
+        setweight(
+            to_tsvector('english', tags) ||
+            to_tsvector('english', regexp_replace(tags::text, '-(?=[0-9])', ' ', 'g')),
+            'B'
+        ) ||
         setweight(to_tsvector('english', summary), 'C')
     ) STORED;
 
@@ -175,14 +180,9 @@ BEGIN
              LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(a.tags) = 'array' THEN a.tags ELSE '[]'::jsonb END) AS tag
         WHERE jsonb_typeof(tag) = 'string'
     ), raw AS (
-        -- "medieval-india" reads as "Medieval India"; where a search cannot find it that way because of a number (it tokenizes
-        -- one after a hyphen together with the hyphen, so "covid-19" is not "Covid 19") the tag is offered with its hyphens
-        SELECT t.id,
-               CASE WHEN a.search_vector @@ websearch_to_tsquery('english', initcap(replace(t.slug, '-', ' ')))
-                    THEN initcap(replace(t.slug, '-', ' '))
-                    WHEN t.slug ~ '[0-9]' THEN initcap(t.slug) END AS phrase,
-               'tag' AS category
-        FROM tags t JOIN articles a ON a.id = t.id
+        -- "medieval-india" reads as "Medieval India"; search_vector indexes a hyphen-before-digit tag both
+        -- ways (see schema.sql above it), so this reads right for "covid-19" too
+        SELECT t.id, initcap(replace(t.slug, '-', ' ')) AS phrase, 'tag' AS category FROM tags t
         UNION ALL SELECT id, part, 'title' FROM parts
         UNION ALL SELECT id, regexp_replace(part, '^(the|a|an)\s+', '', 'i'), 'title' FROM parts
     ), phrases AS (

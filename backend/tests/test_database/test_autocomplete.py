@@ -119,7 +119,7 @@ async def test_a_suggestion_is_always_something_a_search_finds_and_a_bad_value_c
     suggest = SearchService().autocomplete
     try:
         client.table("articles").insert([
-            # A number after a hyphen is indexed with the hyphen, so this tag is offered as it is; a longer slug is not
+            # A hyphen before a digit is indexed as a space too, so a number-suffixed tag reads as a plain phrase
             article(IDS[8], "Zzqnum Article", ["zzqcovid-19", "zzqworld-war-2"]),
             # A word after a space and a hyphen is read by a search as "not", so nothing is offered for the title
             article(IDS[9], "Zzqnot -Excluded Word", []),
@@ -127,7 +127,7 @@ async def test_a_suggestion_is_always_something_a_search_finds_and_a_bad_value_c
             article(IDS[10], "Zzqlong " + "x" * 3000, ["zzqlong-" + "y" * 3000]),
         ]).execute()
 
-        assert await suggest("zzqcovid") == ["Zzqcovid-19"]
+        assert await suggest("zzqcovid") == ["Zzqcovid 19"]
         assert await suggest("zzqworld") == ["Zzqworld War 2"]
         assert await suggest("zzqnot") == []
         assert await suggest("zzqlong") == []

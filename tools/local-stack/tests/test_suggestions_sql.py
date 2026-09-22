@@ -54,11 +54,7 @@ def suggestions(articles, matches):
         found = []
         if isinstance(tags, list):
             for tag in (tag for tag in tags if isinstance(tag, str)):
-                spaced = initcap(tag.replace("-", " "))
-                if matches(article_id, spaced):
-                    found.append((spaced, "tag"))
-                elif re.search(r"[0-9]", tag):  # a number after a hyphen is the one reason a spaced tag is not found
-                    found.append((initcap(tag), "tag"))
+                found.append((initcap(tag.replace("-", " ")), "tag"))
         parts = re.split(r"\s*[:\u2013\u2014]+\s*|\s+-\s+", title)
         found += [(part, "title") for part in parts]
         found += [(re.sub(r"^(the|a|an)\s+", "", part, flags=re.I), "title") for part in parts]
