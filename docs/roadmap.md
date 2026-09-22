@@ -2,7 +2,7 @@
 
 Status and sequencing. [`design.md`](design.md) is the architectural reference and [`requirements.md`](requirements.md)
 the requirements; this file records what is built, where it differs from the design, and what is left. Status as of
-2026-09-21.
+2026-09-22.
 
 ## Phases
 
@@ -12,7 +12,7 @@ the requirements; this file records what is built, where it differs from the des
 | 1 | Auth: Supabase email and password, password reset | Done, verified live; OAuth not started |
 | 2 | Search: full-text, then autocomplete, then semantic | Full-text and autocomplete done; semantic undecided |
 | 3 | Likes and offline reading | Done |
-| 4 | Validator, scheduler and daily automation | Done, verified live; the cron is off on purpose |
+| 4 | Validator, editorial critic, scheduler and daily automation | Done, verified live; the cron is off on purpose |
 | 5 | Remaining mobile screens and polish | Done except a profile screen |
 | 6 | Deployment | Backend Dockerfile done; hosting, scheduler and app store prep not started |
 
@@ -22,11 +22,18 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 ## What is built
 
 - **Pipeline** (`scrapper/`): an LLM proposes topics that are not yet published; Wikipedia, archive.org and New World
-  Encyclopedia are scraped; an LLM writes the article; automated checks (length, sections, citations) accept it; the
-  service-role client publishes it. A generation failure retries with backoff, and one bad topic never stops the batch.
-  The daily GitHub Actions workflow runs on demand only: its schedule stays commented out until the output is trusted
-  over more unattended runs, so do not enable it without deciding that first. The daily workflow uses Claude Sonnet 5;
-  a local run defaults to Gemini. Groq's free tier was tried and rejected for weak adherence to the word-count target.
+  Encyclopedia are scraped; an LLM writes the article; `ContentValidator`'s structural checks (length, sections,
+  citations) gate it, then `ArticleCritic` reviews it as an editor would -- grounding in the source material (the
+  check specific to an AI-from-scraped-sources pipeline), citation relevance, neutrality, contested claims stated as
+  settled fact, and structure -- and `ArticleGenerator.revise_article` addresses its feedback, up to
+  `CRITIC_MAX_ROUNDS` (2) review/revise cycles before falling back to a fresh generation. Closes requirements 2.5 and
+  10.3, which `ContentValidator` alone could not (it "cannot verify factual accuracy", by its own docstring). Set
+  `CRITIC_ENABLED=false` to skip it for a cheap local run; it otherwise uses the same `LLM_PROVIDER` as generation.
+  The service-role client publishes the result. A generation failure retries with backoff, and one bad topic never
+  stops the batch. The daily GitHub Actions workflow runs on demand only: its schedule stays commented out until the
+  output is trusted over more unattended runs, so do not enable it without deciding that first. The daily workflow
+  uses Claude Sonnet 5; a local run defaults to Gemini. Groq's free tier was tried and rejected for weak adherence to
+  the word-count target.
 - **API** (`backend/`): articles (`daily`, by id, paged list), full-text search, sign-up, login and logout, likes,
   rate limiting and JSON request logs.
 - **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms (matched by

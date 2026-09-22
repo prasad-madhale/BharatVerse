@@ -1,7 +1,7 @@
 # Content pipeline
 
 Writes and publishes the daily article: an LLM proposes a topic, the pipeline scrapes sources on it, an LLM writes the
-article from that material, automated checks accept or reject it, and it goes to Supabase.
+article from that material, automated checks and an LLM editor accept or reject it, and it goes to Supabase.
 
 ## Setup
 
@@ -20,6 +20,7 @@ Put these in the `.env` at the repo root (template: [`.env.example`](../.env.exa
 | `LLM_PROVIDER` | `gemini` (default; has a free tier), `anthropic`, `openai` or `groq` |
 | `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | the key for the chosen provider |
 | `LLM_MODEL` | optional; defaults per provider are listed in `.env.example` |
+| `CRITIC_ENABLED` | default `true`; `false` skips the editorial critic pass, for a cheap local run |
 | `LOG_LEVEL` | default `INFO` |
 
 ## Run
@@ -28,7 +29,8 @@ Put these in the `.env` at the repo root (template: [`.env.example`](../.env.exa
 python scrapper/scrapper_main.py --count 1     # from the repo root
 ```
 
-Each run calls the LLM at least twice per article (topic, then writing), so on a paid provider it costs money. It exits
+Each run calls the LLM at least three times per article (topic, writing, one editorial review), more if the critic
+asks for a revision, so on a paid provider it costs money -- set `CRITIC_ENABLED=false` to hold it to two. It exits
 0 only if every requested article was published, so a scheduled run that published nothing shows as failed. Logs are
 JSON lines on stdout.
 
@@ -45,13 +47,20 @@ JSON lines on stdout.
    is logged and skipped; a topic with no content at all is skipped.
 3. **Write** (`article_generator.py`): the LLM produces the title, summary, sections and tags from up to 15,000
    characters of source text. Citations and reading time come from the sources, not the LLM.
-4. **Check** (`content_validator.py`): a title and summary, 1,300 to 2,200 words, at least 3 sections and 1 citation. It
-   cannot check facts, and there is no human review yet. Up to 3 attempts per topic: a failed generation waits 5 s, then
-   10 s; a failed check retries at once. Every attempt logs its word, section and citation counts.
-5. **Publish** (`backend/services/article_service.py`): the content JSON goes to the `articles` Storage bucket and the
+4. **Check** (`content_validator.py`): a title and summary, 1,300 to 2,200 words, at least 3 sections and 1 citation --
+   cheap and structural; it cannot check facts.
+5. **Review** (`article_critic.py`, skipped if `CRITIC_ENABLED=false`): an LLM edits the way a history-encyclopedia
+   editor would -- is every claim grounded in the scraped source text (not just differently worded, actually
+   invented), do the citations support what's near them, is the framing neutral, is a debated claim hedged, does it
+   have a real structure. `article_generator.py`'s `revise_article` addresses what it finds and it reviews again, up
+   to `CRITIC_MAX_ROUNDS` (2) times in `scheduler.py`; a revision that fails the structural check ends the round
+   early. There is still no human review.
+6. **Publish** (`backend/services/article_service.py`): the content JSON goes to the `articles` Storage bucket and the
    metadata to the `articles` table, keyed by id, so publishing again overwrites.
 
-One topic failing never stops the rest of the batch.
+Up to 3 attempts per topic: a failed generation waits 5 s, then 10 s; a failed structural check or a critic that never
+approves retries with a fresh generation at once. Every attempt logs its word, section and citation counts, and (once
+past the structural check) the critic's round count and verdict. One topic failing never stops the rest of the batch.
 
 ## Adding a source
 

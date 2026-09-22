@@ -16,6 +16,7 @@ import pytest
 
 from common.models import Article, Citation, Section
 from scrapper import scheduler
+from scrapper.article_critic import CriticIssue, CriticReview
 from scrapper.article_generator import ArticleGenerationError
 
 
@@ -43,14 +44,27 @@ def _real_article(words=1800, sections=3, citations=2):
     )
 
 
+def _approved(summary="ok"):
+    return CriticReview(approved=True, summary=summary, issues=[])
+
+
+def _rejected(summary="needs work"):
+    return CriticReview(approved=False, summary=summary, issues=[
+        CriticIssue(category="grounding", severity="major", location="Origins",
+                    detail="unsupported claim", suggestion="remove it"),
+    ])
+
+
 @pytest.fixture
 def pipeline():
-    """The pipeline with every collaborator mocked: one topic, scraped content, and articles that validate."""
+    """The pipeline with every collaborator mocked: one topic, scraped content, and articles that
+    validate and are approved by the critic on the first round."""
     with patch("scrapper.scheduler.ArticleService") as service_cls, \
             patch("scrapper.scheduler.TopicGenerator") as topics_cls, \
             patch("scrapper.scheduler.WebScraper") as scraper_cls, \
             patch("scrapper.scheduler.ArticleGenerator") as generator_cls, \
             patch("scrapper.scheduler.ContentValidator") as validator_cls, \
+            patch("scrapper.scheduler.ArticleCritic") as critic_cls, \
             patch("scrapper.scheduler.sleep", new_callable=AsyncMock) as sleep:
         service = service_cls.return_value
         service.list_recent_titles = AsyncMock(return_value=[])
@@ -61,10 +75,13 @@ def pipeline():
         scraper.search_and_scrape = AsyncMock(return_value=["scraped content"])
         generator = generator_cls.return_value
         generator.generate_article = AsyncMock(return_value=_make_article())
+        generator.revise_article = AsyncMock(return_value=_make_article("art_revised"))
         validator = validator_cls.return_value
         validator.validate.return_value = (True, [])
+        critic = critic_cls.return_value
+        critic.review = AsyncMock(return_value=_approved())
         yield SimpleNamespace(service=service, topics=topics, scraper=scraper, generator=generator,
-                              validator=validator, sleep=sleep)
+                              validator=validator, critic=critic, sleep=sleep)
 
 
 class TestRunDailyPipeline:
@@ -275,3 +292,71 @@ class TestQualityMetrics:
             await scheduler.run_daily_pipeline(count=1)
 
         assert not [r for r in caplog.records if hasattr(r, "word_count")]
+
+
+class TestCriticLoop:
+    async def test_approves_on_the_first_round_and_publishes(self, pipeline):
+        published = await scheduler.run_daily_pipeline(count=1)
+
+        pipeline.critic.review.assert_awaited_once()
+        pipeline.generator.revise_article.assert_not_awaited()
+        assert published == 1
+
+    async def test_rejects_then_approves_after_one_revision(self, pipeline):
+        pipeline.critic.review.side_effect = [_rejected(), _approved()]
+        revised = _make_article("art_revised")
+        pipeline.generator.revise_article.return_value = revised
+
+        published = await scheduler.run_daily_pipeline(count=1)
+
+        pipeline.generator.revise_article.assert_awaited_once()
+        pipeline.service.save_article.assert_awaited_once_with(revised)
+        assert published == 1
+
+    async def test_never_publishes_an_article_the_critic_never_approves(self, pipeline):
+        pipeline.critic.review.return_value = _rejected()
+
+        published = await scheduler.run_daily_pipeline(count=1)
+
+        # Bounded on both axes: CRITIC_MAX_ROUNDS reviews per attempt, MAX_GENERATION_ATTEMPTS attempts.
+        assert pipeline.generator.generate_article.await_count == scheduler.MAX_GENERATION_ATTEMPTS
+        assert pipeline.critic.review.await_count == scheduler.MAX_GENERATION_ATTEMPTS * scheduler.CRITIC_MAX_ROUNDS
+        assert pipeline.generator.revise_article.await_count == (
+            scheduler.MAX_GENERATION_ATTEMPTS * (scheduler.CRITIC_MAX_ROUNDS - 1)
+        )
+        pipeline.service.save_article.assert_not_awaited()
+        assert published == 0
+
+    async def test_a_revision_that_breaks_structural_validity_ends_the_round_early(self, pipeline):
+        pipeline.critic.review.return_value = _rejected()
+        # First validate() call (the original draft) passes; the one after the revision fails.
+        pipeline.validator.validate.side_effect = [(True, []), (False, ["word count too low"])] * 3
+
+        published = await scheduler.run_daily_pipeline(count=1)
+
+        # One review per attempt, not CRITIC_MAX_ROUNDS -- the broken revision short-circuits the round.
+        assert pipeline.critic.review.await_count == scheduler.MAX_GENERATION_ATTEMPTS
+        assert pipeline.generator.revise_article.await_count == scheduler.MAX_GENERATION_ATTEMPTS
+        assert published == 0
+
+    async def test_critic_disabled_skips_review_and_publishes_immediately(self, pipeline):
+        with patch("scrapper.scheduler.get_llm_settings") as get_settings:
+            get_settings.return_value.critic_enabled = False
+            published = await scheduler.run_daily_pipeline(count=1)
+
+        pipeline.critic.review.assert_not_awaited()
+        pipeline.generator.revise_article.assert_not_awaited()
+        pipeline.service.save_article.assert_awaited_once()
+        assert published == 1
+
+    async def test_critic_rounds_and_approval_are_logged(self, pipeline, caplog):
+        pipeline.generator.generate_article.return_value = _real_article()
+        pipeline.critic.review.side_effect = [_rejected(), _approved()]
+        pipeline.generator.revise_article.return_value = _real_article()
+
+        with caplog.at_level(logging.INFO, logger="scrapper.scheduler"):
+            await scheduler.run_daily_pipeline(count=1)
+
+        [entry] = [r for r in caplog.records if hasattr(r, "critic_rounds")]
+        assert (entry.critic_rounds, entry.critic_approved) == (2, True)
+        assert entry.critic_issue_categories == []
