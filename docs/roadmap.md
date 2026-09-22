@@ -14,7 +14,7 @@ the requirements; this file records what is built, where it differs from the des
 | 3 | Likes and offline reading | Done |
 | 4 | Validator, scheduler and daily automation | Done, verified live; the cron is off on purpose |
 | 5 | Remaining mobile screens and polish | Done except a profile screen |
-| 6 | Deployment | Not started |
+| 6 | Deployment | Backend Dockerfile done; hosting, scheduler and app store prep not started |
 
 "Verified live" means run against the real project and a real browser; the later features were verified against a local
 Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
@@ -32,7 +32,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 - **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms, likes,
   sign-in and password reset, offline reading of the 50 most recently opened articles. It reads Supabase directly, so it
   works on a real phone without a local server. The design system is "Vintage Broadsheet" (parchment, saffron and India
-  green; Newsreader and Work Sans) in `lib/theme/` and `lib/widgets/`.
+  green; Newsreader and Work Sans) in `lib/theme/` and `lib/widgets/`. The Android, iOS and web launcher icons are the
+  same saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README).
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags and summary (not
   article bodies, which live in Storage), so a tag-only match is found too. PostgREST's `text_search` takes a column
   name, not an expression, which is why the vector is a stored column with a GIN index.
@@ -50,7 +51,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 
 1. **Semantic search**: the placeholder `article_embeddings` table was removed. It needs pgvector and an embeddings
    provider, and is worth deferring past the rest of the MVP.
-2. **Deployment** (Phase 6): a backend Dockerfile, a hosting choice, the scheduler on that host, and app store
+2. **Deployment** (Phase 6): `backend/Dockerfile` is done (built from the repo root, since it copies `common/` too;
+   not tried on a real Docker daemon here). Left: a hosting choice, the scheduler on that host, and app store
    preparation (icons, signing, review lead time, especially on iOS).
 
 ## Needs a person
@@ -95,8 +97,6 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 - Native deep links for password reset: a phone app has to register a link scheme first. On the web, the link must be
   opened in the browser that asked for it (PKCE keeps the verifier there), and reloading while the new-password form is
   up leaves the reader signed in without one.
-- Branded native launcher icons: the web icons are a placeholder monogram, and the Android and iOS ones are still
-  Flutter's default.
 - `SearchFilters`; highlighting of stemmed forms (searching "empires" finds "Empire" but does not mark it); search or
   likes while offline; and a search for a tag whose last part is a number without its hyphen (`covid 19` for `covid-19`,
   which the parser indexes as `-19`), so that tag is suggested with its hyphen.

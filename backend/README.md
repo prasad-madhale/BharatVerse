@@ -43,7 +43,18 @@ uvicorn backend.main:app --reload    # http://localhost:8000/docs
 
 For production add `--host 0.0.0.0 --port 8000 --workers 4`. The rate limiter counts in memory, so each worker keeps its
 own count; behind a proxy add `--proxy-headers --forwarded-allow-ips <proxy address>` so it counts the caller rather
-than the proxy. There is no Dockerfile or hosting configuration yet (see the [roadmap](../docs/roadmap.md)).
+than the proxy.
+
+Or build the image, from the repo root since it copies `common/` too:
+
+```bash
+docker build -f backend/Dockerfile -t bharatverse-backend .
+docker run --rm -p 8000:8000 --env-file .env bharatverse-backend
+```
+
+It runs a single worker (`--workers` needs a real rate-limit store first, see above) and answers `/health` with no
+auth, for a container platform's liveness check. There is no hosting configuration yet (see the
+[roadmap](../docs/roadmap.md)).
 
 ## Endpoints
 

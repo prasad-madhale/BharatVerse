@@ -25,6 +25,19 @@ dev_dependencies:
 
   flutter_lints: ^5.0.0
   mocktail: ^1.0.4
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/icon/
+
+# Regenerate with `dart run flutter_launcher_icons` after changing assets/icon/*.png -- see
+# README.md. The mark and colors match the web app's icons (web/icons/, not managed by this tool).
+flutter_launcher_icons:
+  image_path: "assets/icon/icon.png"
+  android: "ic_launcher"
+  adaptive_icon_background: "#C1652F"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  ios: true
+  remove_alpha_ios: true

@@ -58,3 +58,18 @@ flutter analyze
 
 The `android/`, `ios/` and `web/` folders hold the platform projects. To add desktop, run
 `flutter create --platforms=linux,macos,windows .` from this folder.
+
+## App icon
+
+`assets/icon/icon.png` (full-bleed) and `icon_foreground.png` (transparent, for Android's adaptive icon; kept within
+the safe zone launchers may crop to) are the same saffron "B" mark as the web app's `web/icons/`, which this tool
+does not touch. After changing either file, regenerate Android and iOS with:
+
+```bash
+dart run flutter_launcher_icons
+```
+
+It also rewrites `ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json` to a larger, minified idiom set
+(adding pre-iOS-7 sizes this project doesn't target) and can reset an unrelated Xcode build setting
+(`ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`) to a wrong value -- check `git diff` on both after
+running it.
