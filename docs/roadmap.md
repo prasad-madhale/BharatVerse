@@ -36,7 +36,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   same saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README).
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags and summary (not
   article bodies, which live in Storage), so a tag-only match is found too. PostgREST's `text_search` takes a column
-  name, not an expression, which is why the vector is a stored column with a GIN index.
+  name, not an expression, which is why the vector is a stored column with a GIN index. A tag like `covid-19` is
+  indexed as typed and with the hyphen read as a space, so both `covid-19` and `covid 19` find it.
 - **Autocomplete**: `search_suggestions` holds every phrase a reader may type (the parts of each title split at a colon
   or dash, as they are and without a leading "the", "a" or "an", and the tags with hyphens read as spaces) with the
   number of articles that carry it. A phrase is kept only if searching for it finds the article it came from, so every
@@ -98,8 +99,7 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   opened in the browser that asked for it (PKCE keeps the verifier there), and reloading while the new-password form is
   up leaves the reader signed in without one.
 - `SearchFilters`; highlighting of stemmed forms (searching "empires" finds "Empire" but does not mark it); search or
-  likes while offline; and a search for a tag whose last part is a number without its hyphen (`covid 19` for `covid-19`,
-  which the parser indexes as `-19`), so that tag is suggested with its hyphen.
+  likes while offline.
 
 ## Decisions
 
