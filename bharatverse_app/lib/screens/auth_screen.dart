@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import '../state/auth_state.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_spacing.dart';
-import '../theme/app_typography.dart';
 import '../widgets/app_button.dart';
-import '../widgets/app_icon_button.dart';
 import '../widgets/app_input.dart';
+import '../widgets/auth_form_page.dart';
+import 'forgot_password_screen.dart';
 
 /// Single screen toggling between sign-in and sign-up, email/password only
 /// (OAuth is a fast-follow -- see roadmap.md Phase 1). Pops itself on
@@ -54,113 +51,70 @@ class _AuthScreenState extends State<AuthScreen> {
         await authState.login(_emailController.text, _passwordController.text);
       }
       if (mounted) Navigator.of(context).pop();
-    } on AuthException catch (e) {
-      setState(() => _errorMessage = e.message);
+    } catch (e) {
+      if (mounted) setState(() => _errorMessage = describeAuthError(e));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
+  void _forgotPassword() {
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) =>
+          ForgotPasswordScreen(initialEmail: _emailController.text.trim()),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(56),
-        child: Container(
-          decoration: const BoxDecoration(
-            color: AppColors.surfacePage,
-            border: Border(
-              top: BorderSide(color: AppColors.ink950, width: 2),
-              bottom: BorderSide(color: AppColors.ink200),
-            ),
-          ),
-          child: SafeArea(
-            bottom: false,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: AppIconButton(
-                icon: Icons.arrow_back,
-                label: 'Back',
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-          ),
+    final mode = _isSignUpMode ? 'Sign Up' : 'Sign In';
+    return AuthFormPage(
+      title: mode,
+      formKey: _formKey,
+      fields: [
+        AppInput(
+          fieldKey: const Key('email-field'),
+          label: 'Email',
+          controller: _emailController,
+          keyboardType: TextInputType.emailAddress,
+          placeholder: 'you@example.com',
+          validator: validateEmail,
         ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(AppSpacing.space8),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                (_isSignUpMode ? 'Sign Up' : 'Sign In').toUpperCase(),
-                style: AppTypography.display2,
-              ),
-              const SizedBox(height: AppSpacing.space5),
-              AppInput(
-                fieldKey: const Key('email-field'),
-                label: 'Email',
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                placeholder: 'you@example.com',
-                validator: (value) => (value == null || !value.contains('@'))
-                    ? 'Enter a valid email'
-                    : null,
-              ),
-              const SizedBox(height: AppSpacing.space4),
-              AppInput(
-                fieldKey: const Key('password-field'),
-                label: 'Password',
-                controller: _passwordController,
-                obscureText: true,
-                placeholder: '••••••••',
-                validator: (value) => (value == null || value.length < 6)
-                    ? 'Password must be at least 6 characters'
-                    : null,
-              ),
-              const SizedBox(height: AppSpacing.space5),
-              if (_errorMessage != null) ...[
-                Text(_errorMessage!,
-                    style: AppTypography.caption
-                        .copyWith(color: AppColors.colorError)),
-                const SizedBox(height: AppSpacing.space4),
-              ],
-              AppButton(
-                label: _isSignUpMode ? 'Sign Up' : 'Sign In',
-                wide: true,
-                onPressed: _isSubmitting ? null : _submit,
-                loadingChild: _isSubmitting
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: AppColors.textOnAccent),
-                      )
-                    : null,
-              ),
-              const SizedBox(height: AppSpacing.space2),
-              Center(
-                child: AppButton(
-                  label: _isSignUpMode
-                      ? 'Already have an account? Sign In'
-                      : "Don't have an account? Sign Up",
-                  variant: AppButtonVariant.ghost,
-                  size: AppButtonSize.sm,
-                  onPressed: _isSubmitting
-                      ? null
-                      : () => setState(() {
-                            _isSignUpMode = !_isSignUpMode;
-                            _errorMessage = null;
-                          }),
-                ),
-              ),
-            ],
-          ),
+        AppInput(
+          fieldKey: const Key('password-field'),
+          label: 'Password',
+          controller: _passwordController,
+          obscureText: true,
+          placeholder: '••••••••',
+          validator: validatePassword,
         ),
-      ),
+      ],
+      error: _errorMessage,
+      submitLabel: mode,
+      submitting: _isSubmitting,
+      onSubmit: _submit,
+      footer: [
+        if (!_isSignUpMode)
+          AppButton(
+            label: 'Forgot password?',
+            variant: AppButtonVariant.ghost,
+            size: AppButtonSize.sm,
+            onPressed: _isSubmitting ? null : _forgotPassword,
+          ),
+        AppButton(
+          label: _isSignUpMode
+              ? 'Already have an account? Sign In'
+              : "Don't have an account? Sign Up",
+          variant: AppButtonVariant.ghost,
+          size: AppButtonSize.sm,
+          onPressed: _isSubmitting
+              ? null
+              : () => setState(() {
+                    _isSignUpMode = !_isSignUpMode;
+                    _errorMessage = null;
+                  }),
+        ),
+      ],
     );
   }
 }

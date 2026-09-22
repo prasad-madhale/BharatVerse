@@ -61,4 +61,73 @@ void main() {
       expect(article.imageUrl, 'https://example.com/image.jpg');
     });
   });
+
+  test('dateAndReadingTime is the byline shown under a title', () {
+    final article = Article.fromJson({
+      'id': 'art_1',
+      'title': 'T',
+      'summary': 'S',
+      'content': 'C',
+      'sections': [],
+      'citations': [],
+      'publication_date': '2026-07-03',
+      'reading_time_minutes': 13,
+      'author': 'A',
+      'tags': [],
+      'image_url': null,
+    });
+
+    expect(article.dateAndReadingTime, '2026-07-03 · 13 min read');
+  });
+
+  test('toJson writes the shape fromJson reads, losing nothing', () {
+    final article = Article.fromJson({
+      'id': 'art_1',
+      'title': 'T',
+      'summary': 'S',
+      'content': 'C',
+      'sections': [
+        {'heading': 'H', 'content': 'B', 'order': 1},
+      ],
+      'citations': [
+        {
+          'text': 'Maurya Empire',
+          'source_url': 'https://en.wikipedia.org/wiki/Maurya_Empire',
+          'source_name': 'wikipedia',
+          'accessed_date': '2026-07-03T00:00:00.000Z',
+        },
+      ],
+      'publication_date': '2026-07-03',
+      'reading_time_minutes': 13,
+      'author': 'A',
+      'tags': ['mauryan-empire'],
+      'image_url': 'https://example.org/i.png',
+    });
+
+    final again = Article.fromJson(article.toJson());
+
+    expect(again.toJson(), article.toJson());
+    expect(again.publicationDate, article.publicationDate);
+    expect(again.citations.single.accessedDate,
+        article.citations.single.accessedDate);
+    expect(again.imageUrl, 'https://example.org/i.png');
+  });
+
+  test('toJson keeps a missing image missing', () {
+    final article = Article.fromJson({
+      'id': 'art_1',
+      'title': 'T',
+      'summary': 'S',
+      'content': 'C',
+      'sections': [],
+      'citations': [],
+      'publication_date': '2026-07-03',
+      'reading_time_minutes': 13,
+      'author': 'A',
+      'tags': [],
+      'image_url': null,
+    });
+
+    expect(Article.fromJson(article.toJson()).imageUrl, isNull);
+  });
 }

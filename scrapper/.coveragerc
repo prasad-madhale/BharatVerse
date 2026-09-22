@@ -2,4 +2,3 @@
 omit =
     tests/*
     */tests/*
-    scrapper_main.py

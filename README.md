@@ -4,14 +4,19 @@ Discover India's epic past, one story at a time! BharatVerse delivers daily, AI-
 
 ## 📍 Project Status
 
-This project is early-stage: the core "scrape → AI-generate → store → serve → display" pipeline is not yet
-connected end-to-end. See **[.kiro/specs/bharatverse-mvp/roadmap.md](.kiro/specs/bharatverse-mvp/roadmap.md)**
-for what's actually implemented today versus what's planned, and the phased build order. In short:
-- `scrapper/`: web scraping (Wikipedia + archive.org via Crawl4AI) works; LLM article generation, validation, and
-  a daily scheduler are not yet built.
-- `backend/`: configuration, Supabase client, and database schema exist; the FastAPI app itself
-  (`backend/main.py`) and all API endpoints (articles, auth, search, likes) are not yet built.
-- `bharatverse_app/`: still the default Flutter starter template; no screens have been built yet.
+This project is early-stage but works end to end: the core scrape, AI-generate, validate, store, serve, and
+display pipeline has been run live. See **[.kiro/specs/bharatverse-mvp/roadmap.md](.kiro/specs/bharatverse-mvp/roadmap.md)**
+for the authoritative, phase-by-phase status and the remaining build order. In short:
+- `scrapper/`: scraping (Wikipedia, archive.org, New World Encyclopedia via Crawl4AI), LLM article generation,
+  content validation, and the daily scheduler CLI (`python scrapper/scrapper_main.py --count N`) all work. The
+  daily GitHub Actions trigger is deliberately disabled (manual runs only) until output quality is trusted.
+- `backend/`: the FastAPI app (`backend/main.py`) serves articles, full-text search, article likes, and
+  email/password auth via Supabase Auth. Search and likes are verified against a local Postgres and PostgREST
+  running `schema.sql`, not yet against the hosted Supabase project. The mobile app reads articles, searches
+  them, and reads and writes likes directly against Supabase, not through this API.
+- `bharatverse_app/`: Home, Article Detail, Sign-in (with password reset by email), Search, Liked articles, and Archive
+  screens are built in the "Vintage Broadsheet" design system, the article screen has a like button, and articles are
+  saved for offline reading.
 
 ## 🏗️ Project Structure (Monorepo)
 
@@ -102,9 +107,10 @@ cd BharatVerse
 Create a project at [supabase.com](https://supabase.com), then run
 [`backend/database/schema.sql`](backend/database/schema.sql) in the Supabase SQL Editor to create all tables,
 indexes, and Row-Level Security policies. Create a public Storage bucket named `articles` for storing generated
-article content. If you plan to support Google/Facebook login, enable those providers under
-**Authentication > Providers** in the Supabase dashboard (no backend configuration needed — Supabase Auth
-handles the OAuth flow directly).
+article content. For password-reset emails, add the app's URL under **Authentication > URL Configuration >
+Redirect URLs**, since the emailed link returns there. If you plan to support Google/Facebook login, enable those
+providers under **Authentication > Providers** in the Supabase dashboard (no backend configuration needed — Supabase
+Auth handles the OAuth flow directly).
 
 ### 3. Set Up Environment Variables
 
@@ -156,7 +162,7 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r backend/requirements.txt
 
-# Run API server (once backend/main.py exists — see Project Status above)
+# Run API server
 uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -186,7 +192,7 @@ See [bharatverse_app/README.md](bharatverse_app/README.md) for detailed instruct
 - **[Design](/.kiro/specs/bharatverse-mvp/design.md)** - System design and architecture
 - **[Roadmap](/.kiro/specs/bharatverse-mvp/roadmap.md)** - Current implementation status and phased build order
 - **[Tasks](/.kiro/specs/bharatverse-mvp/tasks.md)** - Granular implementation task list (property-test reference)
-- **[AGENTS.md](/.kiro/AGENTS.md)** - Guide for AI agents working on this codebase
+- **[AGENTS.md](AGENTS.md)** - Guide for AI agents working on this codebase
 
 ## 🏛️ Architecture Overview
 
@@ -270,7 +276,7 @@ without mutating anything (this is what CI and the pre-push hook run).
 
 ## 🤝 Contributing
 
-1. Read the [AGENTS.md](/.kiro/AGENTS.md) guide
+1. Read the [AGENTS.md](AGENTS.md) guide
 2. Check the [roadmap](/.kiro/specs/bharatverse-mvp/roadmap.md) for current priorities
 3. Follow the development workflow above
 4. Write tests for all new features

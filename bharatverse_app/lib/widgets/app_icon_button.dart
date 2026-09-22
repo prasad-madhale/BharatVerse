@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_spacing.dart';
 
 /// Circular icon-only button -- header actions, back navigation. Mirrors
 /// the design system's IconButton component.
@@ -23,7 +24,13 @@ class AppIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      icon: Icon(icon),
+      icon: AnimatedSwitcher(
+        duration: AppSpacing.durationFast,
+        switchInCurve: Curves.easeOutBack,
+        transitionBuilder: (child, animation) =>
+            ScaleTransition(scale: animation, child: child),
+        child: Icon(icon, key: ValueKey(icon)),
+      ),
       iconSize: 20,
       tooltip: label,
       onPressed: onPressed,

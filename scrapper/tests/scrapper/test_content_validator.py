@@ -5,7 +5,7 @@ Unit tests for ContentValidator.
 from datetime import date, datetime, timezone
 
 from common.models import Article, Citation, Section
-from scrapper.content_validator import ContentValidator
+from scrapper.content_validator import ContentValidator, article_metrics
 
 
 def _make_article(**overrides):
@@ -113,3 +113,15 @@ class TestValidate:
 
         assert valid is False
         assert len(issues) >= 3
+
+
+class TestArticleMetrics:
+    def test_counts_words_citations_and_sections(self):
+        metrics = article_metrics(_make_article(content=" ".join(["word"] * 1234)))
+
+        assert metrics == {"word_count": 1234, "citation_count": 1, "section_count": 3}
+
+    def test_counts_words_the_way_the_validator_judges_them(self):
+        content = "one  two\nthree\tfour   five"
+
+        assert article_metrics(_make_article(content=content))["word_count"] == 5

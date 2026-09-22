@@ -2,11 +2,12 @@
 
 FastAPI-based REST API for the BharatVerse mobile application.
 
-> **Status**: this document describes the target design. As of now, `backend/main.py` and all of `api/`,
-> `services/`, and most of `models/` are not yet implemented — only `config.py`, the Supabase client wrapper,
-> `database/schema.sql`, and `utils/llm_provider.py` exist. See
-> [.kiro/specs/bharatverse-mvp/roadmap.md](../.kiro/specs/bharatverse-mvp/roadmap.md) for current status and build
-> order (Phase 0 covers standing up `main.py` and the first article endpoints).
+> **Status**: the endpoint list below is the target design from
+> [design.md](../.kiro/specs/bharatverse-mvp/design.md). Implemented today: the article endpoints,
+> `GET /api/v1/articles/search`, the like endpoints, and email/password auth (`/auth/signup`, `/auth/login`,
+> `/auth/logout`). Search and likes are verified against a local Postgres and PostgREST running `schema.sql`, not yet against the hosted Supabase project.
+> Endpoints marked "not built yet" do not exist. See
+> [.kiro/specs/bharatverse-mvp/roadmap.md](../.kiro/specs/bharatverse-mvp/roadmap.md) for current status and build order.
 
 ## Overview
 
@@ -78,6 +79,8 @@ GEMINI_API_KEY=your_gemini_api_key_here  # Get from: https://makersuite.google.c
 API_HOST=0.0.0.0
 API_PORT=8000
 DEBUG=false
+RATE_LIMIT_REQUESTS_PER_MINUTE=100  # per client address, per worker process; 0 turns it off
+LOG_LEVEL=INFO  # DEBUG, INFO, WARNING or ERROR
 ```
 
 See `.env.example` for a complete template.
@@ -129,7 +132,14 @@ The API will be available at:
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
+Rate limiting counts requests per client address in memory, so each worker keeps its own count. Behind a proxy or
+load balancer, run uvicorn with `--proxy-headers --forwarded-allow-ips <proxy address>` so the address it counts is
+the caller's rather than the proxy's.
+
 ## Project Structure
+
+The layout below is the target design. `models/`, `utils/`, and `tests/` currently hold fewer files, and the LLM
+provider now lives in `common/`.
 
 ```
 backend/
@@ -137,7 +147,8 @@ backend/
 │   ├── articles.py     # Article endpoints
 │   ├── auth.py         # Authentication endpoints
 │   ├── search.py       # Search endpoints
-│   └── likes.py        # Like endpoints
+│   ├── likes.py        # Like endpoints
+│   └── middleware.py   # Rate limiting and request logging
 ├── services/           # Business logic
 │   ├── article_service.py
 │   ├── auth_service.py
@@ -153,6 +164,7 @@ backend/
 │   └── supabase_client.py  # Supabase client wrapper
 ├── utils/              # Utility functions
 │   ├── llm_provider.py # Unified LLM interface
+│   ├── rate_limit.py   # Sliding-window rate limiter
 │   └── validators.py
 ├── tests/              # Test suite
 │   ├── conftest.py         # Shared pytest fixtures
@@ -176,21 +188,21 @@ backend/
 
 - `GET /api/v1/articles/daily` - Get today's daily article
 - `GET /api/v1/articles/{id}` - Get article by ID
-- `GET /api/v1/articles` - List articles (paginated)
+- `GET /api/v1/articles?limit=5&offset=0` - List articles, newest first (`limit` 1-20, `offset` pages through them)
 - `GET /api/v1/articles/search?q=...` - Search articles
 
 ### Search
 
-- `GET /api/v1/articles/search/autocomplete?q=...` - Get autocomplete suggestions
-- `GET /api/v1/articles/search/semantic?q=...` - Semantic similarity search
+- `GET /api/v1/articles/search/autocomplete?q=...` - Get autocomplete suggestions (not built yet)
+- `GET /api/v1/articles/search/semantic?q=...` - Semantic similarity search (not built yet)
 
 ### Authentication
 
-- `POST /api/v1/auth/register` - Register with email/password
+- `POST /api/v1/auth/signup` - Register with email/password (the design calls this `/auth/register`)
 - `POST /api/v1/auth/login` - Login with email/password
-- `POST /api/v1/auth/oauth/google` - OAuth login with Google
-- `POST /api/v1/auth/oauth/facebook` - OAuth login with Facebook
-- `POST /api/v1/auth/refresh` - Refresh access token
+- `POST /api/v1/auth/oauth/google` - OAuth login with Google (not built yet)
+- `POST /api/v1/auth/oauth/facebook` - OAuth login with Facebook (not built yet)
+- `POST /api/v1/auth/refresh` - Refresh access token (not built yet)
 - `POST /api/v1/auth/logout` - Logout user
 
 ### Likes (Authenticated)
@@ -466,7 +478,15 @@ Ensure your Supabase project has:
 
 ### Logs
 
-Logs are written to stdout in JSON format. Configure log aggregation with:
+The backend's logs are written to stdout as JSON lines (the formatter is `common/logging_config.py`, shared with the content pipeline), at the level set by `LOG_LEVEL`. Every request is logged
+once it finishes, with its method, path (no query string), status, duration and client address:
+
+```json
+{"time": "2026-09-21T03:13:49.453+00:00", "level": "INFO", "logger": "backend.requests", "message": "GET /api/v1/articles 200", "method": "GET", "path": "/api/v1/articles", "status": 200, "duration_ms": 27.3, "client": "127.0.0.1"}
+```
+
+Requests that end in a 4xx (including a 429 from the rate limiter) are logged at WARNING, and a 5xx or an unhandled
+exception at ERROR with its traceback. Configure log aggregation with:
 - CloudWatch (AWS)
 - Stackdriver (GCP)
 - ELK Stack (self-hosted)
@@ -481,11 +501,8 @@ curl http://localhost:8000/health
 
 ### Metrics
 
-API metrics available at:
-- Request count
-- Response times
-- Error rates
-- Active users
+There is no metrics endpoint. Request counts, response times and error rates can be derived from the request logs
+above.
 
 ## Troubleshooting
 
@@ -562,12 +579,12 @@ wrk -t4 -c100 -d30s http://localhost:8000/api/v1/articles/daily
 - HTTPS only in production
 - Input validation on all endpoints
 - SQL injection prevention (Supabase client uses parameterized queries)
-- Rate limiting (100 requests/minute per IP)
+- Rate limiting: 100 requests a minute per client address by default (429 with `Retry-After` beyond that; `/health` is exempt)
 - CORS configured for mobile app origins only
 
 ## Support
 
 For issues or questions:
 1. Check the [design document](../.kiro/specs/bharatverse-mvp/design.md)
-2. Review [AGENTS.md](../.kiro/AGENTS.md) for development guidelines
+2. Review [AGENTS.md](../AGENTS.md) for development guidelines
 3. Check existing issues in the repository
