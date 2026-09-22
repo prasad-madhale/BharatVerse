@@ -2,11 +2,13 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:supabase_flutter/supabase_flutter.dart' as gotrue
     show AuthState;
 
 import 'package:bharatverse_app/services/api_client.dart';
+import 'package:bharatverse_app/services/pending_likes.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/state/like_state.dart';
 
@@ -24,8 +26,11 @@ void main() {
     await pumpEventQueue();
   }
 
-  LikeState makeLikeState() =>
-      LikeState(likesClient: likesClient, authState: authState);
+  LikeState makeLikeState({PendingLikes? pendingLikes}) => LikeState(
+        likesClient: likesClient,
+        authState: authState,
+        pendingLikes: pendingLikes,
+      );
 
   setUp(() {
     authClient = MockGoTrueClient()..signInAs(null);
@@ -35,6 +40,7 @@ void main() {
     when(() => authClient.onAuthStateChange)
         .thenAnswer((_) => authEvents.stream);
     authState = AuthState(authClient: authClient);
+    SharedPreferences.setMockInitialValues({});
   });
 
   group('LikeState loading', () {
@@ -302,6 +308,114 @@ void main() {
       await expectLater(toggled, throwsA(isA<ApiException>()));
 
       expect(likeState.isLiked('art_1'), isFalse);
+    });
+  });
+
+  group('LikeState offline queueing', () {
+    late PendingLikes pendingLikes;
+
+    setUp(() async {
+      pendingLikes = PendingLikes(await SharedPreferences.getInstance());
+    });
+
+    test('keeps the change and queues it when the server cannot be reached',
+        () async {
+      authClient.signInAs(testUser());
+      when(() => likesClient.like(
+            accessToken: any(named: 'accessToken'),
+            userId: any(named: 'userId'),
+            articleId: any(named: 'articleId'),
+          )).thenThrow(ApiException('Could not reach the server'));
+      final likeState = makeLikeState(pendingLikes: pendingLikes);
+      await pumpEventQueue();
+
+      await likeState.toggleLike('art_1');
+
+      expect(likeState.isLiked('art_1'), isTrue);
+      expect(pendingLikes.forUser('user-123'), {'art_1': true});
+    });
+
+    test(
+        'still rolls back and rethrows when there is no queue to keep the change in',
+        () async {
+      authClient.signInAs(testUser());
+      when(() => likesClient.like(
+            accessToken: any(named: 'accessToken'),
+            userId: any(named: 'userId'),
+            articleId: any(named: 'articleId'),
+          )).thenThrow(ApiException('Could not reach the server'));
+      final likeState = makeLikeState();
+      await pumpEventQueue();
+
+      await expectLater(
+        likeState.toggleLike('art_1'),
+        throwsA(isA<ApiException>()),
+      );
+
+      expect(likeState.isLiked('art_1'), isFalse);
+    });
+
+    test('sends a queued like once the server can be reached again', () async {
+      authClient.signInAs(testUser());
+      await pendingLikes.set('user-123', 'art_1', true);
+
+      makeLikeState(pendingLikes: pendingLikes);
+      await pumpEventQueue();
+
+      verify(() => likesClient.like(
+            accessToken: 'user-token',
+            userId: 'user-123',
+            articleId: 'art_1',
+          )).called(1);
+      expect(pendingLikes.forUser('user-123'), isEmpty);
+    });
+
+    test('drops a queued change the server refuses outright', () async {
+      authClient.signInAs(testUser());
+      await pendingLikes.set('user-123', 'art_1', true);
+      when(() => likesClient.like(
+            accessToken: any(named: 'accessToken'),
+            userId: any(named: 'userId'),
+            articleId: any(named: 'articleId'),
+          )).thenThrow(ApiException('Article not found', statusCode: 404));
+
+      makeLikeState(pendingLikes: pendingLikes);
+      await pumpEventQueue();
+
+      expect(pendingLikes.forUser('user-123'), isEmpty);
+    });
+
+    test('leaves a queued change queued while the server is still unreachable',
+        () async {
+      authClient.signInAs(testUser());
+      await pendingLikes.set('user-123', 'art_1', true);
+      when(() => likesClient.like(
+            accessToken: any(named: 'accessToken'),
+            userId: any(named: 'userId'),
+            articleId: any(named: 'articleId'),
+          )).thenThrow(ApiException('Could not reach the server'));
+
+      makeLikeState(pendingLikes: pendingLikes);
+      await pumpEventQueue();
+
+      expect(pendingLikes.forUser('user-123'), {'art_1': true});
+    });
+
+    test('flushes other queued articles once a toggle reaches the server',
+        () async {
+      authClient.signInAs(testUser());
+      await pendingLikes.set('user-123', 'art_2', false);
+      final likeState = makeLikeState(pendingLikes: pendingLikes);
+      await pumpEventQueue();
+
+      await likeState.toggleLike('art_1');
+      await pumpEventQueue();
+
+      verify(() => likesClient.unlike(
+            accessToken: 'user-token',
+            articleId: 'art_2',
+          )).called(1);
+      expect(pendingLikes.forUser('user-123'), isEmpty);
     });
   });
 

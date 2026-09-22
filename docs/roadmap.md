@@ -2,7 +2,7 @@
 
 Status and sequencing. [`design.md`](design.md) is the architectural reference and [`requirements.md`](requirements.md)
 the requirements; this file records what is built, where it differs from the design, and what is left. Status as of
-2026-09-20.
+2026-09-21.
 
 ## Phases
 
@@ -30,7 +30,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 - **API** (`backend/`): articles (`daily`, by id, paged list), full-text search, sign-up, login and logout, likes,
   rate limiting and JSON request logs.
 - **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms (matched by
-  stem with `porter_2_stemmer`, the same algorithm Postgres's search uses, so "empires" marks "Empire" too), likes,
+  stem with `porter_2_stemmer`, the same algorithm Postgres's search uses, so "empires" marks "Empire" too), likes
+  (queued in `PendingLikes` and sent once the server can be reached, so a tap while offline is not lost),
   sign-in and password reset, offline reading of the 50 most recently opened articles. It reads Supabase directly, so it
   works on a real phone without a local server. The design system is "Vintage Broadsheet" (parchment, saffron and India
   green; Newsreader and Work Sans) in `lib/theme/` and `lib/widgets/`. The Android, iOS and web launcher icons are the
@@ -99,7 +100,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 - Native deep links for password reset: a phone app has to register a link scheme first. On the web, the link must be
   opened in the browser that asked for it (PKCE keeps the verifier there), and reloading while the new-password form is
   up leaves the reader signed in without one.
-- `SearchFilters`; search or likes while offline.
+- `SearchFilters`; search while offline (nothing to search but the 50 cached articles' titles, tags and summaries --
+  an offline `search_articles` would need its own copy of that logic).
 
 ## Decisions
 
