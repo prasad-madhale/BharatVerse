@@ -29,7 +29,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   a local run defaults to Gemini. Groq's free tier was tried and rejected for weak adherence to the word-count target.
 - **API** (`backend/`): articles (`daily`, by id, paged list), full-text search, sign-up, login and logout, likes,
   rate limiting and JSON request logs.
-- **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms, likes,
+- **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms (matched by
+  stem with `porter_2_stemmer`, the same algorithm Postgres's search uses, so "empires" marks "Empire" too), likes,
   sign-in and password reset, offline reading of the 50 most recently opened articles. It reads Supabase directly, so it
   works on a real phone without a local server. The design system is "Vintage Broadsheet" (parchment, saffron and India
   green; Newsreader and Work Sans) in `lib/theme/` and `lib/widgets/`. The Android, iOS and web launcher icons are the
@@ -98,8 +99,7 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 - Native deep links for password reset: a phone app has to register a link scheme first. On the web, the link must be
   opened in the browser that asked for it (PKCE keeps the verifier there), and reloading while the new-password form is
   up leaves the reader signed in without one.
-- `SearchFilters`; highlighting of stemmed forms (searching "empires" finds "Empire" but does not mark it); search or
-  likes while offline.
+- `SearchFilters`; search or likes while offline.
 
 ## Decisions
 
