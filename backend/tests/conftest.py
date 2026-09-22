@@ -23,6 +23,8 @@ import os
 os.environ.setdefault('SUPABASE_URL', 'https://test.supabase.co')
 os.environ.setdefault('SUPABASE_ANON_KEY', 'test-anon-key')
 os.environ.setdefault('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key')
+# The shared app must not throttle the suite (every test client is one address); the limiter has tests of its own.
+os.environ.setdefault('RATE_LIMIT_REQUESTS_PER_MINUTE', '0')
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -45,8 +47,8 @@ def reset_singletons(request):
             if var in os.environ:
                 del os.environ[var]
 
-        # Force reload from .env file
-        load_dotenv('../.env', override=True)
+        # Force reload from .env file (or the file BV_ENV_FILE names, e.g. tools/local-stack's, to test a stand-in)
+        load_dotenv(os.environ.get('BV_ENV_FILE', '../.env'), override=True)
 
     # Reset settings singleton
     config_module._settings = None

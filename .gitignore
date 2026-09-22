@@ -177,5 +177,8 @@ $RECYCLE.BIN/
 *.backup
 *~
 
-# Local agent runner state: worktree, venv, logs (see scripts/agent_loop.py)
+# Local agent runner state: worktree, venv, logs (see tools/agent-queue/README.md)
 .agent/
+
+# Local Supabase stand-in: binaries, data and logs (see tools/local-stack/README.md)
+.local-stack/

@@ -68,7 +68,7 @@ class TestListArticles:
 
             client.get("/api/v1/articles")
 
-        mock_service_class.return_value.list_recent_articles.assert_called_once_with(limit=5)
+        mock_service_class.return_value.list_recent_articles.assert_called_once_with(limit=5, offset=0)
 
     def test_passes_limit_query_param_through(self, client):
         with patch("backend.api.articles.ArticleService") as mock_service_class:
@@ -76,12 +76,23 @@ class TestListArticles:
 
             client.get("/api/v1/articles?limit=2")
 
-        mock_service_class.return_value.list_recent_articles.assert_called_once_with(limit=2)
+        mock_service_class.return_value.list_recent_articles.assert_called_once_with(limit=2, offset=0)
 
     def test_rejects_limit_above_max(self, client):
         response = client.get("/api/v1/articles?limit=21")
 
         assert response.status_code == 422
+
+    def test_passes_offset_through_to_page(self, client):
+        with patch("backend.api.articles.ArticleService") as mock_service_class:
+            mock_service_class.return_value.list_recent_articles = AsyncMock(return_value=[])
+
+            client.get("/api/v1/articles?limit=3&offset=6")
+
+        mock_service_class.return_value.list_recent_articles.assert_called_once_with(limit=3, offset=6)
+
+    def test_rejects_a_negative_offset(self, client):
+        assert client.get("/api/v1/articles?offset=-1").status_code == 422
 
     def test_list_route_not_shadowed_by_id_route(self, client):
         """Regression guard: bare /articles must resolve to the list endpoint,

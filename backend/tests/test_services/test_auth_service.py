@@ -28,7 +28,7 @@ class TestSignUp:
     @pytest.mark.asyncio
     @patch("backend.services.auth_service.get_supabase")
     async def test_returns_auth_response_on_success(self, mock_get_supabase, mock_supabase_client):
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        mock_get_supabase.return_value.create_auth_client.return_value = mock_supabase_client
         mock_supabase_client.auth.sign_up.return_value = make_auth_response()
 
         result = await AuthService().sign_up("test@example.com", "s3cret-password")
@@ -44,7 +44,7 @@ class TestSignUp:
     @pytest.mark.asyncio
     @patch("backend.services.auth_service.get_supabase")
     async def test_raises_auth_error_on_api_error(self, mock_get_supabase, mock_supabase_client):
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        mock_get_supabase.return_value.create_auth_client.return_value = mock_supabase_client
         mock_supabase_client.auth.sign_up.side_effect = AuthApiError(
             "User already registered", 400, "user_already_exists"
         )
@@ -56,7 +56,7 @@ class TestSignUp:
     @patch("backend.services.auth_service.get_supabase")
     async def test_raises_auth_error_when_no_session_returned(self, mock_get_supabase, mock_supabase_client):
         # Supabase returns a user but no session when email confirmation is required.
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        mock_get_supabase.return_value.create_auth_client.return_value = mock_supabase_client
         mock_supabase_client.auth.sign_up.return_value = MagicMock(session=None, user=MagicMock())
 
         with pytest.raises(AuthError, match="email confirmation"):
@@ -67,7 +67,7 @@ class TestSignIn:
     @pytest.mark.asyncio
     @patch("backend.services.auth_service.get_supabase")
     async def test_returns_auth_response_on_success(self, mock_get_supabase, mock_supabase_client):
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        mock_get_supabase.return_value.create_auth_client.return_value = mock_supabase_client
         mock_supabase_client.auth.sign_in_with_password.return_value = make_auth_response()
 
         result = await AuthService().sign_in("test@example.com", "s3cret-password")
@@ -80,7 +80,7 @@ class TestSignIn:
     @pytest.mark.asyncio
     @patch("backend.services.auth_service.get_supabase")
     async def test_raises_auth_error_on_invalid_credentials(self, mock_get_supabase, mock_supabase_client):
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        mock_get_supabase.return_value.create_auth_client.return_value = mock_supabase_client
         mock_supabase_client.auth.sign_in_with_password.side_effect = AuthApiError(
             "Invalid login credentials", 400, "invalid_credentials"
         )

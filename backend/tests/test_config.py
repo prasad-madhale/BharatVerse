@@ -64,12 +64,24 @@ class TestSettings:
         # Application defaults
         assert settings.app_name == "BharatVerse API"
         assert settings.app_version == "0.1.0"
-        assert settings.debug is False
-
-        # API defaults
-        assert settings.api_host == "0.0.0.0"
-        assert settings.api_port == 8000
         assert settings.api_prefix == "/api/v1"
+
+    def test_settings_default_rate_limit_and_log_level(self):
+        """Test the request limit is 100 a minute and logging is at INFO unless told otherwise."""
+        fields = Settings.model_fields
+
+        assert fields["rate_limit_requests_per_minute"].default == 100
+        assert fields["log_level"].default == "INFO"
+
+    def test_settings_rejects_an_unknown_log_level(self):
+        """Test a mistyped log level fails at startup instead of being ignored."""
+        with pytest.raises(ValidationError):
+            Settings(
+                supabase_url="https://test.supabase.co",
+                supabase_anon_key="test-anon",
+                supabase_service_role_key="test-service",
+                log_level="LOUD",
+            )
 
     def test_settings_cors_origins_default(self):
         """Test CORS origins default to wildcard."""

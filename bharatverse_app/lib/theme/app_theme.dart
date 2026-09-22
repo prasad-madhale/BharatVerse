@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'app_spacing.dart';
 import 'app_typography.dart';
 
 /// Builds the app's ThemeData from the design system tokens, so incidental
@@ -33,6 +34,27 @@ abstract class AppTheme {
         color: AppColors.accentPrimary,
       ),
       dividerColor: AppColors.ink200,
+      hoverColor: AppColors.surfaceSunken,
+      highlightColor: AppColors.surfaceSunken,
+      splashColor: AppColors.accentPrimaryTint,
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: AppColors.ink950,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
+        ),
+        textStyle:
+            AppTypography.caption.copyWith(color: AppColors.textOnAccent),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.space2,
+          vertical: AppSpacing.space1,
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.ink950,
+        contentTextStyle:
+            AppTypography.ui.copyWith(color: AppColors.textOnAccent),
+        actionTextColor: AppColors.saffron500,
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: AppColors.surfacePage,
         foregroundColor: AppColors.textPrimary,

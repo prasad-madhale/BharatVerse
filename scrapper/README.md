@@ -1,266 +1,71 @@
-# Web Scraper for BharatVerse
+# Content pipeline
 
-LLM-optimized web scraper using Crawl4AI with extensible source architecture.
+Writes and publishes the daily article: an LLM proposes a topic, the pipeline scrapes sources on it, an LLM writes the
+article from that material, automated checks accept or reject it, and it goes to Supabase.
 
-## Quick Start
+## Setup
 
-```python
-from scrapper import WebScraper
-
-async def get_content(topic: str):
-    scraper = WebScraper()
-    
-    # Scrape from all sources
-    contents = await scraper.search_and_scrape(topic)
-    
-    # Scrape from specific sources
-    contents = await scraper.search_and_scrape(
-        topic, 
-        sources=["wikipedia"]
-    )
-    
-    # Scrape multiple pages per source
-    contents = await scraper.search_and_scrape(
-        topic,
-        max_pages_per_source=3
-    )
-    
-    return contents
-
-# Use in your application
-contents = await get_content("Mauryan Empire")
-for content in contents:
-    print(f"{content.title}: {len(content.raw_text)} chars")
-```
-
-## Development Setup
-
-### Prerequisites
-- Python 3.9+
-- pip
-
-### Installation
+Python 3.12. From the repo root, in a virtualenv:
 
 ```bash
-# Navigate to scrapper directory
-cd scrapper
-
-# Install all dependencies (includes test dependencies)
-pip install -r requirements.txt
+pip install -r backend/requirements.txt -r scrapper/requirements.txt   # publishing reuses the backend's article service
+playwright install chromium                                             # Crawl4AI drives a headless browser
 ```
 
-This installs:
-- Core dependencies: `crawl4ai`, `wikipedia`, `internetarchive`, `pydantic`
-- Test dependencies: `pytest`, `pytest-asyncio`
-- LLM providers: `google-generativeai`, `anthropic`
+Put these in the `.env` at the repo root (template: [`.env.example`](../.env.example)):
 
-### Project Structure
+| Variable | Meaning |
+|---|---|
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | the project to publish to (the service-role key writes) |
+| `LLM_PROVIDER` | `gemini` (default; has a free tier), `anthropic`, `openai` or `groq` |
+| `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | the key for the chosen provider |
+| `LLM_MODEL` | optional; defaults per provider are listed in `.env.example` |
+| `LOG_LEVEL` | default `INFO` |
 
-```
-scrapper/
-├── scrapper/                    # Source code
-│   ├── __init__.py             # Package exports
-│   ├── web_scraper.py          # Main WebScraper class
-│   ├── sources/                # Content source plugins
-│   │   ├── __init__.py        # SourceRegistry
-│   │   ├── base.py            # ContentSource base class
-│   │   ├── wikipedia.py       # Wikipedia source
-│   │   └── archive_org.py     # Archive.org source
-│   └── models/                 # Data models
-│       ├── __init__.py
-│       └── article.py          # Pydantic models
-├── tests/                      # Tests mirror source structure
-│   └── scrapper/
-│       ├── test_web_scraper.py
-│       ├── test_integration.py
-│       └── sources/
-│           └── test_sources.py
-├── requirements.txt            # All dependencies
-└── README.md                  # This file
-```
-
-## Testing
-
-### Quick Test Run
+## Run
 
 ```bash
-cd scrapper
-
-# Run scrapper tests only (from scrapper directory)
-cd scrapper && pytest
-
-# Or run specific test types
-cd scrapper && pytest -m unit              # Unit tests only
-cd scrapper && pytest -m integration       # Integration tests only
-
-# Run with custom log level
-cd scrapper && pytest --log-cli-level=DEBUG
-
-# Run all tests (scrapper + backend) from root
-./build.sh
+python scrapper/scrapper_main.py --count 1     # from the repo root
 ```
 
-### Manual Test Commands
+Each run calls the LLM at least twice per article (topic, then writing), so on a paid provider it costs money. It exits
+0 only if every requested article was published, so a scheduled run that published nothing shows as failed. Logs are
+JSON lines on stdout.
+
+[`daily-pipeline.yml`](../.github/workflows/daily-pipeline.yml) runs the same command on demand in GitHub Actions
+(`workflow_dispatch`) with the secrets `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
+`SUPABASE_SERVICE_ROLE_KEY`. Its daily schedule is commented out until the output quality is trusted.
+
+## How a run works
+
+1. **Topics** (`topic_generator.py`): asks the LLM for `--count` topics that match Wikipedia titles, excluding the 200
+   most recent published titles.
+2. **Scrape** (`web_scraper.py`, `sources/`): for each topic, one page from each of Wikipedia, archive.org and New World
+   Encyclopedia, as Markdown through Crawl4AI and paced by a rate limiter (0.5 requests a second). A source that fails
+   is logged and skipped; a topic with no content at all is skipped.
+3. **Write** (`article_generator.py`): the LLM produces the title, summary, sections and tags from up to 15,000
+   characters of source text. Citations and reading time come from the sources, not the LLM.
+4. **Check** (`content_validator.py`): a title and summary, 1,300 to 2,200 words, at least 3 sections and 1 citation. It
+   cannot check facts, and there is no human review yet. Up to 3 attempts per topic: a failed generation waits 5 s, then
+   10 s; a failed check retries at once. Every attempt logs its word, section and citation counts.
+5. **Publish** (`backend/services/article_service.py`): the content JSON goes to the `articles` Storage bucket and the
+   metadata to the `articles` table, keyed by id, so publishing again overwrites.
+
+One topic failing never stops the rest of the batch.
+
+## Adding a source
+
+Subclass `ContentSource` in `scrapper/sources/`, implement `search_topic`, register it in `sources/__init__.py`, and add
+its `name` to `SOURCES` in `scheduler.py`; the scheduler only uses the sources listed there.
+
+`WebScraper` has a `check_robots_txt` method, but the `respect_robots` argument is accepted and not applied: nothing
+checks robots.txt before a page is fetched yet (see the [roadmap](../docs/roadmap.md)).
+
+## Tests
 
 ```bash
-# Install dependencies (one time)
-pip install -r requirements.txt
-
-# All tests
-python -m pytest
-
-# Unit tests only (fast, no external API calls)
-python -m pytest -m unit
-
-# Integration tests (makes real API calls)
-python -m pytest -m integration
-
-# Specific test file
-python -m pytest tests/scrapper/test_web_scraper.py -v
-
-# With coverage
-python -m pytest --cov=scrapper --cov-report=html
+cd scrapper && pytest -m "not integration"     # what CI runs; an 85% coverage gate is built in
 ```
 
-### Test Organization
-
-Tests are organized to mirror the source code structure:
-- `tests/scrapper/test_web_scraper.py` → tests for `scrapper/web_scraper.py`
-- `tests/scrapper/sources/test_sources.py` → tests for `scrapper/sources/`
-- `tests/scrapper/test_integration.py` → end-to-end integration tests
-
-## API Reference
-
-### WebScraper
-
-Main scraper class with simple API:
-
-```python
-scraper = WebScraper()
-
-# Main method - search and scrape in one call
-contents = await scraper.search_and_scrape(
-    topic="Mauryan Empire",
-    max_pages_per_source=1,      # Pages per source (default: 1)
-    sources=None,                 # List of sources or None for all
-    respect_robots=False          # Check robots.txt (default: False)
-)
-
-# List available sources
-sources = scraper.list_sources()  # ['wikipedia', 'archive_org']
-```
-
-### ScrapedContent Model
-
-Each scraped page returns a `ScrapedContent` object:
-
-```python
-{
-    'source_url': str,           # URL of the scraped page
-    'title': str,                # Page title
-    'raw_text': str,             # LLM-ready markdown content
-    'images': List[dict],        # List of images with URLs and metadata
-    'metadata': dict,            # Source-specific metadata
-    'scraped_at': datetime       # When content was scraped
-}
-```
-
-## Available Sources
-
-- **wikipedia**: Wikipedia articles (API search + Crawl4AI scraping)
-- **archive_org**: Internet Archive content (API search + Crawl4AI scraping)
-
-## Adding New Sources
-
-### Step 1: Create Source Class
-
-Create `scrapper/sources/newsource.py`:
-
-```python
-from typing import List, Dict
-from .base import ContentSource
-
-class NewSource(ContentSource):
-    name = "newsource"  # Unique identifier
-    
-    def search_topic(self, topic: str, max_results: int = 5) -> List[Dict[str, str]]:
-        """
-        Search for topic and return results.
-        
-        Must return list of dicts with: 'title', 'url', 'summary'
-        """
-        # Use an API or construct URLs
-        return [{
-            'title': 'Article Title',
-            'url': 'https://example.com/article',
-            'summary': 'Article summary',
-        }]
-```
-
-### Step 2: Register Source
-
-Add to `scrapper/sources/__init__.py`:
-
-```python
-from .newsource import NewSource
-
-registry.register(NewSource())
-```
-
-### Step 3: Use It
-
-```python
-scraper = WebScraper()
-contents = await scraper.search_and_scrape("topic", sources=["newsource"])
-```
-
-The base class handles all scraping automatically using Crawl4AI. You just implement the search logic.
-
-## Architecture
-
-### Class Hierarchy
-
-```
-ContentSource (ABC)                    # Base class for all sources
-├── search_topic()                     # Abstract: Search and return results
-└── extract()                          # Default: Search + scrape with Crawl4AI
-
-WikipediaSource(ContentSource)         # Wikipedia implementation
-└── search_topic()                     # Uses Wikipedia API
-
-ArchiveOrgSource(ContentSource)        # Archive.org implementation
-└── search_topic()                     # Uses internetarchive library
-
-SourceRegistry                         # Manages source plugins
-├── register()                         # Add new source
-├── get_source()                       # Get source by name
-└── list_sources()                     # List all sources
-
-WebScraper                             # Main scraper class
-├── search_and_scrape()                # High-level: search + scrape
-├── scrape_all()                       # Scrape from multiple sources
-└── list_sources()                     # List available sources
-```
-
-## Dependencies
-
-All dependencies are in `requirements.txt`:
-
-**Core dependencies:**
-- `crawl4ai>=0.4.0` - Web scraping with LLM optimization
-- `wikipedia>=1.4.0` - Wikipedia API wrapper
-- `internetarchive>=3.0.0` - Internet Archive API
-- `pydantic>=2.0.0` - Data validation
-
-**Test dependencies:**
-- `pytest>=7.0.0` - Testing framework
-- `pytest-asyncio>=0.21.0` - Async test support
-
-**LLM providers:**
-- `google-generativeai` - Google Gemini (optional)
-- `anthropic` - Anthropic Claude (optional)
-
-Install all dependencies:
-```bash
-pip install -r requirements.txt
-```
+The unit tests use stub LLM providers and sources, so they need no network or keys. `pytest -m integration` scrapes
+real sites, so it needs network access and can fail when a site changes; CI skips it.

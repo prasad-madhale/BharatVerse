@@ -50,7 +50,7 @@ class WebScraper:
     Features:
     - Plugin-based source architecture (easy to add new sources)
     - Rate limiting (respects servers)
-    - Robots.txt checking (respects site policies)
+    - A robots.txt checker, check_robots_txt(), that scraping does not use yet
     - Concurrent scraping from multiple sources
 
     Usage:
@@ -131,7 +131,7 @@ class WebScraper:
             source_name: Name of the source (e.g., "wikipedia", "archive_org")
             topic: Topic to scrape
             max_pages: Maximum number of pages to extract (default: 1)
-            respect_robots: Whether to check robots.txt (default: False for API-based sources)
+            respect_robots: Accepted but not applied yet; nothing calls check_robots_txt
 
         Returns:
             List of ScrapedContent from the source
@@ -178,7 +178,7 @@ class WebScraper:
         Args:
             topic: Topic to scrape
             max_pages: Maximum number of pages per source (default: 1)
-            respect_robots: Whether to check robots.txt (default: True)
+            respect_robots: Accepted but not applied yet; nothing calls check_robots_txt
             fail_fast: If True, raise on first error. If False, continue with other sources.
             sources: Optional list of source names to use. If None, uses all registered sources.
 
@@ -235,7 +235,7 @@ class WebScraper:
             topic: Topic to search and scrape
             max_pages_per_source: Maximum pages to scrape per source (default: 1)
             sources: Optional list of source names. If None, uses all sources.
-            respect_robots: Whether to check robots.txt (default: False for API-based sources)
+            respect_robots: Accepted but not applied yet; nothing calls check_robots_txt
 
         Returns:
             List of ScrapedContent from all sources
