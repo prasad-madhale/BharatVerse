@@ -161,6 +161,97 @@ void main() {
     });
   });
 
+  group('ApiClient.getAutocompleteSuggestions', () {
+    MockClient termsClient(List<String> terms,
+            {void Function(http.Request request)? onRequest}) =>
+        MockClient((request) async {
+          onRequest?.call(request);
+          return http.Response(
+              jsonEncode([
+                for (final term in terms) {'term': term}
+              ]),
+              200);
+        });
+
+    test('calls the suggestion function with the typed text and limit',
+        () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(client: termsClient([], onRequest: seen.add));
+
+      await client.getAutocompleteSuggestions('mau', limit: 7);
+
+      final request = seen.single;
+      expect(request.method, 'POST');
+      expect(request.url.path, '/rest/v1/rpc/autocomplete_suggestions');
+      expect(request.headers['Content-Type'], contains('application/json'));
+      expect(jsonDecode(request.body), {'prefix': 'mau', 'match_limit': 7});
+    });
+
+    test('asks for ten suggestions by default', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(client: termsClient([], onRequest: seen.add));
+
+      await client.getAutocompleteSuggestions('mau');
+
+      expect(jsonDecode(seen.single.body)['match_limit'], 10);
+    });
+
+    test('trims the text it sends', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(client: termsClient([], onRequest: seen.add));
+
+      await client.getAutocompleteSuggestions('  mauryan e ');
+
+      expect(jsonDecode(seen.single.body)['prefix'], 'mauryan e');
+    });
+
+    test('returns the terms in the order the database ranked them', () async {
+      final client =
+          ApiClient(client: termsClient(['Mauryan Empire', 'Mauryan Art']));
+
+      expect(await client.getAutocompleteSuggestions('maur'),
+          ['Mauryan Empire', 'Mauryan Art']);
+    });
+
+    test('returns nothing when nothing starts with the text', () async {
+      final client = ApiClient(client: termsClient([]));
+
+      expect(await client.getAutocompleteSuggestions('zzz'), isEmpty);
+    });
+
+    test('sends nothing for blank text', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(client: termsClient(['x'], onRequest: seen.add));
+
+      expect(await client.getAutocompleteSuggestions(''), isEmpty);
+      expect(await client.getAutocompleteSuggestions('   '), isEmpty);
+      expect(seen, isEmpty);
+    });
+
+    test('throws an ApiException when the request fails', () async {
+      final client = ApiClient(
+        client: MockClient((_) async => http.Response('boom', 500)),
+      );
+
+      expect(
+        () => client.getAutocompleteSuggestions('mau'),
+        throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500)),
+      );
+    });
+
+    test('does not touch the offline flag or the saved articles', () async {
+      SharedPreferences.setMockInitialValues({});
+      final cache = ArticleCache(await SharedPreferences.getInstance());
+      final client = ApiClient(client: termsClient(['Ashoka']), cache: cache);
+
+      await client.getAutocompleteSuggestions('a');
+
+      expect(client.offline.value, isFalse);
+      expect(await cache.getCachedArticles(), isEmpty);
+    });
+  });
+
   group('ApiClient.searchArticles', () {
     test('calls the ranked search function with the query and limit', () async {
       final seen = <http.Request>[];

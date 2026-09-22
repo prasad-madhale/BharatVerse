@@ -16,10 +16,24 @@ a `.env` at the repo root (template: [`.env.example`](../.env.example)):
 | `ARTICLES_STORAGE_BUCKET` | `articles` | Storage bucket that holds article content |
 | `CORS_ORIGINS` | `["*"]` | JSON list of allowed origins |
 
-The backend needs no LLM key. In the Supabase project, run [`database/schema.sql`](database/schema.sql) in the SQL editor
-(tables, row-level security, the weighted `search_vector` column and the `search_articles` function) and create a public
-Storage bucket named `articles`. Later schema changes must be applied by hand. If an older `search_vector` (title and
-summary only) exists, drop it first: `ALTER TABLE articles DROP COLUMN search_vector`.
+The backend needs no LLM key. For a new Supabase project, run [`database/schema.sql`](database/schema.sql) in the SQL editor
+(tables, row-level security, the weighted `search_vector` column, the `search_articles` function, and the suggestions
+behind autocomplete) and create a public Storage bucket named `articles`.
+
+A project made from an earlier schema must not re-run the whole file: the SQL editor runs it as one transaction, which
+stops at the first policy or trigger that already exists. Run the file in [`database/migrations/`](database/migrations/)
+that brings it up to date instead (`2026-09-search-and-autocomplete.sql` adds search and autocomplete; it can be run twice).
+Every later schema change gets a migration file the same way, applied by hand. Until a project has this one, search fails
+there, and so does the autocomplete endpoint, while the app simply shows no suggestions.
+
+The suggestions live in `search_suggestions`, which a trigger rebuilds from `articles` after every insert, update or
+delete, so publishing needs no extra step. A phrase is kept only if searching for it finds the article it came from, and a
+rebuild that fails is reported as a warning and never stops an article being written. A rebuild scans every article (about
+0.4 s at 2,000, 1.2 s at 10,000), which suits one article a day; make it incremental if writes ever come faster than about
+one a second, since concurrent writers queue behind each other's rebuild. Only that trigger writes the suggestions and
+only the service role writes `articles`: the public key cannot write either, so a request it should not make fails at
+once instead of running the trigger. A restore or replication that switches triggers off leaves
+the suggestions stale; run `SELECT rebuild_search_suggestions();` as `postgres` afterwards.
 
 ## Run
 
@@ -41,13 +55,14 @@ All under `/api/v1`, except `/health`.
 | `GET` | `/articles/{id}` | one article |
 | `GET` | `/articles?limit=5&offset=0` | newest first; `limit` 1-20, `offset` pages through them |
 | `GET` | `/articles/search?q=...&limit=20` | most relevant first over title, tags and summary; `limit` 1-50 |
+| `GET` | `/articles/search/autocomplete?q=...&limit=10` | titles and tags that start with `q` (1-100 characters), the phrases more articles carry first; `limit` 1-20 |
 | `POST` | `/auth/signup`, `/auth/login` | email and password |
 | `POST` | `/auth/logout` | bearer token |
 | `POST`, `DELETE` | `/articles/{id}/like` | like or unlike; bearer token |
 | `GET` | `/users/me/likes` | the caller's liked articles; bearer token |
 | `GET` | `/health` | liveness; exempt from rate limiting |
 
-Not built: autocomplete, semantic search, OAuth and token refresh.
+Not built: semantic search, OAuth and token refresh.
 
 ## Logs
 
@@ -67,8 +82,9 @@ cd backend && pytest -m "not integration"     # what CI runs; an 85% coverage ga
 
 Query tests run the real service through `tests/wire.py`, a stub HTTP transport, and assert the request that would be
 sent rather than a mock's calls. Integration tests (`pytest -m integration`, in `tests/test_database/`) need a `.env`
-with real Supabase keys: they insert temporary rows into `articles` and delete them, so run them against a project you
-own. CI skips them.
+with real Supabase keys (or `BV_ENV_FILE` pointing at another env file, such as the one
+[`tools/local-stack`](../tools/local-stack/README.md) writes): they insert temporary rows into `articles` and delete them,
+so run them against a project you own. CI skips them.
 
 ## Layout
 
