@@ -25,6 +25,8 @@ class LLMSettings(BaseSettings):
 
     llm_model: Optional[str] = None  # Auto-selected based on provider if not specified
 
+    critic_enabled: bool = True  # off skips the editorial critic pass, for cheap local runs
+
     model_config = SettingsConfigDict(
         env_file=_REPO_ROOT_ENV_FILE,
         env_file_encoding="utf-8",

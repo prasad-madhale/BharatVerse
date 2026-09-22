@@ -10,6 +10,7 @@ from datetime import date, datetime, timezone
 
 import pytest
 
+from scrapper.article_critic import CriticIssue, CriticReview
 from scrapper.article_generator import ArticleGenerationError, ArticleGenerator
 from scrapper.models.article import ScrapedContent
 
@@ -181,7 +182,7 @@ class TestGenerateArticle:
         # Regression test: a single oversized source used to be able to consume the
         # entire MAX_SOURCE_CHARS budget via naive concatenate-then-truncate,
         # silently dropping every other source's content from the prompt.
-        from scrapper.article_generator import MAX_SOURCE_CHARS
+        from scrapper.source_text import MAX_SOURCE_CHARS
 
         oversized = make_scraped_content(
             source_url="https://en.wikipedia.org/wiki/Some_Unrelated_Long_Page",
@@ -211,3 +212,93 @@ class TestGenerateArticle:
         generator = ArticleGenerator()
 
         assert generator.llm_provider is fake
+
+
+REVISED_LLM_RESPONSE = json.dumps({
+    "title": "The Rise of the Mauryan Empire (Revised)",
+    "summary": "A more carefully hedged look at how Chandragupta Maurya unified much of India.",
+    "sections": [
+        {"heading": "Origins", "content": "The Mauryan Empire began " + ("revised-word " * 800)},
+        {"heading": "Legacy", "content": "Its legacy shaped India " + ("revised-word " * 800)},
+    ],
+    "tags": ["mauryan-empire", "ancient-india"],
+})
+
+
+def make_feedback(detail="An invented statistic appears in Origins"):
+    return CriticReview(
+        approved=False,
+        summary="Needs a grounding fix",
+        issues=[
+            CriticIssue(
+                category="grounding", severity="major", location="Origins",
+                detail=detail, suggestion="Remove or soften the unsupported figure",
+            )
+        ],
+    )
+
+
+class TestReviseArticle:
+    @pytest.mark.asyncio
+    async def test_preserves_id_and_publication_date(self):
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(VALID_LLM_RESPONSE))
+        draft = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire", sequence=3)
+        generator.llm_provider.response = REVISED_LLM_RESPONSE
+
+        revised = await generator.revise_article(
+            draft, [make_scraped_content()], topic="Mauryan Empire", feedback=make_feedback()
+        )
+
+        assert revised.id == draft.id
+        assert revised.publication_date == draft.publication_date
+
+    @pytest.mark.asyncio
+    async def test_produces_the_revised_content(self):
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(VALID_LLM_RESPONSE))
+        draft = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire")
+        generator.llm_provider.response = REVISED_LLM_RESPONSE
+
+        revised = await generator.revise_article(
+            draft, [make_scraped_content()], topic="Mauryan Empire", feedback=make_feedback()
+        )
+
+        assert revised.title == "The Rise of the Mauryan Empire (Revised)"
+        assert "revised-word" in revised.content
+
+    @pytest.mark.asyncio
+    async def test_citations_rebuilt_from_scraped_content_not_llm(self):
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(VALID_LLM_RESPONSE))
+        draft = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire")
+        generator.llm_provider.response = REVISED_LLM_RESPONSE
+        scraped = [make_scraped_content("https://en.wikipedia.org/wiki/Revised", "wikipedia")]
+
+        revised = await generator.revise_article(draft, scraped, topic="Mauryan Empire", feedback=make_feedback())
+
+        assert len(revised.citations) == 1
+        assert revised.citations[0].source_url == "https://en.wikipedia.org/wiki/Revised"
+
+    @pytest.mark.asyncio
+    async def test_prompt_includes_feedback_and_original_draft(self):
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(VALID_LLM_RESPONSE))
+        draft = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire")
+        llm = FakeLLMProvider(REVISED_LLM_RESPONSE)
+        generator.llm_provider = llm
+
+        await generator.revise_article(
+            draft, [make_scraped_content()], topic="Mauryan Empire",
+            feedback=make_feedback("An invented statistic appears in Origins"),
+        )
+
+        assert "An invented statistic appears in Origins" in llm.last_prompt
+        assert draft.title in llm.last_prompt
+
+    @pytest.mark.asyncio
+    async def test_raises_on_invalid_json_response(self):
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(VALID_LLM_RESPONSE))
+        draft = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire")
+        generator.llm_provider = FakeLLMProvider("not json at all")
+
+        with pytest.raises(ArticleGenerationError, match="not valid JSON"):
+            await generator.revise_article(
+                draft, [make_scraped_content()], topic="Mauryan Empire", feedback=make_feedback()
+            )
