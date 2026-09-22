@@ -17,14 +17,15 @@ differs from the design, and what still needs a person (hosted-project setup, OA
 | `common/` | Shared models, LLM provider and JSON logging |
 | `docs/` | Requirements, design, roadmap and the business requirements document |
 | `scripts/` | Dev helpers, including running the app on a phone ([README](scripts/README.md)) |
-| `tools/agent-queue/` | Optional runner that executes specs with a local model |
+| `tools/` | Optional dev tools: `local-stack/`, a local Supabase stand-in, and `agent-queue/`, a runner that executes specs with a local model |
 
 ## Get started
 
 You need Python 3.12, the Flutter SDK (stable channel) and a [Supabase](https://supabase.com) project.
 
 1. **Supabase.** Run [`backend/database/schema.sql`](backend/database/schema.sql) in the SQL editor and create a public
-   Storage bucket named `articles`. For password-reset emails, add the app's URL under Authentication > URL
+   Storage bucket named `articles`. (To try things without a hosted project, [`tools/local-stack`](tools/local-stack/README.md)
+   runs a local stand-in.) For password-reset emails, add the app's URL under Authentication > URL
    Configuration > Redirect URLs.
 2. **Configuration.** `cp .env.example .env` and fill in the Supabase keys and the key for your LLM provider. The app has
    its own copy of the project URL and anon key in `bharatverse_app/lib/config.dart`.
