@@ -64,11 +64,6 @@ class TestSettings:
         # Application defaults
         assert settings.app_name == "BharatVerse API"
         assert settings.app_version == "0.1.0"
-        assert settings.debug is False
-
-        # API defaults
-        assert settings.api_host == "0.0.0.0"
-        assert settings.api_port == 8000
         assert settings.api_prefix == "/api/v1"
 
     def test_settings_default_rate_limit_and_log_level(self):

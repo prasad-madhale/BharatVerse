@@ -1,10 +1,10 @@
 # AGENTS.md
 
-BharatVerse serves one AI-written story from Indian history a day. Monorepo: `scrapper/` (scrape, generate, validate), `backend/` (FastAPI over Supabase), `common/` (shared models and LLM provider), `bharatverse_app/` (Flutter). Build status: `.kiro/specs/bharatverse-mvp/roadmap.md`. Contract for endpoints, services and Flutter classes: `.kiro/specs/bharatverse-mvp/design.md`.
+BharatVerse serves one AI-written story from Indian history a day. Monorepo: `scrapper/` (scrape, generate, validate), `backend/` (FastAPI over Supabase), `common/` (shared models and LLM provider), `bharatverse_app/` (Flutter). Build status: `docs/roadmap.md`. Contract for endpoints, services and Flutter classes: `docs/design.md`.
 
 ## Setup
 - Python 3.12 with one venv at the repo root: `pip install -r backend/requirements.txt -r scrapper/requirements.txt`, then `playwright install --with-deps chromium`. Leave `fastapi==0.109.0` and `supabase==2.9.0` pinned; newer releases rename `gotrue` and change the missing-bearer status, which breaks tests.
-- Flutter SDK per `bharatverse_app/pubspec.lock`.
+- Flutter stable (CI follows the channel; last verified on 3.47). A newer SDK's `pub get` may rewrite `bharatverse_app/pubspec.lock` and `analysis_options.yaml`; commit those as it writes them.
 - Secrets go in a root `.env` (template: `.env.example`), never committed. Tests need none.
 - `./scripts/dev.sh` runs the backend (:8000) and the Flutter web app (:8765).
 
@@ -21,7 +21,7 @@ BharatVerse serves one AI-written story from Indian history a day. Monorepo: `sc
 - Query tests run the real service through `backend/tests/wire.py` and assert the HTTP request rather than a mock's calls.
 - Flutter state classes are `ChangeNotifier`s with constructor-injected dependencies. Reuse `lib/theme/` tokens and the `App*` widgets.
 - Keep code concise and modular: one-line docstrings, comments only for a non-obvious why.
-- When a feature lands, update the roadmap and the package README. Add no other markdown files (`.kiro/steering/documentation-rules.md`).
+- When a feature lands, update the roadmap and the package README. Add no other markdown files beyond READMEs and `docs/`.
 
 ## Commits and PRs
 - One-line subject, conventional and unscoped (`feat:`, `fix:`, `docs:`, `chore:`, `style:`, `refactor:`), no body.
@@ -30,4 +30,4 @@ BharatVerse serves one AI-written story from Indian history a day. Monorepo: `sc
 ## Good to know
 - The daily cron in `.github/workflows/daily-pipeline.yml` is disabled on purpose. Leave it.
 - Changes to `backend/database/schema.sql` must also be applied to the hosted Supabase project by hand.
-- A local-model task queue lives in `.kiro/specs/bharatverse-mvp/agent-tasks/` (see its README; run it with `scripts/agent_loop.py`).
+- A local-model task queue lives in `tools/agent-queue/` (see its README).
