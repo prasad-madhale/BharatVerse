@@ -2,9 +2,12 @@
 Unit tests for content sources.
 """
 
+import pytest
+
 from scrapper.sources.wikipedia import WikipediaSource
 from scrapper.sources.archive_org import ArchiveOrgSource
 from scrapper.sources.new_world_encyclopedia import NewWorldEncyclopediaSource
+from scrapper.sources.indian_culture import IndianCultureSource, SEARCH_ATTEMPTS
 
 
 class TestWikipediaSource:
@@ -156,6 +159,103 @@ class TestNewWorldEncyclopediaSource:
         results = source.search_topic("Ashoka", max_results=5)
 
         assert len(results) == 1
+
+
+class _FailingAsyncBrowser:
+    """A fake browser whose new_page() always raises, to test the async retry loop deterministically
+    (the live site's flakiness confirmed a real failure mode, but isn't reliable enough to test against)."""
+
+    def __init__(self):
+        self.new_page_calls = 0
+
+    async def new_page(self):
+        self.new_page_calls += 1
+        raise RuntimeError("boom")
+
+
+class _FailingSyncBrowser:
+    """Sync counterpart of _FailingAsyncBrowser, for search_topic's retry loop."""
+
+    def __init__(self):
+        self.new_page_calls = 0
+
+    def new_page(self):
+        self.new_page_calls += 1
+        raise RuntimeError("boom")
+
+
+async def _no_sleep_async(seconds):
+    pass
+
+
+class TestIndianCultureSource:
+    """Tests for IndianCultureSource."""
+
+    def test_init(self):
+        source = IndianCultureSource()
+        assert source.name == "indian_culture"
+
+    def test_search_topic_returns_results(self):
+        """A topic with real coverage (see the source's docstring) returns real results."""
+        source = IndianCultureSource()
+        results = source.search_topic("Ashoka", max_results=3)
+
+        assert isinstance(results, list)
+        assert len(results) > 0
+        for result in results:
+            assert "title" in result
+            assert "url" in result
+            assert "summary" in result
+            assert result["url"].startswith("https://www.indianculture.gov.in/")
+
+    def test_search_topic_empty_for_nonsense_query(self):
+        source = IndianCultureSource()
+        results = source.search_topic("xyzabc123nonexistentquery", max_results=3)
+
+        assert results == []
+
+    async def test_extract_returns_real_content(self):
+        source = IndianCultureSource()
+        contents = await source.extract("Ashoka", max_pages=2)
+
+        assert len(contents) > 0
+        for content in contents:
+            assert content.source_url.startswith("https://www.indianculture.gov.in/")
+            assert len(content.raw_text) > 500
+            assert content.metadata["source"] == "indian_culture"
+
+    async def test_extract_raises_when_nothing_has_real_content(self):
+        """Regression test: most catalog items are archival-record metadata with no body text
+        (see the source's docstring) -- a topic that only matches those must not be treated as a
+        successful, empty extraction, since a raised exception is what lets web_scraper.py's
+        scrape_all() log it and continue with the other sources rather than silently publishing
+        nothing from this source."""
+        source = IndianCultureSource()
+
+        with pytest.raises(ValueError, match="No Indian Culture Portal results"):
+            await source.extract("xyzabc123nonexistentquery", max_pages=2)
+
+    async def test_search_async_retries_then_raises_the_last_error(self, monkeypatch):
+        # Regression test: new_page() used to be called outside the try block, so a failure there
+        # skipped the retry loop entirely instead of being retried like any other failure.
+        monkeypatch.setattr("scrapper.sources.indian_culture.asyncio.sleep", _no_sleep_async)
+        source = IndianCultureSource()
+        browser = _FailingAsyncBrowser()
+
+        with pytest.raises(RuntimeError, match="boom"):
+            await source._search_async(browser, "Ashoka")
+
+        assert browser.new_page_calls == SEARCH_ATTEMPTS
+
+    def test_search_sync_retries_then_raises_the_last_error(self, monkeypatch):
+        monkeypatch.setattr("scrapper.sources.indian_culture.time.sleep", lambda seconds: None)
+        source = IndianCultureSource()
+        browser = _FailingSyncBrowser()
+
+        with pytest.raises(RuntimeError, match="boom"):
+            source._search_sync(browser, "Ashoka")
+
+        assert browser.new_page_calls == SEARCH_ATTEMPTS
 
 
 class TestSourceRegistry:

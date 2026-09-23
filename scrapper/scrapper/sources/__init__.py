@@ -9,12 +9,14 @@ from .base import ContentSource, SourceRegistry
 from .wikipedia import WikipediaSource
 from .archive_org import ArchiveOrgSource
 from .new_world_encyclopedia import NewWorldEncyclopediaSource
+from .indian_culture import IndianCultureSource
 
 # Register all available sources
 registry = SourceRegistry()
 registry.register(WikipediaSource())
 registry.register(ArchiveOrgSource())
 registry.register(NewWorldEncyclopediaSource())
+registry.register(IndianCultureSource())
 
 __all__ = [
     'ContentSource',
@@ -22,5 +24,6 @@ __all__ = [
     'WikipediaSource',
     'ArchiveOrgSource',
     'NewWorldEncyclopediaSource',
+    'IndianCultureSource',
     'registry',
 ]

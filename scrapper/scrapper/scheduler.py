@@ -24,7 +24,7 @@ from scrapper.web_scraper import WebScraper
 
 logger = logging.getLogger(__name__)
 
-SOURCES = ["wikipedia", "archive_org", "new_world_encyclopedia"]
+SOURCES = ["wikipedia", "archive_org", "new_world_encyclopedia", "indian_culture"]
 MAX_GENERATION_ATTEMPTS = 3
 GENERATION_BACKOFF_SECONDS = 5  # doubles after each failed attempt: 5 s, then 10 s
 CRITIC_MAX_ROUNDS = 2  # review/revise cycles per generation attempt, before falling back to a fresh attempt
