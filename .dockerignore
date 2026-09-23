@@ -1,0 +1,14 @@
+# Keeps the backend image's build context to what backend/Dockerfile actually copies (backend/, common/).
+.agent/
+.git/
+.github/
+.local-stack/
+.venv/
+bharatverse_app/
+docs/
+scrapper/
+scripts/
+tools/
+*.md
+.env
+.env.example

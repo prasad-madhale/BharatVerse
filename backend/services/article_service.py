@@ -3,11 +3,9 @@ Article storage and retrieval, backed by Supabase: metadata in the
 `articles` Postgres table, full content (body/sections/citations) as a
 JSON file in Supabase Storage referenced by content_file_path.
 
-NOTE: the Supabase calls here (storage upload/download, table upsert) are
-unit-tested with a mocked client but have not yet been exercised against a
-live Supabase project (see backend/tests/test_database/ for the property
-test that already validates the Postgres row round-trip). Verify end-to-end
-once a live project is available.
+NOTE: the table calls here have been exercised against a local Postgres and
+PostgREST; Storage and Auth were local stand-ins, so none of this has run
+against the hosted Supabase project yet.
 """
 
 import json
@@ -61,7 +59,7 @@ class ArticleService:
         response = client.table("articles").select("*").eq("id", article_id).execute()
         if not response.data:
             return None
-        return self._load_article(client, response.data[0])
+        return self.load_article(client, response.data[0])
 
     async def list_recent_titles(self, limit: int = 200) -> list[str]:
         """
@@ -80,37 +78,40 @@ class ArticleService:
         )
         return [row["title"] for row in response.data]
 
-    async def list_recent_articles(self, limit: int = 5) -> list[Article]:
-        """Full, recently-published articles (metadata + content), most recent first."""
+    async def list_recent_articles(self, limit: int = 5, offset: int = 0) -> list[Article]:
+        """Full, recently-published articles (metadata + content), most recent first. `offset` pages through them."""
         client = get_supabase().get_client()
         response = (
             client.table("articles")
             .select("*")
             .order("date", desc=True)
-            .limit(limit)
+            .order("created_at", desc=True)
+            .order("id", desc=True)  # a total order, so no page repeats or skips an article
+            .range(offset, offset + limit - 1)
             .execute()
         )
-        return [self._load_article(client, row) for row in response.data]
+        return [self.load_article(client, row) for row in response.data]
 
     async def get_daily_article(self) -> Article | None:
         """
         Retrieve the current daily article.
 
-        Phase 0: the most recently published article by date. Real
-        daily-selection logic (one designated article per calendar day,
-        topic uniqueness) is a Phase 4 (scheduler) concern.
+        Phase 0: the most recently published article by date (ties broken by
+        created_at). Real daily-selection logic (one designated article per
+        calendar day, topic uniqueness) is a Phase 4 (scheduler) concern.
         """
         client = get_supabase().get_client()
         response = (
             client.table("articles")
             .select("*")
             .order("date", desc=True)
+            .order("created_at", desc=True)
             .limit(1)
             .execute()
         )
         if not response.data:
             return None
-        return self._load_article(client, response.data[0])
+        return self.load_article(client, response.data[0])
 
     def _record_from_article(self, article: Article) -> ArticleRecord:
         return ArticleRecord(
@@ -128,7 +129,8 @@ class ArticleService:
     def _content_file_path(self, article_id: str, publication_date: date_type) -> str:
         return f"articles/{publication_date.isoformat()}/{article_id}.json"
 
-    def _load_article(self, client, row: dict) -> Article:
+    def load_article(self, client, row: dict) -> Article:
+        """Reassemble an Article from its Postgres row and Storage content blob."""
         record = ArticleRecord(**row)
         blob_bytes = client.storage.from_(self.settings.articles_storage_bucket).download(
             record.content_file_path

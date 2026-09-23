@@ -19,6 +19,10 @@ abstract class AppSpacing {
   static const radiusLg = 16.0;
   static const radiusFull = 999.0;
 
+  /// Widest a reading column gets, and the widest a form gets.
+  static const contentWidth = 720.0;
+  static const formWidth = 420.0;
+
   static const durationFast = Duration(milliseconds: 150);
   static const durationBase = Duration(milliseconds: 250);
 }

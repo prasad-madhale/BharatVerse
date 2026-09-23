@@ -1,0 +1,3 @@
+# Extras for tools/local-stack (see its README), on top of backend/requirements.txt, which brings fastapi, uvicorn and httpx
+pg8000==1.31.5           # SQL access: the bundled Postgres has no psql, and the gateway reads auth.users through it
+python-multipart==0.0.32 # the gateway's Storage stand-in reads the multipart uploads supabase-py sends

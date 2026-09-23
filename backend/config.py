@@ -5,7 +5,7 @@ Loads settings from environment variables using pydantic-settings.
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Resolve relative to this file, not the process's CWD, so `.env` loads
@@ -22,15 +22,7 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "BharatVerse API"
     app_version: str = "0.1.0"
-    debug: bool = False
-
-    # API
-    api_host: str = "0.0.0.0"
-    api_port: int = 8000
     api_prefix: str = "/api/v1"
-
-    # Note: LLM provider/model/API key configuration lives in common.config.LLMSettings,
-    # not here -- it's shared with the scrapper content pipeline (see common/config.py).
 
     # Supabase (Supabase Auth handles authentication and OAuth directly;
     # Google/Facebook OAuth providers are configured in the Supabase dashboard,
@@ -41,14 +33,15 @@ class Settings(BaseSettings):
 
     # Content Pipeline
     articles_storage_bucket: str = "articles"  # Supabase Storage bucket
-    scraping_rate_limit_seconds: int = 2
-    max_scraping_retries: int = 3
 
     # CORS
     cors_origins: list[str] = ["*"]
 
-    # Rate Limiting
+    # Rate Limiting: per client address and per process; 0 turns it off
     rate_limit_requests_per_minute: int = 100
+
+    # Logging
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
     model_config = SettingsConfigDict(
         env_file=_REPO_ROOT_ENV_FILE,

@@ -1,11 +1,11 @@
 {
-    "name": "bharatverse_app",
-    "short_name": "bharatverse_app",
+    "name": "BharatVerse",
+    "short_name": "BharatVerse",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FBF7EF",
+    "theme_color": "#FBF7EF",
+    "description": "One AI-written story from Indian history a day.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

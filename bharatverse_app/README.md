@@ -1,437 +1,75 @@
-# BharatVerse Mobile App
+# Flutter app
 
-Cross-platform mobile application for iOS and Android built with Flutter.
+The reader: today's article, an archive of earlier ones, search, likes and offline reading. It runs on Android, iOS and
+the web.
 
-## Overview
+## How it works
 
-The BharatVerse mobile app provides:
-- Daily historical articles about Indian history
-- Article search with autocomplete
-- User authentication (email/password + OAuth)
-- Article likes and personalization
-- Offline reading (last 7 days cached)
-- Markdown rendering for rich content
+The app talks to Supabase directly, not through the [backend API](../backend/README.md), so it needs no server of its
+own:
 
-## Prerequisites
+- Articles come from Supabase's PostgREST and Storage HTTP APIs with the anon key (`lib/services/api_client.dart`).
+  Search calls the same `search_articles` database function as the API, and titles and tags are suggested while the
+  reader types through `autocomplete_suggestions`.
+- Sign-in, sign-up and password reset use `supabase_flutter`. Likes are read and written with the signed-in user's token,
+  and row-level security limits each user to their own.
+- The 50 most recently opened articles are saved on the device (`shared_preferences`). When the server cannot be reached,
+  the app shows those, with an offline banner. Search needs a connection.
 
-- **Flutter SDK 3.x** or higher
-- **Dart SDK** (included with Flutter)
-- **Android Studio** (for Android development)
-- **Xcode** (for iOS development, macOS only)
-- **Backend API** running (see [backend/README.md](../backend/README.md))
+The project URL and anon key are in `lib/config.dart`. Point them at your own project when you set one up, or build
+against another one with `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...` (which is how
+[`tools/local-stack`](../tools/local-stack/README.md) builds the app for its local stand-in). The anon key is meant to be
+public, since row-level security is what protects the data.
 
-## Setup
+## Run
 
-### 1. Install Flutter
-
-Follow the official Flutter installation guide:
-- [Flutter Installation](https://docs.flutter.dev/get-started/install)
-
-Verify installation:
-```bash
-flutter doctor
-```
-
-### 2. Get Dependencies
+Flutter stable (CI follows the stable channel; last verified on 3.47) with Android and/or iOS tooling for the platforms
+you target (`./scripts/doctor.sh` or `flutter doctor` shows what is missing).
 
 ```bash
 cd bharatverse_app
 flutter pub get
+flutter run -d chrome        # web; or any device or emulator from `flutter devices`
 ```
 
-### 3. Configure API Endpoint
+From the repo root, `./scripts/dev.sh` serves the web app on :8765 together with the API, and
+`./scripts/run-device.sh [--release]` runs on a physical phone: natively, or, for an iPhone from Linux or Windows, as the
+web app in the phone's browser ([details](../scripts/README.md)).
 
-Edit `lib/config/api_config.dart`:
+Password-reset emails link back to the app, so add the app's URL (for local web, `http://localhost:8765`) under
+Supabase's Authentication > URL Configuration > Redirect URLs.
 
-```dart
-class ApiConfig {
-  static const String baseUrl = 'http://localhost:8000';  // Development
-  // static const String baseUrl = 'https://api.bharatverse.com';  // Production
-}
-```
-
-### 4. Configure OAuth (Optional)
-
-#### Google OAuth
-
-1. Create OAuth credentials in [Google Cloud Console](https://console.cloud.google.com/)
-2. Add to `android/app/src/main/AndroidManifest.xml`:
-```xml
-<meta-data
-    android:name="com.google.android.gms.auth.api.signin.client_id"
-    android:value="YOUR_GOOGLE_CLIENT_ID" />
-```
-3. Add to `ios/Runner/Info.plist`:
-```xml
-<key>GIDClientID</key>
-<string>YOUR_GOOGLE_CLIENT_ID</string>
-```
-
-#### Facebook OAuth
-
-1. Create app in [Facebook Developers](https://developers.facebook.com/)
-2. Follow [flutter_facebook_auth setup](https://pub.dev/packages/flutter_facebook_auth)
-
-## Running the App
-
-### Development Mode
-
-```bash
-# Run on connected device/emulator
-flutter run
-
-# Run with hot reload
-flutter run --hot
-
-# Run on specific device
-flutter devices
-flutter run -d <device-id>
-```
-
-### Debug vs Release
-
-```bash
-# Debug mode (default)
-flutter run
-
-# Profile mode (performance profiling)
-flutter run --profile
-
-# Release mode (optimized)
-flutter run --release
-```
-
-## Building
-
-### Android
-
-```bash
-# Debug APK
-flutter build apk --debug
-
-# Release APK
-flutter build apk --release
-
-# App Bundle (for Play Store)
-flutter build appbundle --release
-```
-
-Output: `build/app/outputs/flutter-apk/app-release.apk`
-
-### iOS
-
-```bash
-# Debug build
-flutter build ios --debug
-
-# Release build
-flutter build ios --release
-```
-
-Then open `ios/Runner.xcworkspace` in Xcode to archive and upload to App Store.
-
-## Project Structure
-
-```
-bharatverse_app/
-├── lib/
-│   ├── main.dart              # App entry point
-│   ├── config/                # Configuration
-│   │   └── api_config.dart
-│   ├── models/                # Data models
-│   │   ├── article.dart
-│   │   ├── user.dart
-│   │   └── auth_response.dart
-│   ├── services/              # API and business logic
-│   │   ├── api_client.dart
-│   │   ├── auth_service.dart
-│   │   ├── article_cache.dart
-│   │   └── secure_storage.dart
-│   ├── state/                 # State management (Provider)
-│   │   ├── article_state.dart
-│   │   ├── auth_state.dart
-│   │   └── like_state.dart
-│   ├── screens/               # UI screens
-│   │   ├── home_screen.dart
-│   │   ├── article_detail_screen.dart
-│   │   ├── search_screen.dart
-│   │   ├── auth_screen.dart
-│   │   └── profile_screen.dart
-│   ├── widgets/               # Reusable widgets
-│   │   ├── daily_article_card.dart
-│   │   ├── article_list_tile.dart
-│   │   ├── article_content_view.dart
-│   │   └── like_button.dart
-│   └── utils/                 # Utility functions
-│       ├── date_formatter.dart
-│       └── validators.dart
-├── test/                      # Unit and widget tests
-│   ├── widget_test.dart
-│   ├── models/
-│   ├── services/
-│   └── widgets/
-├── android/                   # Android-specific code
-├── ios/                       # iOS-specific code
-├── pubspec.yaml              # Dependencies
-└── README.md                 # This file
-```
-
-## Dependencies
-
-Key packages used:
-
-- **provider** - State management
-- **http** - HTTP client for API calls
-- **shared_preferences** - Local key-value storage
-- **sqflite** - Local SQLite database for caching
-- **cached_network_image** - Image caching
-- **flutter_secure_storage** - Secure token storage
-- **google_sign_in** - Google OAuth
-- **flutter_facebook_auth** - Facebook OAuth
-- **flutter_markdown** - Markdown rendering
-
-See `pubspec.yaml` for complete list.
-
-## Testing
-
-### Run All Tests
-
-```bash
-flutter test
-```
-
-### Run Specific Tests
-
-```bash
-# Widget tests
-flutter test test/widgets/
-
-# Unit tests
-flutter test test/models/ test/services/
-
-# Integration tests
-flutter test integration_test/
-```
-
-### Test Coverage
+## Test
 
 ```bash
 flutter test --coverage
-genhtml coverage/lcov.info -o coverage/html
-open coverage/html/index.html
-```
-
-### Widget Testing
-
-Example widget test:
-
-```dart
-testWidgets('DailyArticleCard displays article info', (WidgetTester tester) async {
-  final article = Article(
-    id: 'test_001',
-    title: 'Test Article',
-    summary: 'Test summary',
-    // ... other fields
-  );
-
-  await tester.pumpWidget(
-    MaterialApp(
-      home: DailyArticleCard(article: article),
-    ),
-  );
-
-  expect(find.text('Test Article'), findsOneWidget);
-  expect(find.text('Test summary'), findsOneWidget);
-});
-```
-
-## State Management
-
-The app uses **Provider** for state management with three main state classes:
-
-### ArticleState
-Manages article data and loading states:
-```dart
-Provider.of<ArticleState>(context).fetchDailyArticle();
-```
-
-### AuthState
-Manages authentication and user session:
-```dart
-Provider.of<AuthState>(context).login(email, password);
-```
-
-### LikeState
-Manages article likes:
-```dart
-Provider.of<LikeState>(context).toggleLike(articleId);
-```
-
-## Offline Support
-
-The app caches articles locally for offline reading:
-
-- Articles cached after viewing
-- Last 7 days retained
-- Automatic sync when online
-- Offline indicator in UI
-
-Cache is managed by `ArticleCache` service using sqflite.
-
-## Code Style
-
-Follow Dart style guide:
-- Use `lowerCamelCase` for variables and functions
-- Use `UpperCamelCase` for classes
-- Use `_lowerCamelCase` for private members
-- Maximum line length: 80 characters
-- Use trailing commas for better formatting
-
-Format code:
-```bash
-flutter format lib/
-```
-
-Analyze code:
-```bash
+../scripts/check_lcov_coverage.sh coverage/lcov.info 85 lib/main.dart    # CI's 85% coverage gate
+dart format --output=none --set-exit-if-changed .
 flutter analyze
 ```
 
-## Development Workflow
+## Layout
 
-1. **Create feature branch**: `git checkout -b feature/your-feature`
-2. **Make changes** in `lib/`
-3. **Write tests** in `test/`
-4. **Run tests**: `flutter test`
-5. **Format code**: `flutter format lib/`
-6. **Analyze**: `flutter analyze`
-7. **Commit**: `git commit -m "feat: your feature"`
-8. **Push**: `git push origin feature/your-feature`
+- `lib/screens/`: home, article, archive, search, likes, sign-in, forgot and reset password
+- `lib/services/`: `api_client.dart` (articles and search), `likes_client.dart`, `article_cache.dart` (offline copies)
+- `lib/state/`: `AuthState` and `LikeState`, the app's two `ChangeNotifier`s, provided with `provider`
+- `lib/theme/` and `lib/widgets/`: the design tokens (colors, spacing, type) and the shared components built on them
+- `test/`: mirrors `lib/`; services are tested against a fake HTTP client
 
-## Debugging
+The `android/`, `ios/` and `web/` folders hold the platform projects. To add desktop, run
+`flutter create --platforms=linux,macos,windows .` from this folder.
 
-### Flutter DevTools
+## App icon
 
-```bash
-flutter pub global activate devtools
-flutter pub global run devtools
-```
-
-Then run app with:
-```bash
-flutter run --observatory-port=9200
-```
-
-### Debug Logging
-
-```dart
-import 'package:flutter/foundation.dart';
-
-debugPrint('Debug message');
-```
-
-### Network Debugging
-
-Use Charles Proxy or Proxyman to inspect HTTP requests.
-
-## Performance
-
-### Optimization Tips
-
-1. **Images**: Use `cached_network_image` for network images
-2. **Lists**: Use `ListView.builder` for long lists
-3. **State**: Minimize widget rebuilds with `const` constructors
-4. **Async**: Use `FutureBuilder` and `StreamBuilder` appropriately
-5. **Memory**: Dispose controllers and streams in `dispose()`
-
-### Performance Profiling
+`assets/icon/icon.png` (full-bleed) and `icon_foreground.png` (transparent, for Android's adaptive icon; kept within
+the safe zone launchers may crop to) are the same saffron "B" mark as the web app's `web/icons/`, which this tool
+does not touch. After changing either file, regenerate Android and iOS with:
 
 ```bash
-flutter run --profile
+dart run flutter_launcher_icons
 ```
 
-Then use DevTools to analyze performance.
-
-## Deployment
-
-### Android (Google Play Store)
-
-1. **Configure signing**: Edit `android/app/build.gradle`
-2. **Build app bundle**: `flutter build appbundle --release`
-3. **Upload to Play Console**: https://play.google.com/console
-4. **Fill store listing** and submit for review
-
-### iOS (App Store)
-
-1. **Configure signing**: Open `ios/Runner.xcworkspace` in Xcode
-2. **Build archive**: `flutter build ios --release`
-3. **Archive in Xcode**: Product → Archive
-4. **Upload to App Store Connect**: Window → Organizer
-5. **Fill store listing** and submit for review
-
-## Troubleshooting
-
-### Build Errors
-
-```bash
-# Clean build
-flutter clean
-flutter pub get
-flutter run
-```
-
-### Gradle Issues (Android)
-
-```bash
-cd android
-./gradlew clean
-cd ..
-flutter run
-```
-
-### Pod Issues (iOS)
-
-```bash
-cd ios
-pod deintegrate
-pod install
-cd ..
-flutter run
-```
-
-### Hot Reload Not Working
-
-```bash
-# Restart app with hot reload enabled
-flutter run --hot
-```
-
-## Platform-Specific Notes
-
-### Android
-
-- Minimum SDK: 21 (Android 5.0)
-- Target SDK: 34 (Android 14)
-- Permissions configured in `AndroidManifest.xml`
-
-### iOS
-
-- Minimum version: iOS 13.0
-- Permissions configured in `Info.plist`
-- Requires macOS for development
-
-## Resources
-
-- [Flutter Documentation](https://docs.flutter.dev/)
-- [Dart Documentation](https://dart.dev/guides)
-- [Provider Package](https://pub.dev/packages/provider)
-- [Flutter Cookbook](https://docs.flutter.dev/cookbook)
-- [Design Document](../.kiro/specs/bharatverse-mvp/design.md)
-- [AGENTS.md](../.kiro/AGENTS.md)
-
-## Support
-
-For issues or questions:
-1. Check the [design document](../.kiro/specs/bharatverse-mvp/design.md)
-2. Review [AGENTS.md](../.kiro/AGENTS.md) for development guidelines
-3. Check existing issues in the repository
+It also rewrites `ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json` to a larger, minified idiom set
+(adding pre-iOS-7 sizes this project doesn't target) and can reset an unrelated Xcode build setting
+(`ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`) to a wrong value -- check `git diff` on both after
+running it.

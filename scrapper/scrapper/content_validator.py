@@ -2,7 +2,7 @@
 Automated content validation for generated articles.
 
 Stands in for human-in-the-loop (historian) review, which is explicitly
-deferred for now (see .kiro/specs/bharatverse-mvp/roadmap.md, Phase 4).
+deferred for now (see docs/roadmap.md, Phase 4).
 Checks structural/quality properties that are cheap to verify
 automatically; it cannot verify factual accuracy.
 """
@@ -17,6 +17,15 @@ WORD_COUNT_TOLERANCE = 200
 
 MIN_SECTIONS = 3
 MIN_CITATIONS = 1
+
+
+def article_metrics(article: Article) -> dict[str, int]:
+    """What the validator measures, and what the pipeline logs for every article it generates."""
+    return {
+        "word_count": len(article.content.split()),
+        "citation_count": len(article.citations),
+        "section_count": len(article.sections),
+    }
 
 
 class ContentValidator:
@@ -37,7 +46,8 @@ class ContentValidator:
         if not article.summary.strip():
             issues.append("summary is empty")
 
-        word_count = len(article.content.split())
+        metrics = article_metrics(article)
+        word_count = metrics["word_count"]
         min_allowed = MIN_WORD_COUNT - WORD_COUNT_TOLERANCE
         max_allowed = MAX_WORD_COUNT + WORD_COUNT_TOLERANCE
         if word_count < min_allowed or word_count > max_allowed:
@@ -45,10 +55,10 @@ class ContentValidator:
                 f"word count {word_count} outside allowed range [{min_allowed}, {max_allowed}]"
             )
 
-        if len(article.sections) < MIN_SECTIONS:
-            issues.append(f"only {len(article.sections)} section(s), need at least {MIN_SECTIONS}")
+        if metrics["section_count"] < MIN_SECTIONS:
+            issues.append(f"only {metrics['section_count']} section(s), need at least {MIN_SECTIONS}")
 
-        if len(article.citations) < MIN_CITATIONS:
-            issues.append(f"only {len(article.citations)} citation(s), need at least {MIN_CITATIONS}")
+        if metrics["citation_count"] < MIN_CITATIONS:
+            issues.append(f"only {metrics['citation_count']} citation(s), need at least {MIN_CITATIONS}")
 
         return (len(issues) == 0, issues)

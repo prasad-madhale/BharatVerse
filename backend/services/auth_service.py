@@ -22,7 +22,7 @@ class AuthService:
     """Thin wrapper over Supabase Auth's email/password flows."""
 
     async def sign_up(self, email: str, password: str) -> AuthResponse:
-        client = get_supabase().get_client()
+        client = get_supabase().create_auth_client()
         try:
             response = client.auth.sign_up({"email": email, "password": password})
         except AuthApiError as e:
@@ -40,7 +40,7 @@ class AuthService:
         )
 
     async def sign_in(self, email: str, password: str) -> AuthResponse:
-        client = get_supabase().get_client()
+        client = get_supabase().create_auth_client()
         try:
             response = client.auth.sign_in_with_password({"email": email, "password": password})
         except AuthApiError as e:

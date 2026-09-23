@@ -1,8 +1,7 @@
 """
-Shared LLM configuration, used by both backend/ (semantic search embeddings)
-and scrapper/ (article generation). Kept separate from backend/config.py so
-the content pipeline doesn't have to depend on the backend service (which
-also requires Supabase credentials the scraper has no need for).
+LLM configuration for the content pipeline (scrapper/). Kept separate from backend/config.py so
+the pipeline doesn't have to depend on the backend service (which also requires Supabase
+credentials the scraper has no need for).
 """
 
 from pathlib import Path

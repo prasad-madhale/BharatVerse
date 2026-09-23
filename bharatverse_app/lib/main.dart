@@ -7,26 +7,56 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'config.dart';
 import 'screens/home_screen.dart';
 import 'services/api_client.dart';
+import 'services/article_cache.dart';
+import 'services/likes_client.dart';
+import 'services/pending_likes.dart';
 import 'state/auth_state.dart';
+import 'state/like_state.dart';
 import 'theme/app_theme.dart';
+import 'widgets/recovery_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
-  runApp(const BharatVerseApp());
+  final cache = await ArticleCache.open();
+  final pendingLikes = await PendingLikes.open();
+  runApp(BharatVerseApp(
+    apiClient: ApiClient(cache: cache),
+    pendingLikes: pendingLikes,
+  ));
 }
 
 class BharatVerseApp extends StatelessWidget {
-  const BharatVerseApp({super.key});
+  final ApiClient apiClient;
+  final PendingLikes pendingLikes;
+
+  const BharatVerseApp({
+    super.key,
+    required this.apiClient,
+    required this.pendingLikes,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AuthState(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthState()),
+        Provider(create: (_) => LikesClient()),
+        // LikeState reads the two above, so it comes after them. It is not lazy,
+        // so a returning user's likes are loaded before the first article opens.
+        ChangeNotifierProvider(
+          lazy: false,
+          create: (context) => LikeState(
+            likesClient: context.read<LikesClient>(),
+            authState: context.read<AuthState>(),
+            pendingLikes: pendingLikes,
+          ),
+        ),
+      ],
       child: MaterialApp(
         title: 'BharatVerse',
         theme: AppTheme.theme,
-        home: HomeScreen(apiClient: ApiClient()),
+        home: RecoveryGate(child: HomeScreen(apiClient: apiClient)),
       ),
     );
   }

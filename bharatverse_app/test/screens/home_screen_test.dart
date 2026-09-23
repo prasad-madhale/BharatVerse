@@ -5,66 +5,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
+import 'package:bharatverse_app/screens/archive_screen.dart';
 import 'package:bharatverse_app/screens/home_screen.dart';
+import 'package:bharatverse_app/screens/liked_articles_screen.dart';
+import 'package:bharatverse_app/screens/search_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/widgets/article_card.dart';
+import '../support/like_fixtures.dart'
+    show MockLikesClient, testUser, withLikeProviders;
+import '../support/article_fixtures.dart';
+import '../support/layout_fixtures.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bharatverse_app/services/article_cache.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
-/// Shape of a row returned by Supabase's REST (PostgREST) API for the
-/// `articles` table -- note `date`, not `publication_date`, and no
-/// content/sections/citations (those live in a separate Storage blob).
-Map<String, dynamic> sampleArticleRow({
-  String id = 'art_20260703_001',
-  String title = 'The Mauryan Empire',
-}) =>
-    {
-      'id': id,
-      'title': title,
-      'summary': 'A summary of the Mauryan Empire.',
-      'date': '2026-07-03',
-      'reading_time_minutes': 13,
-      'author': 'BharatVerse AI',
-      'tags': ['mauryan-empire'],
-      'image_url': null,
-      'content_file_path': 'articles/2026-07-03/$id.json',
-    };
-
-/// Shape of the content JSON downloaded from Supabase Storage for a row's
-/// `content_file_path`.
-Map<String, dynamic> sampleArticleContent() => {
-      'content': '## Origins\n\nSome content.',
-      'sections': [
-        {'heading': 'Origins', 'content': 'Some content.', 'order': 1},
-      ],
-      'citations': [],
-    };
-
-/// A MockClient that serves `rows` for ApiClient's PostgREST call and a
-/// fixed content blob for its Storage call, branching on the request path
-/// the same way ApiClient's two calls do.
-MockClient articlesMockClient(List<Map<String, dynamic>> Function() rows) =>
-    MockClient((request) async {
-      if (request.url.path.contains('/storage/')) {
-        return http.Response(jsonEncode(sampleArticleContent()), 200);
-      }
-      return http.Response(jsonEncode(rows()), 200);
-    });
-
-/// Wraps HomeScreen with a signed-out AuthState -- HomeScreen's account icon
-/// (a Consumer widget for AuthState) needs a Provider ancestor regardless of
-/// whether a given test cares about auth at all.
-Widget _wrapWithProviders(ApiClient apiClient) {
+/// Wraps HomeScreen with a signed-out AuthState and LikeState: the account icon
+/// and the detail screen's like button need them whether or not a test cares.
+Widget _wrapWithProviders(ApiClient apiClient, {bool signedIn = false}) {
   final mockAuthClient = MockGoTrueClient();
-  when(() => mockAuthClient.currentUser).thenReturn(null);
+  when(() => mockAuthClient.currentUser)
+      .thenReturn(signedIn ? testUser() : null);
   when(() => mockAuthClient.onAuthStateChange)
       .thenAnswer((_) => const Stream.empty());
 
-  return ChangeNotifierProvider(
-    create: (_) => AuthState(authClient: mockAuthClient),
+  return withLikeProviders(
+    authState: AuthState(authClient: mockAuthClient),
+    likesClient: MockLikesClient(),
     child: MaterialApp(home: HomeScreen(apiClient: apiClient)),
   );
 }
@@ -178,5 +147,179 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Sign In'), findsWidgets);
+  });
+
+  testWidgets('the search icon opens the search screen', (tester) async {
+    final apiClient =
+        ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Search'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SearchScreen), findsOneWidget);
+  });
+
+  group('the liked-articles icon', () {
+    late ApiClient apiClient;
+
+    setUp(() {
+      apiClient =
+          ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
+    });
+
+    testWidgets('is only there while signed in', (tester) async {
+      await tester.pumpWidget(_wrapWithProviders(apiClient));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Liked articles'), findsNothing);
+
+      await tester.pumpWidget(_wrapWithProviders(apiClient, signedIn: true));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Liked articles'), findsOneWidget);
+    });
+
+    testWidgets('opens the liked articles', (tester) async {
+      await tester.pumpWidget(_wrapWithProviders(apiClient, signedIn: true));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Liked articles'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LikedArticlesScreen), findsOneWidget);
+    });
+  });
+
+  testWidgets('hides an unexpected error behind a generic message',
+      (tester) async {
+    final apiClient = ApiClient(
+        client: MockClient((_) async => http.Response('not json', 200)));
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.text('Something went wrong. Please try again.'), findsOneWidget);
+    expect(find.textContaining('FormatException'), findsNothing);
+  });
+
+  testWidgets('keeps its cards in a readable column on a wide screen',
+      (tester) async {
+    useWideScreen(tester);
+    final apiClient =
+        ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(find.byType(ArticleCard)).width, 720 - 2 * 16);
+  });
+
+  testWidgets('keeps the header icons in the reading column on a wide screen',
+      (tester) async {
+    useWideScreen(tester);
+    final apiClient =
+        ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    // The column is 720 wide, centered in 1600, with 4px and 12px row padding.
+    expect(tester.getTopLeft(find.byTooltip('Search')).dx, closeTo(444, 12));
+    expect(tester.getTopRight(find.byTooltip('Sign in')).dx, closeTo(1148, 12));
+  });
+
+  testWidgets('shows a plain message, not the raw error, when loading fails',
+      (tester) async {
+    final apiClient = ApiClient(
+      client: MockClient((_) async =>
+          throw http.ClientException('Failed to fetch, uri=http://internal')),
+    );
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(find.text('COULD NOT LOAD ARTICLES'), findsOneWidget);
+    expect(
+        find.text(
+            'Could not reach the server. Check your connection and try again.'),
+        findsOneWidget);
+    expect(find.textContaining('uri='), findsNothing);
+  });
+
+  group('the archive link', () {
+    Future<void> pumpHome(WidgetTester tester, int articles) async {
+      await tester.binding.setSurfaceSize(const Size(800, 2400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final apiClient = ApiClient(
+        client: articlesMockClient(() => List.generate(articles,
+            (i) => sampleArticleRow(id: 'art_$i', title: 'Article $i'))),
+      );
+      await tester.pumpWidget(_wrapWithProviders(apiClient));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('follows a full page of recent articles and opens the archive',
+        (tester) async {
+      await pumpHome(tester, 5);
+
+      await tester.tap(find.text('Browse the archive →'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ArchiveScreen), findsOneWidget);
+    });
+
+    testWidgets('is left out when there is nothing older to browse',
+        (tester) async {
+      await pumpHome(tester, 3);
+
+      expect(find.text('Browse the archive →'), findsNothing);
+    });
+  });
+
+  group('offline', () {
+    late SharedPreferences prefs;
+    late ArticleCache cache;
+    late bool online;
+
+    ApiClient client() => ApiClient(
+          cache: cache,
+          client: MockClient((request) async {
+            if (!online) {
+              throw http.ClientException('Failed to fetch');
+            }
+            if (request.url.path.contains('/storage/')) {
+              return http.Response(jsonEncode(sampleArticleContent()), 200);
+            }
+            return http.Response(
+                jsonEncode([sampleArticleRow(id: 'live', title: 'Live news')]),
+                200);
+          }),
+        );
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      prefs = await SharedPreferences.getInstance();
+      cache = ArticleCache(prefs);
+      await cache.cacheArticle(sampleArticle(id: 'kept', title: 'Kept copy'));
+      online = false;
+    });
+
+    testWidgets('shows the saved articles with a notice', (tester) async {
+      await tester.pumpWidget(_wrapWithProviders(client()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('KEPT COPY'), findsOneWidget);
+      expect(find.text('OFFLINE · SHOWING SAVED ARTICLES'), findsOneWidget);
+    });
+
+    testWidgets('goes back to live articles when a refresh succeeds',
+        (tester) async {
+      await tester.pumpWidget(_wrapWithProviders(client()));
+      await tester.pumpAndSettle();
+      online = true;
+
+      await tester.fling(find.byType(ListView), const Offset(0, 400), 1000);
+      await tester.pumpAndSettle();
+
+      expect(find.text('LIVE NEWS'), findsOneWidget);
+      expect(find.text('OFFLINE · SHOWING SAVED ARTICLES'), findsNothing);
+    });
   });
 }

@@ -7,8 +7,8 @@ Supports multiple LLM providers with a unified interface:
 - OpenAI
 - Groq
 
-Shared by backend/ (semantic search embeddings) and scrapper/ (article
-generation) -- see common/config.py for where its settings come from.
+Used by scrapper/ (topic and article generation) -- see common/config.py for where its
+settings come from.
 """
 
 from common.config import get_llm_settings
@@ -120,41 +120,6 @@ class LLMProvider:
 
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
-
-    async def generate_embedding(self, text: str) -> list[float]:
-        """
-        Generate embeddings for semantic search.
-
-        Args:
-            text: Input text
-
-        Returns:
-            Embedding vector
-        """
-        if self.provider == "gemini":
-            result = self.client.embed_content(
-                model="models/embedding-001",
-                content=text
-            )
-            return result['embedding']
-
-        elif self.provider == "openai":
-            response = self.client.embeddings.create(
-                model="text-embedding-ada-002",
-                input=text
-            )
-            return response.data[0].embedding
-
-        else:
-            # Fallback: use OpenAI for embeddings if provider doesn't support it
-            from openai import OpenAI
-            settings = get_llm_settings()
-            client = OpenAI(api_key=settings.openai_api_key)
-            response = client.embeddings.create(
-                model="text-embedding-ada-002",
-                input=text
-            )
-            return response.data[0].embedding
 
 
 # Global LLM provider instance (lazy-loaded)

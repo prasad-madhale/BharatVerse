@@ -14,9 +14,12 @@ router = APIRouter(prefix="/articles", tags=["articles"])
 
 
 @router.get("", response_model=list[Article])
-async def list_articles(limit: int = Query(default=5, ge=1, le=20)) -> list[Article]:
-    """List the most recently published articles, most recent first."""
-    return await ArticleService().list_recent_articles(limit=limit)
+async def list_articles(
+    limit: int = Query(default=5, ge=1, le=20),
+    offset: int = Query(default=0, ge=0),
+) -> list[Article]:
+    """List published articles, most recent first; `offset` pages through them."""
+    return await ArticleService().list_recent_articles(limit=limit, offset=offset)
 
 
 @router.get("/daily", response_model=Article)
