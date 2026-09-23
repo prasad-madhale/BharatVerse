@@ -15,16 +15,15 @@ import json_repair
 
 from common.llm_provider import LLMProvider, get_llm_provider
 from common.models import Article, Citation, Section
+from scrapper.article_critic import CriticReview
 from scrapper.models.article import ScrapedContent
+from scrapper.source_text import build_source_text
 
 logger = logging.getLogger(__name__)
 
 # Rough words-per-minute reading speed used to derive reading_time_minutes.
 # Chosen so the BRD's stated 1500-2500 word target maps to ~10-15 minutes.
 WORDS_PER_MINUTE = 150
-
-# Cap on how much scraped source text is sent to the LLM per generation call.
-MAX_SOURCE_CHARS = 15000
 
 PROMPT_TEMPLATE = """# Role
 You are a historical content curator for BharatVerse, specializing in Indian history. You write for
@@ -73,6 +72,47 @@ Transform the scraped source material below (topic: "{topic}") into a structured
 
 # Output format
 Respond with ONLY a JSON object (no markdown code fences, no extra commentary) matching exactly this shape:
+{{
+  "title": "...",
+  "summary": "...",
+  "sections": [
+    {{"heading": "...", "content": "..."}}
+  ],
+  "tags": ["...", "..."]
+}}"""
+
+REVISION_PROMPT_TEMPLATE = """# Role
+You are the historical content curator for BharatVerse who wrote the draft below (topic:
+"{topic}"). An editor reviewed it and found issues. Revise the draft to address them,
+keeping everything that already works.
+
+# Grounding rules (do not violate)
+- Every factual claim (names, dates, numbers, quotes, cause-and-effect) must be directly
+  supported by the source material below.
+- If an issue is about an unsupported claim or a citation that doesn't support its claim,
+  fix it by softening or removing the claim -- never by inventing new grounding for it.
+
+# What to fix
+- Address every issue marked "major" below.
+- Address a "minor" issue only if it doesn't require rewriting the section around it.
+- Keep the 1500-2000 word total, the section structure, and the voice unless an issue
+  specifically requires changing them.
+
+# Editor's feedback
+{issues}
+
+# Current draft
+## {title}
+{summary}
+
+{sections}
+
+# Source material
+{source_text}
+
+# Output format
+Respond with ONLY a JSON object (no markdown code fences, no extra commentary) matching
+exactly this shape:
 {{
   "title": "...",
   "summary": "...",
@@ -146,17 +186,65 @@ class ArticleGenerator:
             tags=list(parsed.get("tags", [])),
         )
 
-    def _build_prompt(self, scraped_content: list[ScrapedContent], topic: str) -> str:
-        # Give each source a fair, even share of the character budget rather than
-        # truncating the concatenated whole -- otherwise one oversized source (e.g. a
-        # long but tangential Wikipedia page) can silently crowd out every other
-        # source's content entirely, even when those sources are more on-topic.
-        per_source_budget = max(1, MAX_SOURCE_CHARS // len(scraped_content))
-        source_text = "\n\n".join(
-            f"--- Source: {c.source_url} ---\n{c.raw_text[:per_source_budget]}"
-            for c in scraped_content
+    async def revise_article(
+        self,
+        article: Article,
+        scraped_content: list[ScrapedContent],
+        topic: str,
+        feedback: CriticReview,
+    ) -> Article:
+        """
+        Revise an already-generated article to address a critic's feedback.
+
+        Raises:
+            ArticleGenerationError: If the LLM response can't be parsed into
+                the expected shape.
+        """
+        prompt = self._build_revision_prompt(article, scraped_content, topic, feedback)
+        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=8000)
+        parsed = self._parse_llm_response(raw_response)
+
+        sections = self._build_sections(parsed)
+        content = "\n\n".join(f"## {s.heading}\n\n{s.content}" for s in sections)
+        word_count = len(content.split())
+
+        # Same article, not a new one: keep its id and publication_date rather than reminting them.
+        return Article(
+            id=article.id,
+            title=parsed["title"],
+            summary=parsed["summary"],
+            content=content,
+            sections=sections,
+            citations=self._build_citations(scraped_content),
+            publication_date=article.publication_date,
+            reading_time_minutes=max(1, round(word_count / WORDS_PER_MINUTE)),
+            tags=list(parsed.get("tags", [])),
         )
-        return PROMPT_TEMPLATE.format(topic=topic, source_text=source_text)
+
+    def _build_prompt(self, scraped_content: list[ScrapedContent], topic: str) -> str:
+        return PROMPT_TEMPLATE.format(topic=topic, source_text=build_source_text(scraped_content))
+
+    def _build_revision_prompt(
+        self,
+        article: Article,
+        scraped_content: list[ScrapedContent],
+        topic: str,
+        feedback: CriticReview,
+    ) -> str:
+        issues = "\n".join(
+            f"- [{issue.severity}/{issue.category}] {issue.location}: {issue.detail} "
+            f"(suggestion: {issue.suggestion})"
+            for issue in feedback.issues
+        ) or "(no specific issues listed)"
+        sections = "\n\n".join(f"## {s.heading}\n\n{s.content}" for s in article.sections)
+        return REVISION_PROMPT_TEMPLATE.format(
+            topic=topic,
+            issues=issues,
+            title=article.title,
+            summary=article.summary,
+            sections=sections,
+            source_text=build_source_text(scraped_content),
+        )
 
     def _parse_llm_response(self, raw_response: str) -> dict:
         text = raw_response.strip()
