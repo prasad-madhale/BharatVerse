@@ -35,9 +35,14 @@ class ArchiveOrgSource(ContentSource):
         try:
             logger.info(f"Searching Archive.org for: '{topic}' (max {max_results} results)")
 
-            # Search with fields we need
+            # Restricted to mediatype:texts: an unrestricted search returns whatever Archive.org's
+            # huge, heterogeneous catalog scores as a loose match -- often a video, an image, or an
+            # unrelated item that just shares a word, with little or no extractable text (measured:
+            # for "Rani ki Vav", an unrestricted search's top hits included a YouTube video and an
+            # unrelated audio-art collection page; restricted to texts, all five hits were real
+            # reference material -- books, papers and heritage-site documents about the actual topic).
             search = search_items(
-                topic,
+                f"{topic} AND mediatype:texts",
                 fields=['identifier', 'title', 'description', 'date', 'mediatype'],
                 params={'rows': max_results}
             )
