@@ -21,8 +21,11 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 
 ## What is built
 
-- **Pipeline** (`scrapper/`): an LLM proposes topics that are not yet published; Wikipedia, archive.org and New World
-  Encyclopedia are scraped; an LLM writes the article; `ContentValidator`'s structural checks (length, sections,
+- **Pipeline** (`scrapper/`): an LLM proposes topics that are not yet published; Wikipedia, archive.org, New World
+  Encyclopedia and the Indian Culture Portal are scraped (the Portal's search sits behind bot-detection that blocks
+  plain HTTP requests, so it goes through a real browser session, retried with backoff since that interaction is
+  measurably flaky; most of its catalog is archival-record metadata with no body text, so only results with real
+  content are kept); an LLM writes the article; `ContentValidator`'s structural checks (length, sections,
   citations) gate it, then `ArticleCritic` reviews it as an editor would -- grounding in the source material (the
   check specific to an AI-from-scraped-sources pipeline), citation relevance, neutrality, contested claims stated as
   settled fact, and structure -- and `ArticleGenerator.revise_article` addresses its feedback, up to

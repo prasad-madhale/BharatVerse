@@ -42,9 +42,10 @@ JSON lines on stdout.
 
 1. **Topics** (`topic_generator.py`): asks the LLM for `--count` topics that match Wikipedia titles, excluding the 200
    most recent published titles.
-2. **Scrape** (`web_scraper.py`, `sources/`): for each topic, one page from each of Wikipedia, archive.org and New World
-   Encyclopedia, as Markdown through Crawl4AI and paced by a rate limiter (0.5 requests a second). A source that fails
-   is logged and skipped; a topic with no content at all is skipped.
+2. **Scrape** (`web_scraper.py`, `sources/`): for each topic, one page from each of Wikipedia, archive.org, New World
+   Encyclopedia and the Indian Culture Portal, as Markdown through Crawl4AI (or, for the Portal, a real browser
+   session directly -- see `sources/indian_culture.py`) and paced by a rate limiter (0.5 requests a second). A source
+   that fails is logged and skipped; a topic with no content at all is skipped.
 3. **Write** (`article_generator.py`): the LLM produces the title, summary, sections and tags from up to 15,000
    characters of source text. Citations and reading time come from the sources, not the LLM.
 4. **Check** (`content_validator.py`): a title and summary, 1,300 to 2,200 words, at least 3 sections and 1 citation --
@@ -65,7 +66,9 @@ past the structural check) the critic's round count and verdict. One topic faili
 ## Adding a source
 
 Subclass `ContentSource` in `scrapper/sources/`, implement `search_topic`, register it in `sources/__init__.py`, and add
-its `name` to `SOURCES` in `scheduler.py`; the scheduler only uses the sources listed there.
+its `name` to `SOURCES` in `scheduler.py`; the scheduler only uses the sources listed there. If a site needs a real
+browser for search too, not just for rendering a result page (`indian_culture.py`'s docstring has why), override
+`extract` as well rather than relying on the base class's `search_topic`-then-Crawl4AI default.
 
 `WebScraper` has a `check_robots_txt` method, but the `respect_robots` argument is accepted and not applied: nothing
 checks robots.txt before a page is fetched yet (see the [roadmap](../docs/roadmap.md)).
@@ -77,4 +80,8 @@ cd scrapper && pytest -m "not integration"     # what CI runs; an 85% coverage g
 ```
 
 The unit tests use stub LLM providers and sources, so they need no network or keys. `pytest -m integration` scrapes
-real sites, so it needs network access and can fail when a site changes; CI skips it.
+real sites, so it needs network access and can fail when a site changes; CI skips it. The Indian Culture Portal's
+own live-network tests are marked `integration` too, for a different reason than most: confirmed in a real CI run
+that the site's bot-detection can refuse the connection outright depending on which of GitHub Actions' rotating IPs
+the job lands on (a re-run from a fresh IP passed). The filtering and markdown-conversion logic that matters for
+correctness is covered separately, against a canned payload, so that stays in the default suite.

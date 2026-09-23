@@ -5,6 +5,8 @@ pydantic-settings>=2.6.0  # Used by common/config.py (shared LLM settings)
 
 # Web scraping
 crawl4ai==0.4.24
+playwright>=1.63.0  # already pulled in by crawl4ai; indian_culture.py drives it directly (see its
+                     # docstring), so it's a direct dependency now, not just a transitive one
 
 # Content source APIs
 wikipedia==1.4.0  # Wikipedia search and API wrapper
