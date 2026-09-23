@@ -134,8 +134,12 @@ class ArticleCritic:
             CriticReviewError: If the LLM response can't be parsed into a review.
         """
         prompt = self._build_prompt(article, scraped_content, topic)
-        # Compact JSON output, not prose -- no need for a large ceiling.
-        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=2000)
+        # The review itself is compact JSON, but an extended-thinking model (e.g. claude-sonnet-5)
+        # spends part of this budget on internal reasoning before producing it -- measured against a
+        # real ~1000-word article and its full source text, thinking alone used ~5,500 of 8,000
+        # tokens; 4,000 was not enough and returned no text at all (see article_generator.py, whose
+        # generation call needs the same headroom).
+        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=8000)
         return self._parse_llm_response(raw_response)
 
     def _build_prompt(self, article: Article, scraped_content: list[ScrapedContent], topic: str) -> str:
