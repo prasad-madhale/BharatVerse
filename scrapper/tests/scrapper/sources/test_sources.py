@@ -189,12 +189,58 @@ async def _no_sleep_async(seconds):
 
 
 class TestIndianCultureSource:
-    """Tests for IndianCultureSource."""
+    """Tests for IndianCultureSource. The live-network ones are marked integration and so are
+    skipped by CI: confirmed in a real CI run that the site's bot-detection can refuse the
+    connection outright depending on which of GitHub Actions' rotating IPs the job lands on (a
+    re-run from a fresh IP passed) -- a real, observed failure mode for this one site specifically,
+    not something the other sources' equally-live-network tests have shown."""
 
     def test_init(self):
         source = IndianCultureSource()
         assert source.name == "indian_culture"
 
+    async def test_extract_filters_to_results_with_real_content(self, monkeypatch):
+        """The filtering/conversion logic, exercised deterministically against a canned payload
+        shaped like the real API's (see the source's docstring) -- unlike the tests below, this
+        needs no live network, so it isn't marked integration and CI always runs it."""
+        payload = {"results": [
+            {"title": "Ashoka", "type": "Legendary Figures of India", "body": "<p>" + "Ashoka ruled. " * 50 + "</p>"},
+            {"title": "A Photo", "type": "Digital Records", "body": ""},
+        ]}
+
+        async def fake_search_async(self, browser, topic):
+            return payload
+        monkeypatch.setattr(IndianCultureSource, "_search_async", fake_search_async)
+        source = IndianCultureSource()
+
+        contents = await source.extract("Ashoka", max_pages=5)
+
+        assert len(contents) == 1  # the empty-body "Digital Records" result is dropped
+        assert contents[0].title == "Ashoka"
+        assert "Ashoka ruled." in contents[0].raw_text
+        assert contents[0].source_url == "https://www.indianculture.gov.in/indian-culture-repository/searchtext=Ashoka"
+        assert contents[0].metadata == {"source": "indian_culture", "content_type": "Legendary Figures of India"}
+
+    def test_search_topic_filters_to_results_with_real_content(self, monkeypatch):
+        payload = {"results": [
+            {"title": "Ashoka", "type": "Legendary Figures of India", "body": "<p>" + "Ashoka ruled. " * 50 + "</p>"},
+            {"title": "A Photo", "type": "Digital Records", "body": ""},
+        ]}
+
+        def fake_search_sync(self, browser, topic):
+            return payload
+        monkeypatch.setattr(IndianCultureSource, "_search_sync", fake_search_sync)
+        source = IndianCultureSource()
+
+        results = source.search_topic("Ashoka", max_results=5)
+
+        assert results == [{
+            "title": "Ashoka",
+            "url": "https://www.indianculture.gov.in/indian-culture-repository/searchtext=Ashoka",
+            "summary": "Ashoka",
+        }]
+
+    @pytest.mark.integration
     def test_search_topic_returns_results(self):
         """A topic with real coverage (see the source's docstring) returns real results."""
         source = IndianCultureSource()
@@ -208,12 +254,14 @@ class TestIndianCultureSource:
             assert "summary" in result
             assert result["url"].startswith("https://www.indianculture.gov.in/")
 
+    @pytest.mark.integration
     def test_search_topic_empty_for_nonsense_query(self):
         source = IndianCultureSource()
         results = source.search_topic("xyzabc123nonexistentquery", max_results=3)
 
         assert results == []
 
+    @pytest.mark.integration
     async def test_extract_returns_real_content(self):
         source = IndianCultureSource()
         contents = await source.extract("Ashoka", max_pages=2)
@@ -224,6 +272,7 @@ class TestIndianCultureSource:
             assert len(content.raw_text) > 500
             assert content.metadata["source"] == "indian_culture"
 
+    @pytest.mark.integration
     async def test_extract_raises_when_nothing_has_real_content(self):
         """Regression test: most catalog items are archival-record metadata with no body text
         (see the source's docstring) -- a topic that only matches those must not be treated as a

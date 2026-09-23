@@ -80,4 +80,8 @@ cd scrapper && pytest -m "not integration"     # what CI runs; an 85% coverage g
 ```
 
 The unit tests use stub LLM providers and sources, so they need no network or keys. `pytest -m integration` scrapes
-real sites, so it needs network access and can fail when a site changes; CI skips it.
+real sites, so it needs network access and can fail when a site changes; CI skips it. The Indian Culture Portal's
+own live-network tests are marked `integration` too, for a different reason than most: confirmed in a real CI run
+that the site's bot-detection can refuse the connection outright depending on which of GitHub Actions' rotating IPs
+the job lands on (a re-run from a fresh IP passed). The filtering and markdown-conversion logic that matters for
+correctness is covered separately, against a canned payload, so that stays in the default suite.
