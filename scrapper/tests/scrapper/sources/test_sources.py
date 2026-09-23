@@ -111,6 +111,16 @@ class TestArchiveOrgSource:
 
         assert len(results) <= 2
 
+    def test_search_topic_restricts_to_texts(self):
+        """Regression test: an unrestricted search over Archive.org's whole catalog can surface a
+        video, an image or another item with no useful text to scrape (found for "Rani ki Vav":
+        a YouTube video and an unrelated art collection outranked the real reference texts)."""
+        source = ArchiveOrgSource()
+        results = source.search_topic("Rani ki Vav", max_results=5)
+
+        assert results
+        assert all(r["mediatype"] == "texts" for r in results)
+
 
 class TestNewWorldEncyclopediaSource:
     """Tests for NewWorldEncyclopediaSource."""
