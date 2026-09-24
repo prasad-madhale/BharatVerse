@@ -3,19 +3,27 @@ Unit tests for backfill_images.py. ArticleService and ImageSourcer are mocked --
 network or Supabase calls.
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from common.models import Article, ArticleImage
-from scrapper import backfill_images
+from common.models import Article, ArticleImage, Citation
+import backfill_images
 
 
-def make_article(article_id="art_20260101_001", title="Mohenjo-daro"):
+def make_article(article_id="art_20260101_001", title="Mohenjo-daro", citations=()):
     return Article(
         id=article_id, title=title, summary="A summary.", content="...",
+        citations=list(citations),
         publication_date=date(2026, 1, 1), reading_time_minutes=10,
+    )
+
+
+def wikipedia_citation(url="https://en.wikipedia.org/wiki/Mohenjo-daro"):
+    return Citation(
+        text="Mohenjo-daro", source_url=url, source_name="wikipedia",
+        accessed_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
 
 
@@ -23,13 +31,14 @@ def make_image(index=0):
     return ArticleImage(
         url=f"https://storage.example/{index}", alt_text="a", credit="Someone via Wikimedia Commons",
         source_url="https://commons.wikimedia.org/wiki/File:X.jpg", license="CC BY-SA 4.0",
+        width=1200, height=800,
     )
 
 
 @pytest.fixture
 def services():
-    with patch("scrapper.backfill_images.ArticleService") as service_cls, \
-            patch("scrapper.backfill_images.ImageSourcer") as sourcer_cls:
+    with patch("backfill_images.ArticleService") as service_cls, \
+            patch("backfill_images.ImageSourcer") as sourcer_cls:
         service = service_cls.return_value
         service.list_ids_missing_images = AsyncMock(return_value=["art_20260101_001"])
         service.get_article_by_id = AsyncMock(return_value=make_article())
@@ -37,6 +46,34 @@ def services():
         sourcer = sourcer_cls.return_value
         sourcer.source_images = AsyncMock(return_value=[make_image()])
         yield MagicMock(service=service, sourcer=sourcer)
+
+
+class TestTopicFor:
+    """The article's title is an LLM-written headline, not the real Wikipedia title
+    image_sourcing.py needs -- recover the real one from the article's own Wikipedia citation."""
+
+    def test_recovers_the_real_title_from_the_wikipedia_citation(self):
+        article = make_article(
+            title="Haldighati, 1576: The Battle Nobody Can Agree On",
+            citations=[wikipedia_citation("https://en.wikipedia.org/wiki/Battle_of_Haldighati")],
+        )
+
+        assert backfill_images._topic_for(article) == "Battle of Haldighati"
+
+    def test_url_decodes_the_title(self):
+        article = make_article(citations=[
+            wikipedia_citation("https://en.wikipedia.org/wiki/Rani_ki_Vav%20Stepwell"),
+        ])
+
+        assert backfill_images._topic_for(article) == "Rani ki Vav Stepwell"
+
+    def test_falls_back_to_the_articles_own_title_with_no_wikipedia_citation(self):
+        article = make_article(title="A Title With No Wikipedia Source", citations=[
+            Citation(text="x", source_url="https://archive.org/details/x", source_name="archive_org",
+                     accessed_date=datetime(2026, 1, 1, tzinfo=timezone.utc)),
+        ])
+
+        assert backfill_images._topic_for(article) == "A Title With No Wikipedia Source"
 
 
 class TestBackfill:
@@ -88,15 +125,15 @@ class TestBackfill:
 
 class TestMain:
     def test_all_flag_is_passed_through(self):
-        with patch("scrapper.backfill_images.backfill", new_callable=AsyncMock) as backfill, \
-                patch("scrapper.backfill_images.configure_logging"):
+        with patch("backfill_images.backfill", new_callable=AsyncMock) as backfill, \
+                patch("backfill_images.configure_logging"):
             backfill.return_value = 0
             backfill_images.main(["--all"])
 
         assert backfill.await_args.kwargs == {"all_articles": True}
 
     def test_exits_zero_even_when_nothing_was_updated(self):
-        with patch("scrapper.backfill_images.backfill", new_callable=AsyncMock) as backfill, \
-                patch("scrapper.backfill_images.configure_logging"):
+        with patch("backfill_images.backfill", new_callable=AsyncMock) as backfill, \
+                patch("backfill_images.configure_logging"):
             backfill.return_value = 0
             assert backfill_images.main([]) == 0
