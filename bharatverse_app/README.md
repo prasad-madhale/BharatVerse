@@ -39,6 +39,22 @@ web app in the phone's browser ([details](../scripts/README.md)).
 Password-reset emails link back to the app, so add the app's URL (for local web, `http://localhost:8765`) under
 Supabase's Authentication > URL Configuration > Redirect URLs.
 
+### Install on iPhone without a Mac
+
+Building an iOS app needs Xcode, which is Mac-only, but this repo is public, so
+[`ios-sideload-build.yml`](../.github/workflows/ios-sideload-build.yml) gets a real Mac for free from GitHub's
+`macos-latest` runner. Run it with `gh workflow run ios-sideload-build.yml` (or the Actions tab's "Run workflow"), then
+download the `bharatverse-unsigned-ipa` artifact once it finishes -- an unsigned `.ipa`, since there is no Apple
+Developer Program membership to sign it with a real certificate.
+
+To install an unsigned `.ipa`, sideload it with [SideStore](https://sidestore.io) (free Apple ID, no jailbreak). Its
+one-time setup needs a computer once (Windows, macOS or Linux -- see
+[SideStore's docs](https://docs.sidestore.io) for the current install steps); after that it refreshes the app's
+signature from the iPhone itself. Free Apple ID signing caps you at 3 sideloaded apps and a 7-day signature that
+SideStore renews automatically. For something closer to a real install with no periodic renewal, an Apple Developer
+Program membership ($99/year) unlocks TestFlight instead, at the cost of a proper signing/provisioning setup in CI --
+not done here.
+
 ## Test
 
 ```bash

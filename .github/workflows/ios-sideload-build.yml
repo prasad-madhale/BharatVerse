@@ -1,0 +1,45 @@
+# Builds an unsigned iOS .ipa on a GitHub-hosted macOS runner, for sideloading onto a
+# physical iPhone with a tool like SideStore -- no Mac needed on your end. See
+# bharatverse_app/README.md's "Install on iPhone without a Mac" section for the full flow.
+#
+# Manual trigger only: a macOS runner is unlimited on a public repo, but there is no reason
+# to spend one on every push.
+
+name: iOS sideload build
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  build-unsigned-ipa:
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - uses: subosito/flutter-action@v2
+      with:
+        channel: stable
+
+    - name: Install dependencies
+      working-directory: bharatverse_app
+      run: flutter pub get
+
+    - name: Build unsigned iOS app
+      working-directory: bharatverse_app
+      run: flutter build ios --release --no-codesign
+
+    - name: Package as an unsigned .ipa
+      working-directory: bharatverse_app
+      run: |
+        mkdir Payload
+        cp -r build/ios/iphoneos/Runner.app Payload/
+        zip -r bharatverse-unsigned.ipa Payload
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: bharatverse-unsigned-ipa
+        path: bharatverse_app/bharatverse-unsigned.ipa
+        retention-days: 7
