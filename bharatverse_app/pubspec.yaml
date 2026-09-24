@@ -19,6 +19,7 @@ dependencies:
   google_fonts: ^6.2.1
   shared_preferences: ^2.5.0
   porter_2_stemmer: ^3.0.2
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -27,6 +28,8 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   mocktail: ^1.0.4
   flutter_launcher_icons: ^0.14.4
+  plugin_platform_interface: ^2.1.8  # mocks url_launcher's platform channel in citation_item_test.dart
+  url_launcher_platform_interface: ^2.3.2
 
 flutter:
   uses-material-design: true
