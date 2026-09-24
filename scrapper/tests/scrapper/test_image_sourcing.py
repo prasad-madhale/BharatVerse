@@ -72,6 +72,7 @@ def imageinfo_response(entries: dict[str, dict]) -> dict:
 def stub_get_json(responses_by_action: dict):
     """responses_by_action: {(action_signature): response}. Matches on whether params look like
     the pageimages call, the imageinfo call, or the Commons search call."""
+
     async def _get_json(self, url, params):
         if "generator" in params:
             return responses_by_action.get("search", {"query": {"pages": {}}})
