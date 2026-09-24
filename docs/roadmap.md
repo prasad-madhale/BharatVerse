@@ -2,7 +2,7 @@
 
 Status and sequencing. [`design.md`](design.md) is the architectural reference and [`requirements.md`](requirements.md)
 the requirements; this file records what is built, where it differs from the design, and what is left. Status as of
-2026-09-22.
+2026-09-23.
 
 ## Phases
 
@@ -32,7 +32,13 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   `CRITIC_MAX_ROUNDS` (2) review/revise cycles before falling back to a fresh generation. Closes requirements 2.5 and
   10.3, which `ContentValidator` alone could not (it "cannot verify factual accuracy", by its own docstring). Set
   `CRITIC_ENABLED=false` to skip it for a cheap local run; it otherwise uses the same `LLM_PROVIDER` as generation.
-  The service-role client publishes the result. A generation failure retries with backoff, and one bad topic never
+  `image_sourcing.py` then attaches up to 3 images (1 featured, 2 inline) from the topic's own Wikipedia page (already
+  curated for relevance, since topics are chosen to match real Wikipedia titles), falling back to a Wikimedia Commons
+  keyword search -- vision-checked for relevance, unlike the Wikipedia-sourced images -- when that page has too few.
+  Only Public Domain/CC0/CC-BY/CC-BY-SA images at least 500px wide are used, downloaded and re-hosted in Storage, never
+  hotlinked; a sourcing failure publishes with no images rather than losing an otherwise-good article. Closes
+  requirement 5.5. `backfill_images.py` attaches images to already-published articles that predate this step. The
+  service-role client publishes the result. A generation failure retries with backoff, and one bad topic never
   stops the batch. The daily GitHub Actions workflow runs on demand only: its schedule stays commented out until the
   output is trusted over more unattended runs, so do not enable it without deciding that first. The daily workflow
   uses Claude Sonnet 5; a local run defaults to Gemini. Groq's free tier was tried and rejected for weak adherence to
@@ -80,6 +86,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   and keep email confirmation off, or sign-up returns no session.
 - **OAuth.** Google and Facebook app registration has days of review lead time and has not been started.
 - **Hosting**, the daily cron, and app store accounts.
+- **Backfill images on the hosted project.** Every article published before `image_sourcing.py` landed has no
+  `image_url`. Run `python scrapper/backfill_images.py` against the hosted project's credentials once.
 
 ## Deviations from the design
 
