@@ -55,7 +55,8 @@ class CitationItem extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 citation.text,
-                style: AppTypography.caption.copyWith(color: AppColors.textLink),
+                style:
+                    AppTypography.caption.copyWith(color: AppColors.textLink),
               ),
             ],
           ),

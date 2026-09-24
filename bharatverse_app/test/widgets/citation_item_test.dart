@@ -22,7 +22,8 @@ void main() {
   );
 
   setUpAll(() {
-    registerFallbackValue(const LaunchOptions(mode: PreferredLaunchMode.platformDefault));
+    registerFallbackValue(
+        const LaunchOptions(mode: PreferredLaunchMode.platformDefault));
   });
 
   setUp(() {
