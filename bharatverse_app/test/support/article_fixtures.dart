@@ -12,6 +12,7 @@ Map<String, dynamic> sampleArticleRow({
   String title = 'The Mauryan Empire',
   String date = '2026-07-03',
   List<String> tags = const ['mauryan-empire'],
+  String? imageUrl,
 }) =>
     {
       'id': id,
@@ -21,17 +22,35 @@ Map<String, dynamic> sampleArticleRow({
       'reading_time_minutes': 13,
       'author': 'BharatVerse AI',
       'tags': tags,
-      'image_url': null,
+      'image_url': imageUrl,
       'content_file_path': 'articles/2026-07-03/$id.json',
     };
 
 /// The content JSON a row's `content_file_path` points to in Storage.
-Map<String, dynamic> sampleArticleContent() => {
+Map<String, dynamic> sampleArticleContent({
+  List<Map<String, dynamic>> images = const [],
+}) =>
+    {
       'content': '## Origins\n\nSome content.',
       'sections': [
         {'heading': 'Origins', 'content': 'Some content.', 'order': 1},
       ],
       'citations': [],
+      'images': images,
+    };
+
+/// One ArticleImage, as its JSON, for tests that need a real image entry.
+Map<String, dynamic> sampleImage({
+  String url = 'https://storage.example/0.jpg',
+  String? caption = 'A restored Mauryan-era stupa',
+}) =>
+    {
+      'url': url,
+      'alt_text': 'The Great Stupa',
+      'caption': caption,
+      'credit': 'Jane Doe via Wikimedia Commons',
+      'source_url': 'https://commons.wikimedia.org/wiki/File:Stupa.jpg',
+      'license': 'CC BY-SA 4.0',
     };
 
 /// A MockClient serving [rows] for the PostgREST call and a fixed content
@@ -82,9 +101,12 @@ Article sampleArticle({
   String title = 'The Mauryan Empire',
   String date = '2026-07-03',
   List<String> tags = const ['mauryan-empire'],
+  String? imageUrl,
+  List<Map<String, dynamic>> images = const [],
 }) =>
     Article.fromJson({
-      ...sampleArticleRow(id: id, title: title, date: date, tags: tags),
+      ...sampleArticleRow(
+          id: id, title: title, date: date, tags: tags, imageUrl: imageUrl),
       'publication_date': date,
-      ...sampleArticleContent(),
+      ...sampleArticleContent(images: images),
     });

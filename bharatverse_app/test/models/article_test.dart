@@ -39,6 +39,40 @@ void main() {
       expect(article.readingTimeMinutes, 13);
       expect(article.tags, ['mauryan-empire', 'ancient-india']);
       expect(article.imageUrl, isNull);
+      expect(article.images, isEmpty);
+    });
+
+    test('parses images, defaulting caption to null when absent', () {
+      final json = {
+        'id': 'art_1',
+        'title': 'T',
+        'summary': 'S',
+        'content': 'C',
+        'sections': [],
+        'citations': [],
+        'images': [
+          {
+            'url': 'https://storage.example/0.jpg',
+            'alt_text': 'The Great Stupa',
+            'caption': null,
+            'credit': 'Jane Doe via Wikimedia Commons',
+            'source_url': 'https://commons.wikimedia.org/wiki/File:Stupa.jpg',
+            'license': 'CC BY-SA 4.0',
+          },
+        ],
+        'publication_date': '2026-07-03',
+        'reading_time_minutes': 5,
+        'author': 'BharatVerse AI',
+        'tags': [],
+        'image_url': 'https://storage.example/0.jpg',
+      };
+
+      final article = Article.fromJson(json);
+
+      expect(article.images, hasLength(1));
+      expect(article.images.first.credit, 'Jane Doe via Wikimedia Commons');
+      expect(article.images.first.license, 'CC BY-SA 4.0');
+      expect(article.images.first.caption, isNull);
     });
 
     test('parses an article with an image_url', () {
@@ -129,5 +163,36 @@ void main() {
     });
 
     expect(Article.fromJson(article.toJson()).imageUrl, isNull);
+  });
+
+  test('toJson writes images, losing nothing on the round trip', () {
+    final article = Article.fromJson({
+      'id': 'art_1',
+      'title': 'T',
+      'summary': 'S',
+      'content': 'C',
+      'sections': [],
+      'citations': [],
+      'images': [
+        {
+          'url': 'https://storage.example/0.jpg',
+          'alt_text': 'The Great Stupa',
+          'caption': 'A restored Mauryan-era stupa',
+          'credit': 'Jane Doe via Wikimedia Commons',
+          'source_url': 'https://commons.wikimedia.org/wiki/File:Stupa.jpg',
+          'license': 'CC BY-SA 4.0',
+        },
+      ],
+      'publication_date': '2026-07-03',
+      'reading_time_minutes': 13,
+      'author': 'A',
+      'tags': [],
+      'image_url': 'https://storage.example/0.jpg',
+    });
+
+    final again = Article.fromJson(article.toJson());
+
+    expect(again.toJson(), article.toJson());
+    expect(again.images.single.caption, 'A restored Mauryan-era stupa');
   });
 }

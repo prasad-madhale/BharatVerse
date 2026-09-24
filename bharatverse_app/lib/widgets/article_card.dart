@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../models/article.dart';
@@ -17,9 +18,9 @@ enum ArticleCardSize { featured, compact }
 /// [highlight] terms are set in bold saffron (search results), and the tags
 /// they appear in are listed, since a search can match through a tag alone.
 ///
-/// Image placeholders are a flat parchment block, not the mockup's literal
-/// diagonal-hatch texture -- see roadmap/plan notes on why that texture
-/// wasn't worth building given no real photography exists yet.
+/// Shows the article's featured image when it has one; falls back to a flat parchment block
+/// (not the mockup's literal diagonal-hatch texture) when it doesn't, e.g. an older article
+/// from before images were sourced automatically.
 class ArticleCard extends StatelessWidget {
   final Article article;
   final ArticleCardSize size;
@@ -84,16 +85,29 @@ class ArticleCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: AppSpacing.space4),
-                Container(
-                  width: 90,
-                  height: 150,
-                  color: AppColors.paper200,
-                ),
+                _thumbnail(width: 90, height: 150),
               ],
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _thumbnail({required double width, required double height}) {
+    final url = article.imageUrl;
+    if (url == null) {
+      return Container(width: width, height: height, color: AppColors.paper200);
+    }
+    return CachedNetworkImage(
+      imageUrl: url,
+      width: width,
+      height: height,
+      fit: BoxFit.cover,
+      placeholder: (context, url) =>
+          Container(width: width, height: height, color: AppColors.paper200),
+      errorWidget: (context, url, error) =>
+          Container(width: width, height: height, color: AppColors.paper200),
     );
   }
 
@@ -115,7 +129,7 @@ class ArticleCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(width: 68, height: 68, color: AppColors.paper200),
+            _thumbnail(width: 68, height: 68),
             const SizedBox(width: AppSpacing.space3),
             Expanded(
               child: Column(

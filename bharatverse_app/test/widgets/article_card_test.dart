@@ -1,6 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:bharatverse_app/theme/app_colors.dart';
 import 'package:bharatverse_app/widgets/article_card.dart';
 
 import '../support/article_fixtures.dart';
@@ -17,6 +19,41 @@ void main() {
       ));
 
       expect(find.text('2026-07-03 · 13 min read'), findsOneWidget);
+    });
+
+    testWidgets(
+        'the ${size.name} card shows a parchment placeholder with no image',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: ArticleCard(article: sampleArticle(), size: size, onTap: () {}),
+        ),
+      ));
+
+      expect(find.byType(CachedNetworkImage), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+            (w) => w is Container && w.color == AppColors.paper200),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+        'the ${size.name} card shows the featured image when there is one',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: ArticleCard(
+            article: sampleArticle(imageUrl: 'https://storage.example/0.jpg'),
+            size: size,
+            onTap: () {},
+          ),
+        ),
+      ));
+
+      final picture =
+          tester.widget<CachedNetworkImage>(find.byType(CachedNetworkImage));
+      expect(picture.imageUrl, 'https://storage.example/0.jpg');
     });
   }
 
