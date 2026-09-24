@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -5,8 +6,11 @@ import 'package:mocktail/mocktail.dart';
 import 'package:bharatverse_app/models/article.dart';
 import 'package:bharatverse_app/screens/article_detail_screen.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
+import 'package:bharatverse_app/theme/app_colors.dart';
+import 'package:bharatverse_app/widgets/article_image.dart';
 import 'package:bharatverse_app/widgets/like_button.dart';
 
+import '../support/article_fixtures.dart' show sampleImage;
 import '../support/like_fixtures.dart';
 import '../support/layout_fixtures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,33 +19,38 @@ import 'package:bharatverse_app/services/api_client.dart';
 
 const _articleId = 'art_20260703_001';
 
-Article sampleArticle() => Article.fromJson({
+Article sampleArticle({
+  List<Map<String, dynamic>> sections = const [
+    {'heading': 'Origins', 'content': 'Some content.', 'order': 1},
+  ],
+  List<Map<String, dynamic>> images = const [],
+}) =>
+    Article.fromJson({
       'id': _articleId,
       'title': 'The Mauryan Empire',
       'summary': 'A summary.',
       'content': '## Origins\n\nSome content.',
-      'sections': [
-        {'heading': 'Origins', 'content': 'Some content.', 'order': 1},
-      ],
+      'sections': sections,
       'citations': [],
+      'images': images,
       'publication_date': '2026-07-03',
       'reading_time_minutes': 13,
       'author': 'BharatVerse AI',
       'tags': [],
-      'image_url': null,
+      'image_url': images.isNotEmpty ? images.first['url'] as String : null,
     });
 
 void main() {
   late MockGoTrueClient authClient;
   late MockLikesClient likesClient;
 
-  Future<void> pumpScreen(WidgetTester tester) async {
+  Future<void> pumpScreen(WidgetTester tester, {Article? article}) async {
     await tester.pumpWidget(
       withLikeProviders(
         authState: AuthState(authClient: authClient),
         likesClient: likesClient,
         child: MaterialApp(
-          home: ArticleDetailScreen(article: sampleArticle()),
+          home: ArticleDetailScreen(article: article ?? sampleArticle()),
         ),
       ),
     );
@@ -60,6 +69,55 @@ void main() {
 
       expect(find.text('ORIGINS'), findsOneWidget);
       expect(find.byType(LikeButton), findsOneWidget);
+    });
+
+    testWidgets('shows a parchment placeholder when the article has no images',
+        (tester) async {
+      await pumpScreen(tester);
+
+      expect(find.byType(ArticleImageView), findsNothing);
+      expect(
+        find.byWidgetPredicate(
+            (w) => w is Container && w.color == AppColors.paper200),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows the featured image as the hero', (tester) async {
+      await pumpScreen(tester, article: sampleArticle(images: [sampleImage()]));
+
+      expect(find.byType(ArticleImageView), findsOneWidget);
+      final picture =
+          tester.widget<CachedNetworkImage>(find.byType(CachedNetworkImage));
+      expect(picture.imageUrl, 'https://storage.example/0.jpg');
+    });
+
+    testWidgets('distributes inline images (beyond the hero) between sections',
+        (tester) async {
+      await pumpScreen(
+        tester,
+        article: sampleArticle(
+          sections: [
+            {'heading': 'Origins', 'content': 'Some content.', 'order': 1},
+            {'heading': 'Rise', 'content': 'More content.', 'order': 2},
+          ],
+          images: [
+            sampleImage(url: 'https://storage.example/hero.jpg'),
+            sampleImage(
+                url: 'https://storage.example/inline.jpg', caption: null),
+          ],
+        ),
+      );
+
+      expect(find.byType(ArticleImageView), findsNWidgets(2));
+      final pictures = tester
+          .widgetList<CachedNetworkImage>(find.byType(CachedNetworkImage))
+          .map((p) => p.imageUrl)
+          .toList();
+      expect(pictures, [
+        'https://storage.example/hero.jpg',
+        'https://storage.example/inline.jpg'
+      ]);
     });
 
     testWidgets('a signed-out tap on the heart opens the sign-in screen',

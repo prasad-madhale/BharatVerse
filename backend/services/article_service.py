@@ -15,7 +15,7 @@ from datetime import date as date_type
 from backend.config import get_settings
 from backend.database import get_supabase
 from backend.models.article import ArticleRecord
-from common.models import Article, Citation, Section
+from common.models import Article, ArticleImage, Citation, Section
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ class ArticleService:
             "content": article.content,
             "sections": [s.model_dump(mode="json") for s in article.sections],
             "citations": [c.model_dump(mode="json") for c in article.citations],
+            "images": [i.model_dump(mode="json") for i in article.images],
         }
         client.storage.from_(self.settings.articles_storage_bucket).upload(
             record.content_file_path,
@@ -77,6 +78,12 @@ class ArticleService:
             .execute()
         )
         return [row["title"] for row in response.data]
+
+    async def list_ids_missing_images(self) -> list[str]:
+        """Ids of published articles with no featured image -- used by backfill_images.py."""
+        client = get_supabase().get_client()
+        response = client.table("articles").select("id").is_("image_url", "null").execute()
+        return [row["id"] for row in response.data]
 
     async def list_recent_articles(self, limit: int = 5, offset: int = 0) -> list[Article]:
         """Full, recently-published articles (metadata + content), most recent first. `offset` pages through them."""
@@ -144,6 +151,7 @@ class ArticleService:
             content=blob["content"],
             sections=[Section(**s) for s in blob["sections"]],
             citations=[Citation(**c) for c in blob["citations"]],
+            images=[ArticleImage(**i) for i in blob.get("images", [])],
             publication_date=record.date,
             reading_time_minutes=record.reading_time_minutes,
             author=record.author,

@@ -65,6 +65,7 @@ def pipeline():
             patch("scrapper.scheduler.ArticleGenerator") as generator_cls, \
             patch("scrapper.scheduler.ContentValidator") as validator_cls, \
             patch("scrapper.scheduler.ArticleCritic") as critic_cls, \
+            patch("scrapper.scheduler.ImageSourcer") as image_sourcer_cls, \
             patch("scrapper.scheduler.sleep", new_callable=AsyncMock) as sleep:
         service = service_cls.return_value
         service.list_recent_titles = AsyncMock(return_value=[])
@@ -80,8 +81,10 @@ def pipeline():
         validator.validate.return_value = (True, [])
         critic = critic_cls.return_value
         critic.review = AsyncMock(return_value=_approved())
+        image_sourcer = image_sourcer_cls.return_value
+        image_sourcer.source_images = AsyncMock(return_value=[])
         yield SimpleNamespace(service=service, topics=topics, scraper=scraper, generator=generator,
-                              validator=validator, critic=critic, sleep=sleep)
+                              validator=validator, critic=critic, image_sourcer=image_sourcer, sleep=sleep)
 
 
 class TestRunDailyPipeline:
@@ -346,6 +349,23 @@ class TestCriticLoop:
 
         pipeline.critic.review.assert_not_awaited()
         pipeline.generator.revise_article.assert_not_awaited()
+        pipeline.service.save_article.assert_awaited_once()
+        assert published == 1
+
+    async def test_image_sourcing_disabled_skips_it_and_publishes_with_no_images(self, pipeline):
+        with patch("scrapper.scheduler.get_llm_settings") as get_settings:
+            get_settings.return_value.image_sourcing_enabled = False
+            published = await scheduler.run_daily_pipeline(count=1)
+
+        pipeline.image_sourcer.source_images.assert_not_awaited()
+        pipeline.service.save_article.assert_awaited_once()
+        assert published == 1
+
+    async def test_a_sourcing_failure_still_publishes_the_article(self, pipeline):
+        pipeline.image_sourcer.source_images.side_effect = Exception("network error")
+
+        published = await scheduler.run_daily_pipeline(count=1)
+
         pipeline.service.save_article.assert_awaited_once()
         assert published == 1
 

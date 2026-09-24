@@ -11,6 +11,7 @@ playwright>=1.63.0  # already pulled in by crawl4ai; indian_culture.py drives it
 # Content source APIs
 wikipedia==1.4.0  # Wikipedia search and API wrapper
 internetarchive  # Archive.org search and API wrapper
+requests>=2.32.0  # image_sourcing.py's direct MediaWiki API calls; already pulled in transitively
 
 # LLM providers (used via common/llm_provider.py)
 google-generativeai==0.3.2  # Google Gemini (FREE - default)

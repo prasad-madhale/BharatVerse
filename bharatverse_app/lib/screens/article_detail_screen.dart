@@ -10,6 +10,7 @@ import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_back_bar.dart';
 import '../widgets/app_tag.dart';
+import '../widgets/article_image.dart';
 import '../widgets/citation_item.dart';
 import '../widgets/content_column.dart';
 import '../widgets/like_button.dart';
@@ -69,18 +70,29 @@ class ArticleDetailScreen extends StatelessWidget {
                   style: AppTypography.caption,
                 ),
                 const SizedBox(height: AppSpacing.space5),
-                Container(
-                    height: 180,
-                    width: double.infinity,
-                    color: AppColors.paper200),
+                if (article.images.isNotEmpty)
+                  ArticleImageView(image: article.images.first)
+                else
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Container(
+                        width: double.infinity, color: AppColors.paper200),
+                  ),
                 const SizedBox(height: AppSpacing.space5),
-                for (final section in article.sections)
+                for (final entry in article.sections.asMap().entries) ...[
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppSpacing.space5),
                     child: _Section(
-                        section: section,
-                        isFirst: section.order == article.sections.first.order),
+                        section: entry.value,
+                        isFirst:
+                            entry.value.order == article.sections.first.order),
                   ),
+                  for (final image in _inlineImagesAfter(entry.key, article))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.space5),
+                      child: ArticleImageView(image: image),
+                    ),
+                ],
                 if (article.tags.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.only(top: AppSpacing.space3),
@@ -109,6 +121,24 @@ class ArticleDetailScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The inline images (article.images, skipping the hero at index 0) that belong right after
+/// [sectionIndex], spread evenly across the article's sections rather than clustering at the top.
+List<ArticleImage> _inlineImagesAfter(int sectionIndex, Article article) {
+  final inline = article.images.skip(1).toList();
+  if (inline.isEmpty) return const [];
+  final sectionCount = article.sections.length;
+  return [
+    for (var i = 0; i < inline.length; i++)
+      if (_inlineImagePosition(i, inline.length, sectionCount) == sectionIndex)
+        inline[i],
+  ];
+}
+
+int _inlineImagePosition(int imageIndex, int totalImages, int sectionCount) {
+  final slot = ((imageIndex + 1) * sectionCount / (totalImages + 1)).floor();
+  return slot.clamp(0, sectionCount - 1);
 }
 
 /// One article section: uppercase serif heading + body. The first section

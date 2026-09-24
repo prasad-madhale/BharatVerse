@@ -199,6 +199,7 @@ class ApiClient {
       'content': blob['content'],
       'sections': blob['sections'],
       'citations': blob['citations'],
+      'images': blob['images'],
     });
   }
 

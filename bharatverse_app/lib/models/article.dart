@@ -50,6 +50,55 @@ class ArticleCitation {
       );
 }
 
+class ArticleImage {
+  final String url;
+  final String altText;
+  final String? caption;
+  final String credit;
+  final String sourceUrl;
+  final String license;
+
+  /// The source image's real pixel size, so it can be rendered at its own aspect ratio
+  /// instead of a fixed height that crops badly on wide screens.
+  final int width;
+  final int height;
+
+  const ArticleImage({
+    required this.url,
+    required this.altText,
+    this.caption,
+    required this.credit,
+    required this.sourceUrl,
+    required this.license,
+    required this.width,
+    required this.height,
+  });
+
+  double get aspectRatio => width / height;
+
+  Map<String, dynamic> toJson() => {
+        'url': url,
+        'alt_text': altText,
+        'caption': caption,
+        'credit': credit,
+        'source_url': sourceUrl,
+        'license': license,
+        'width': width,
+        'height': height,
+      };
+
+  factory ArticleImage.fromJson(Map<String, dynamic> json) => ArticleImage(
+        url: json['url'] as String,
+        altText: json['alt_text'] as String,
+        caption: json['caption'] as String?,
+        credit: json['credit'] as String,
+        sourceUrl: json['source_url'] as String,
+        license: json['license'] as String,
+        width: json['width'] as int,
+        height: json['height'] as int,
+      );
+}
+
 class Article {
   final String id;
   final String title;
@@ -57,6 +106,7 @@ class Article {
   final String content;
   final List<ArticleSection> sections;
   final List<ArticleCitation> citations;
+  final List<ArticleImage> images;
   final DateTime publicationDate;
   final int readingTimeMinutes;
   final String author;
@@ -70,6 +120,7 @@ class Article {
     required this.content,
     required this.sections,
     required this.citations,
+    this.images = const [],
     required this.publicationDate,
     required this.readingTimeMinutes,
     required this.author,
@@ -90,6 +141,7 @@ class Article {
         'content': content,
         'sections': sections.map((section) => section.toJson()).toList(),
         'citations': citations.map((citation) => citation.toJson()).toList(),
+        'images': images.map((image) => image.toJson()).toList(),
         'publication_date': publicationDate.toIso8601String(),
         'reading_time_minutes': readingTimeMinutes,
         'author': author,
@@ -107,6 +159,9 @@ class Article {
             .toList(),
         citations: (json['citations'] as List<dynamic>)
             .map((c) => ArticleCitation.fromJson(c as Map<String, dynamic>))
+            .toList(),
+        images: (json['images'] as List<dynamic>? ?? [])
+            .map((i) => ArticleImage.fromJson(i as Map<String, dynamic>))
             .toList(),
         publicationDate: DateTime.parse(json['publication_date'] as String),
         readingTimeMinutes: json['reading_time_minutes'] as int,

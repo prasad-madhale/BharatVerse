@@ -18,6 +18,7 @@ from common.models import Article
 from scrapper.article_critic import ArticleCritic, CriticReview, critic_metrics
 from scrapper.article_generator import ArticleGenerator
 from scrapper.content_validator import ContentValidator, article_metrics
+from scrapper.image_sourcing import ImageSourcer
 from scrapper.models.article import ScrapedContent
 from scrapper.topic_generator import TopicGenerator
 from scrapper.web_scraper import WebScraper
@@ -45,6 +46,7 @@ async def run_daily_pipeline(count: int = 1) -> int:
     generator = ArticleGenerator()
     validator = ContentValidator()
     critic = ArticleCritic() if get_llm_settings().critic_enabled else None
+    image_sourcer = ImageSourcer() if get_llm_settings().image_sourcing_enabled else None
 
     existing_titles = await article_service.list_recent_titles()
     topics = await topic_generator.generate_topics(count=count, exclude_titles=existing_titles)
@@ -54,7 +56,8 @@ async def run_daily_pipeline(count: int = 1) -> int:
         try:
             published += await _generate_and_publish_one(
                 topic, sequence=i, scraper=scraper, generator=generator,
-                validator=validator, critic=critic, article_service=article_service,
+                validator=validator, critic=critic, image_sourcer=image_sourcer,
+                article_service=article_service,
             )
         except Exception:
             logger.exception(f"Unexpected error on '{topic}', skipping")
@@ -68,6 +71,7 @@ async def _generate_and_publish_one(
     generator: ArticleGenerator,
     validator: ContentValidator,
     critic: ArticleCritic | None,
+    image_sourcer: ImageSourcer | None,
     article_service: ArticleService,
 ) -> bool:
     """Returns whether the topic ended in a published article."""
@@ -83,8 +87,17 @@ async def _generate_and_publish_one(
         logger.error(f"Giving up on '{topic}' after {MAX_GENERATION_ATTEMPTS} attempt(s)")
         return False
 
+    if image_sourcer is not None:
+        # A sourcing failure (network error, nothing usable found) publishes the article with
+        # no images rather than losing an otherwise-good, critic-approved article over it.
+        try:
+            article.images = await image_sourcer.source_images(article, topic)
+            article.image_url = article.images[0].url if article.images else None
+        except Exception:
+            logger.warning(f"Image sourcing failed for '{topic}', publishing without images", exc_info=True)
+
     await article_service.save_article(article)
-    logger.info(f"Published {article.id}: {article.title}")
+    logger.info(f"Published {article.id}: {article.title} ({len(article.images)} image(s))")
     return True
 
 

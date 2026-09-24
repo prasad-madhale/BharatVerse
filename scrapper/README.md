@@ -21,6 +21,7 @@ Put these in the `.env` at the repo root (template: [`.env.example`](../.env.exa
 | `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | the key for the chosen provider |
 | `LLM_MODEL` | optional; defaults per provider are listed in `.env.example` |
 | `CRITIC_ENABLED` | default `true`; `false` skips the editorial critic pass, for a cheap local run |
+| `IMAGE_SOURCING_ENABLED` | default `true`; `false` skips attaching images, for a cheap local run |
 | `LOG_LEVEL` | default `INFO` |
 
 ## Run
@@ -56,8 +57,18 @@ JSON lines on stdout.
    have a real structure. `article_generator.py`'s `revise_article` addresses what it finds and it reviews again, up
    to `CRITIC_MAX_ROUNDS` (2) times in `scheduler.py`; a revision that fails the structural check ends the round
    early. There is still no human review.
-6. **Publish** (`backend/services/article_service.py`): the content JSON goes to the `articles` Storage bucket and the
-   metadata to the `articles` table, keyed by id, so publishing again overwrites.
+6. **Images** (`image_sourcing.py`, skipped if `IMAGE_SOURCING_ENABLED=false`): sources up to 3 images (1 featured,
+   2 inline) from the topic's own Wikipedia page, which is already curated for relevance since every topic is chosen
+   to match a real Wikipedia title. A Wikimedia Commons keyword search fills in when that page has too few usable
+   images; because that path is a keyword match rather than a curated choice, its candidates also get an LLM vision
+   relevance check the Wikipedia-sourced ones skip. Every candidate must be Public Domain/CC0/CC-BY/CC-BY-SA licensed
+   and at least 500px wide; images are downloaded and re-hosted in the `articles` Storage bucket, never hotlinked. A
+   sourcing failure publishes the article with no images rather than losing an otherwise-good article over it.
+7. **Publish** (`backend/services/article_service.py`): the content JSON (and now `images`) goes to the `articles`
+   Storage bucket and the metadata to the `articles` table, keyed by id, so publishing again overwrites.
+
+`backfill_images.py` attaches images to already-published articles that predate this step: `python
+scrapper/backfill_images.py` (imageless articles only) or `--all` to re-source every article.
 
 Up to 3 attempts per topic: a failed generation waits 5 s, then 10 s; a failed structural check or a critic that never
 approves retries with a fresh generation at once. Every attempt logs its word, section and citation counts, and (once
