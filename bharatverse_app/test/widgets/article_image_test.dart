@@ -22,6 +22,8 @@ void main() {
     credit: 'Jane Doe via Wikimedia Commons',
     sourceUrl: 'https://commons.wikimedia.org/wiki/File:Stupa.jpg',
     license: 'CC BY-SA 4.0',
+    width: 1200,
+    height: 800,
   );
 
   setUpAll(() {
@@ -35,8 +37,12 @@ void main() {
   });
 
   Future<void> pumpImage(WidgetTester tester, ArticleImage image) async {
+    // A scrollable body, matching how ArticleDetailScreen actually hosts this widget (inside
+    // a ListView) -- a bare Scaffold.body is height-bounded, and a portrait-clamped image can
+    // compute a height taller than the test viewport without one.
     await tester.pumpWidget(MaterialApp(
-      home: Scaffold(body: ArticleImageView(image: image)),
+      home:
+          Scaffold(body: ListView(children: [ArticleImageView(image: image)])),
     ));
     // CachedNetworkImage has no real network in tests; settle past its error state
     // instead of pumpAndSettle(), which would wait on its retry timers forever.
@@ -66,6 +72,8 @@ void main() {
           credit: image.credit,
           sourceUrl: image.sourceUrl,
           license: image.license,
+          width: image.width,
+          height: image.height,
         ),
       );
 
@@ -112,6 +120,50 @@ void main() {
           .flagsCollection;
       expect(flags.isButton, isTrue);
       expect(flags.isLink, isTrue);
+    });
+
+    testWidgets('renders at the source photo\'s own aspect ratio',
+        (tester) async {
+      await pumpImage(tester, image); // 1200x800 = 1.5, within the sane band
+
+      final box = tester.widget<AspectRatio>(find.byType(AspectRatio));
+      expect(box.aspectRatio, 1200 / 800);
+    });
+
+    testWidgets('clamps an unusually tall portrait photo', (tester) async {
+      await pumpImage(
+        tester,
+        ArticleImage(
+          url: image.url,
+          altText: image.altText,
+          credit: image.credit,
+          sourceUrl: image.sourceUrl,
+          license: image.license,
+          width: 400,
+          height: 1600, // 0.25, far narrower than a sane article image
+        ),
+      );
+
+      final box = tester.widget<AspectRatio>(find.byType(AspectRatio));
+      expect(box.aspectRatio, 4 / 5);
+    });
+
+    testWidgets('clamps an unusually wide panorama photo', (tester) async {
+      await pumpImage(
+        tester,
+        ArticleImage(
+          url: image.url,
+          altText: image.altText,
+          credit: image.credit,
+          sourceUrl: image.sourceUrl,
+          license: image.license,
+          width: 3000,
+          height: 600, // 5.0, far wider than a sane article image
+        ),
+      );
+
+      final box = tester.widget<AspectRatio>(find.byType(AspectRatio));
+      expect(box.aspectRatio, 2 / 1);
     });
   });
 }

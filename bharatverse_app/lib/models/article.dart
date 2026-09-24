@@ -58,6 +58,11 @@ class ArticleImage {
   final String sourceUrl;
   final String license;
 
+  /// The source image's real pixel size, so it can be rendered at its own aspect ratio
+  /// instead of a fixed height that crops badly on wide screens.
+  final int width;
+  final int height;
+
   const ArticleImage({
     required this.url,
     required this.altText,
@@ -65,7 +70,11 @@ class ArticleImage {
     required this.credit,
     required this.sourceUrl,
     required this.license,
+    required this.width,
+    required this.height,
   });
+
+  double get aspectRatio => width / height;
 
   Map<String, dynamic> toJson() => {
         'url': url,
@@ -74,6 +83,8 @@ class ArticleImage {
         'credit': credit,
         'source_url': sourceUrl,
         'license': license,
+        'width': width,
+        'height': height,
       };
 
   factory ArticleImage.fromJson(Map<String, dynamic> json) => ArticleImage(
@@ -83,6 +94,8 @@ class ArticleImage {
         credit: json['credit'] as String,
         sourceUrl: json['source_url'] as String,
         license: json['license'] as String,
+        width: json['width'] as int,
+        height: json['height'] as int,
       );
 }
 

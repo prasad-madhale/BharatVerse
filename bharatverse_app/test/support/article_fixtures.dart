@@ -51,6 +51,8 @@ Map<String, dynamic> sampleImage({
       'credit': 'Jane Doe via Wikimedia Commons',
       'source_url': 'https://commons.wikimedia.org/wiki/File:Stupa.jpg',
       'license': 'CC BY-SA 4.0',
+      'width': 1200,
+      'height': 800,
     };
 
 /// A MockClient serving [rows] for the PostgREST call and a fixed content

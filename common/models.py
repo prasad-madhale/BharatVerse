@@ -60,6 +60,14 @@ class ArticleImage(BaseModel):
         ...,
         description="e.g. 'CC BY-SA 4.0', 'Public domain'",
     )
+    width: int = Field(
+        ...,
+        description="The source image's real pixel width, for aspect-ratio-correct rendering",
+    )
+    height: int = Field(
+        ...,
+        description="The source image's real pixel height, for aspect-ratio-correct rendering",
+    )
 
 
 class Section(BaseModel):

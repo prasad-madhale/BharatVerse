@@ -218,6 +218,8 @@ class ImageSourcer:
             credit=f"{artist} via Wikimedia Commons",
             source_url=f"https://commons.wikimedia.org/wiki/{filename.replace(' ', '_')}",
             license=extmetadata.get("LicenseShortName", {}).get("value", "Public domain"),
+            width=info["width"],
+            height=info["height"],
         )
 
     async def _get_json(self, url: str, params: dict) -> dict:

@@ -58,6 +58,8 @@ void main() {
             'credit': 'Jane Doe via Wikimedia Commons',
             'source_url': 'https://commons.wikimedia.org/wiki/File:Stupa.jpg',
             'license': 'CC BY-SA 4.0',
+            'width': 1200,
+            'height': 800,
           },
         ],
         'publication_date': '2026-07-03',
@@ -73,6 +75,7 @@ void main() {
       expect(article.images.first.credit, 'Jane Doe via Wikimedia Commons');
       expect(article.images.first.license, 'CC BY-SA 4.0');
       expect(article.images.first.caption, isNull);
+      expect(article.images.first.aspectRatio, 1200 / 800);
     });
 
     test('parses an article with an image_url', () {
@@ -181,6 +184,8 @@ void main() {
           'credit': 'Jane Doe via Wikimedia Commons',
           'source_url': 'https://commons.wikimedia.org/wiki/File:Stupa.jpg',
           'license': 'CC BY-SA 4.0',
+          'width': 1200,
+          'height': 800,
         },
       ],
       'publication_date': '2026-07-03',

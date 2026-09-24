@@ -252,4 +252,6 @@ async def fake_host(self, article_id, index, filename, info, image_bytes):
         credit=f"{artist} via Wikimedia Commons",
         source_url=f"https://commons.wikimedia.org/wiki/{filename}",
         license=extmetadata.get("LicenseShortName", {}).get("value", "Public domain"),
+        width=info["width"],
+        height=info["height"],
     )

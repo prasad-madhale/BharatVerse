@@ -111,6 +111,7 @@ class TestSaveArticle:
             credit="Jane Doe via Wikimedia Commons",
             source_url="https://commons.wikimedia.org/wiki/File:Stupa.jpg",
             license="CC BY-SA 4.0",
+            width=1200, height=800,
         )]
         article.image_url = article.images[0].url
 
@@ -214,7 +215,7 @@ class TestGetArticleById:
                 "url": "https://storage.example/0.jpg", "alt_text": "The Great Stupa",
                 "caption": None, "credit": "Jane Doe via Wikimedia Commons",
                 "source_url": "https://commons.wikimedia.org/wiki/File:Stupa.jpg",
-                "license": "CC BY-SA 4.0",
+                "license": "CC BY-SA 4.0", "width": 1200, "height": 800,
             }],
         }
         mock_supabase_client.storage.from_.return_value.download.return_value = json.dumps(blob).encode("utf-8")

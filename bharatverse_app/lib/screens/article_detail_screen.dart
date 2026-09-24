@@ -71,12 +71,13 @@ class ArticleDetailScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.space5),
                 if (article.images.isNotEmpty)
-                  ArticleImageView(image: article.images.first, height: 180)
+                  ArticleImageView(image: article.images.first)
                 else
-                  Container(
-                      height: 180,
-                      width: double.infinity,
-                      color: AppColors.paper200),
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Container(
+                        width: double.infinity, color: AppColors.paper200),
+                  ),
                 const SizedBox(height: AppSpacing.space5),
                 for (final entry in article.sections.asMap().entries) ...[
                   Padding(

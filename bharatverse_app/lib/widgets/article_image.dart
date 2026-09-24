@@ -12,14 +12,22 @@ import '../theme/app_typography.dart';
 /// Falls back to the same flat parchment block the rest of the app uses
 /// while loading or if the image fails to load, so a dead source URL is
 /// never a broken-image icon.
+///
+/// Sized by the source photo's own aspect ratio (clamped to a sane band) rather than a fixed
+/// height, so it scales correctly with the available width on any device instead of turning
+/// into a heavily-cropped strip on a wide screen or an oddly tall column on a narrow one.
 class ArticleImageView extends StatelessWidget {
   /// The smallest comfortable height to tap for the credit line.
   static const _minTapHeight = 44.0;
 
-  final ArticleImage image;
-  final double height;
+  /// Keeps an unusually tall or wide source photo within a sane band for an article image,
+  /// rather than rendering a jarring sliver (very wide) or an overly tall column (very narrow).
+  static const _minAspectRatio = 4 / 5;
+  static const _maxAspectRatio = 2 / 1;
 
-  const ArticleImageView({super.key, required this.image, this.height = 200});
+  final ArticleImage image;
+
+  const ArticleImageView({super.key, required this.image});
 
   Future<void> _openSource(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -35,18 +43,21 @@ class ArticleImageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final aspectRatio =
+        image.aspectRatio.clamp(_minAspectRatio, _maxAspectRatio);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CachedNetworkImage(
-          imageUrl: image.url,
-          height: height,
-          width: double.infinity,
-          fit: BoxFit.cover,
-          placeholder: (context, url) =>
-              Container(height: height, color: AppColors.paper200),
-          errorWidget: (context, url, error) =>
-              Container(height: height, color: AppColors.paper200),
+        AspectRatio(
+          aspectRatio: aspectRatio,
+          child: CachedNetworkImage(
+            imageUrl: image.url,
+            width: double.infinity,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => Container(color: AppColors.paper200),
+            errorWidget: (context, url, error) =>
+                Container(color: AppColors.paper200),
+          ),
         ),
         const SizedBox(height: AppSpacing.space2),
         if (image.caption != null && image.caption!.isNotEmpty) ...[
