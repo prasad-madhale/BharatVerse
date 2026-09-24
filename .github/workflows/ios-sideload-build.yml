@@ -9,6 +9,8 @@ name: iOS sideload build
 
 on:
   workflow_dispatch: {}
+  push:
+    branches: [ "feature/ios-sideload-ci" ]  # TEMP: verifying the build works before merge; removed before merge
 
 permissions:
   contents: read
