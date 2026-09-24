@@ -15,7 +15,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 from backend.services.article_service import ArticleService
-from common.models import Article, Citation, Section
+from common.models import Article, ArticleImage, Citation, Section
 
 
 def make_article(article_id="art_20260703_001"):
@@ -94,6 +94,36 @@ class TestSaveArticle:
         assert "created_at" not in row
         assert "updated_at" not in row
 
+    @pytest.mark.asyncio
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_uploads_images_in_content_blob(
+        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_get_supabase.return_value.get_admin_client.return_value = mock_supabase_client
+
+        article = make_article()
+        article.images = [ArticleImage(
+            url="https://storage.example/art_20260703_001/0.jpg",
+            alt_text="Ruins of a Mauryan-era stupa",
+            caption="The Great Stupa",
+            credit="Jane Doe via Wikimedia Commons",
+            source_url="https://commons.wikimedia.org/wiki/File:Stupa.jpg",
+            license="CC BY-SA 4.0",
+        )]
+        article.image_url = article.images[0].url
+
+        await ArticleService().save_article(article)
+
+        upload_call = mock_supabase_client.storage.from_.return_value.upload
+        blob = json.loads(upload_call.call_args.args[1])
+        assert blob["images"][0]["url"] == article.images[0].url
+        assert blob["images"][0]["license"] == "CC BY-SA 4.0"
+
+        row = mock_supabase_client.table.return_value.upsert.call_args.args[0]
+        assert row["image_url"] == article.images[0].url
+
 
 class TestGetArticleById:
     @pytest.mark.asyncio
@@ -159,6 +189,40 @@ class TestGetArticleById:
         mock_supabase_client.storage.from_.return_value.download.assert_called_once_with(
             "articles/2026-07-03/art_20260703_001.json"
         )
+        assert result.images == []  # the blob above has no "images" key -- an older article
+
+    @pytest.mark.asyncio
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_reassembles_images_from_blob(
+        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+
+        row = {
+            "id": "art_20260703_001", "title": "The Mauryan Empire", "summary": "A summary.",
+            "date": "2026-07-03", "reading_time_minutes": 13, "author": "BharatVerse AI",
+            "tags": [], "image_url": "https://storage.example/0.jpg",
+            "content_file_path": "articles/2026-07-03/art_20260703_001.json",
+            "created_at": "2026-07-03T00:00:00Z", "updated_at": "2026-07-03T00:00:00Z",
+        }
+        mock_supabase_client.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [row]
+        blob = {
+            "content": "...", "sections": [], "citations": [],
+            "images": [{
+                "url": "https://storage.example/0.jpg", "alt_text": "The Great Stupa",
+                "caption": None, "credit": "Jane Doe via Wikimedia Commons",
+                "source_url": "https://commons.wikimedia.org/wiki/File:Stupa.jpg",
+                "license": "CC BY-SA 4.0",
+            }],
+        }
+        mock_supabase_client.storage.from_.return_value.download.return_value = json.dumps(blob).encode("utf-8")
+
+        result = await ArticleService().get_article_by_id("art_20260703_001")
+
+        assert result.images[0].license == "CC BY-SA 4.0"
+        assert result.images[0].credit == "Jane Doe via Wikimedia Commons"
 
 
 class TestListRecentTitles:
@@ -214,3 +278,21 @@ class TestListRecentTitles:
         titles = await service.list_recent_titles()
 
         assert titles == []
+
+
+class TestListIdsMissingImages:
+    @pytest.mark.asyncio
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_returns_ids_with_no_image_url(
+        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
+    ):
+        mock_get_settings.return_value = mock_settings
+        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        query = mock_supabase_client.table.return_value.select.return_value.is_.return_value
+        query.execute.return_value.data = [{"id": "art_1"}, {"id": "art_2"}]
+
+        ids = await ArticleService().list_ids_missing_images()
+
+        mock_supabase_client.table.return_value.select.return_value.is_.assert_called_with("image_url", "null")
+        assert ids == ["art_1", "art_2"]
