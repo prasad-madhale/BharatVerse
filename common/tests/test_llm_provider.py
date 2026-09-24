@@ -285,3 +285,75 @@ class TestGenerateText:
 
         with pytest.raises(ValueError, match="Unsupported provider"):
             await provider.generate_text("prompt")
+
+
+class TestGenerateTextWithImage:
+    """Test generate_text_with_image() -- used by scrapper/image_sourcing.py's relevance check."""
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('google.generativeai.GenerativeModel')
+    @patch('google.generativeai.configure')
+    async def test_gemini_generate_text_with_image(self, mock_configure, mock_model_class, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "gemini"
+        mock_settings.gemini_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_model_instance = MagicMock()
+        mock_model_instance.generate_content.return_value = MagicMock(text='{"relevant": true}')
+        mock_model_class.return_value = mock_model_instance
+
+        provider = LLMProvider()
+        result = await provider.generate_text_with_image("prompt", b"fake-bytes", "image/jpeg")
+
+        assert result == '{"relevant": true}'
+        mock_model_instance.generate_content.assert_called_once_with(
+            ["prompt", {"mime_type": "image/jpeg", "data": b"fake-bytes"}]
+        )
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('anthropic.Anthropic')
+    async def test_anthropic_generate_text_with_image(self, mock_anthropic_class, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "anthropic"
+        mock_settings.anthropic_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        text_block = MagicMock(type="text", text='{"relevant": false}')
+        mock_client.messages.create.return_value = MagicMock(content=[text_block])
+        mock_anthropic_class.return_value = mock_client
+
+        provider = LLMProvider()
+        result = await provider.generate_text_with_image("prompt", b"fake-bytes", "image/jpeg", max_tokens=500)
+
+        assert result == '{"relevant": false}'
+        mock_client.messages.create.assert_called_once_with(
+            model="claude-sonnet-5",
+            max_tokens=500,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "image", "source": {
+                        "type": "base64", "media_type": "image/jpeg", "data": "ZmFrZS1ieXRlcw==",
+                    }},
+                    {"type": "text", "text": "prompt"},
+                ],
+            }],
+        )
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('openai.OpenAI')
+    async def test_openai_not_implemented(self, mock_openai_class, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "openai"
+        mock_settings.openai_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        provider = LLMProvider()
+
+        with pytest.raises(NotImplementedError):
+            await provider.generate_text_with_image("prompt", b"fake-bytes", "image/jpeg")

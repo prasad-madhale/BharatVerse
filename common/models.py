@@ -31,6 +31,37 @@ class Citation(BaseModel):
     )
 
 
+class ArticleImage(BaseModel):
+    """
+    An image attached to an article, sourced from an openly-licensed provider
+    (Wikipedia/Wikimedia Commons) and re-hosted in our own Supabase Storage.
+    """
+    url: str = Field(
+        ...,
+        description="Our own Supabase Storage URL, not the source's",
+    )
+    alt_text: str = Field(
+        ...,
+        description="Accessible description of the image",
+    )
+    caption: Optional[str] = Field(
+        default=None,
+        description="Optional caption shown under the image",
+    )
+    credit: str = Field(
+        ...,
+        description="Human-readable credit, e.g. 'Artist Name via Wikimedia Commons'",
+    )
+    source_url: str = Field(
+        ...,
+        description="The Commons/Wikipedia file page, for attribution",
+    )
+    license: str = Field(
+        ...,
+        description="e.g. 'CC BY-SA 4.0', 'Public domain'",
+    )
+
+
 class Section(BaseModel):
     """
     Represents a section within an article.
@@ -77,6 +108,10 @@ class Article(BaseModel):
     citations: List[Citation] = Field(
         default_factory=list,
         description="Citations and references used in the article",
+    )
+    images: List[ArticleImage] = Field(
+        default_factory=list,
+        description="Images attached to the article: images[0], if present, is the featured image",
     )
     publication_date: date = Field(
         ...,

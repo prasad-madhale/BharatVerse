@@ -27,6 +27,11 @@ class LLMSettings(BaseSettings):
 
     critic_enabled: bool = True  # off skips the editorial critic pass, for cheap local runs
 
+    image_sourcing_enabled: bool = True  # off skips attaching images, for cheap local runs
+    target_image_count: int = 3  # 1 featured + up to 2 inline
+    min_images_to_proceed: int = 1  # publish with fewer than target_image_count rather than block
+    min_image_width: int = 500  # pixels; below this a candidate is rejected
+
     model_config = SettingsConfigDict(
         env_file=_REPO_ROOT_ENV_FILE,
         env_file_encoding="utf-8",

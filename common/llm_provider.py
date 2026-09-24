@@ -11,6 +11,8 @@ Used by scrapper/ (topic and article generation) -- see common/config.py for whe
 settings come from.
 """
 
+import base64
+
 from common.config import get_llm_settings
 
 
@@ -120,6 +122,54 @@ class LLMProvider:
 
         else:
             raise ValueError(f"Unsupported provider: {self.provider}")
+
+    async def generate_text_with_image(
+        self, prompt: str, image_bytes: bytes, media_type: str, max_tokens: int = 8000
+    ) -> str:
+        """
+        Like generate_text, but with an image attached -- used by
+        scrapper/image_sourcing.py's relevance check. Only gemini and
+        anthropic are implemented, the two providers this pipeline actually
+        uses (see .env.example and the daily-pipeline workflow).
+
+        max_tokens defaults to 8000, matching article_critic.py's measured
+        finding: claude-sonnet-5's extended thinking can consume a too-small
+        budget entirely and return no text at all, even for a short answer --
+        if this ever comes back empty, that's the first thing to check.
+        """
+        if self.provider == "gemini":
+            model = self.client.GenerativeModel(self.model)
+            response = model.generate_content(
+                [prompt, {"mime_type": media_type, "data": image_bytes}]
+            )
+            return response.text
+
+        elif self.provider == "anthropic":
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=max_tokens,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": media_type,
+                                "data": base64.b64encode(image_bytes).decode("ascii"),
+                            },
+                        },
+                        {"type": "text", "text": prompt},
+                    ],
+                }],
+            )
+            text_blocks = [block.text for block in response.content if block.type == "text"]
+            return "".join(text_blocks)
+
+        else:
+            raise NotImplementedError(
+                f"generate_text_with_image isn't implemented for provider: {self.provider}"
+            )
 
 
 # Global LLM provider instance (lazy-loaded)
