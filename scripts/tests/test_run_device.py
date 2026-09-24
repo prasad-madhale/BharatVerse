@@ -23,6 +23,9 @@ print("urls", *sys.argv[1:])
 IPHONE = {"id": "00008110-0011", "targetPlatform": "ios", "emulator": False}
 SIMULATOR = {"id": "SIM-1", "targetPlatform": "ios", "emulator": True}
 DESKTOP = {"id": "linux", "targetPlatform": "linux-x64", "emulator": False}
+# Real hardware reports an arch-qualified platform, never the bare "android".
+ANDROID_PHONE = {"id": "R5GL8163W2N", "targetPlatform": "android-arm64", "emulator": False}
+ANDROID_EMULATOR = {"id": "emulator-5554", "targetPlatform": "android-x64", "emulator": True}
 
 
 @pytest.fixture
@@ -57,6 +60,16 @@ def test_runs_natively_on_the_first_physical_device_and_passes_flags_through(run
     code, out, calls = run("--release", devices=[SIMULATOR, DESKTOP, IPHONE])
     assert code == 0
     assert calls == ["flutter run -d 00008110-0011 --release"]
+    assert "urls" not in out
+
+
+def test_runs_natively_on_a_real_android_phone(run):
+    """Regression test: targetPlatform for real hardware is arch-qualified (android-arm64, ...),
+    never the bare "android" a literal match was looking for, so a real Android phone was never
+    detected."""
+    code, out, calls = run(devices=[ANDROID_EMULATOR, DESKTOP, ANDROID_PHONE])
+    assert code == 0
+    assert calls == ["flutter run -d R5GL8163W2N"]
     assert "urls" not in out
 
 

@@ -40,7 +40,9 @@ if [ "$WEB" = false ]; then
 import json, sys
 
 devices = json.load(sys.stdin)
-physical = [d for d in devices if not d["emulator"] and d["targetPlatform"] in ("ios", "android")]
+# Android reports an arch-qualified platform (android-arm64, android-x64, ...), never the bare
+# "android" -- a literal match here never found a real Android phone.
+physical = [d for d in devices if not d["emulator"] and (d["targetPlatform"] == "ios" or d["targetPlatform"].startswith("android"))]
 if not physical:
     sys.exit(1)
 print(physical[0]["id"])
