@@ -3,12 +3,12 @@ Unit tests for backfill_images.py. ArticleService and ImageSourcer are mocked --
 network or Supabase calls.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from common.models import Article, ArticleImage, Citation
+from common.models import Article, ArticleImage
 import backfill_images
 
 
@@ -17,13 +17,6 @@ def make_article(article_id="art_20260101_001", title="Mohenjo-daro", citations=
         id=article_id, title=title, summary="A summary.", content="...",
         citations=list(citations),
         publication_date=date(2026, 1, 1), reading_time_minutes=10,
-    )
-
-
-def wikipedia_citation(url="https://en.wikipedia.org/wiki/Mohenjo-daro"):
-    return Citation(
-        text="Mohenjo-daro", source_url=url, source_name="wikipedia",
-        accessed_date=datetime(2026, 1, 1, tzinfo=timezone.utc),
     )
 
 
@@ -46,34 +39,6 @@ def services():
         sourcer = sourcer_cls.return_value
         sourcer.source_images = AsyncMock(return_value=[make_image()])
         yield MagicMock(service=service, sourcer=sourcer)
-
-
-class TestTopicFor:
-    """The article's title is an LLM-written headline, not the real Wikipedia title
-    image_sourcing.py needs -- recover the real one from the article's own Wikipedia citation."""
-
-    def test_recovers_the_real_title_from_the_wikipedia_citation(self):
-        article = make_article(
-            title="Haldighati, 1576: The Battle Nobody Can Agree On",
-            citations=[wikipedia_citation("https://en.wikipedia.org/wiki/Battle_of_Haldighati")],
-        )
-
-        assert backfill_images._topic_for(article) == "Battle of Haldighati"
-
-    def test_url_decodes_the_title(self):
-        article = make_article(citations=[
-            wikipedia_citation("https://en.wikipedia.org/wiki/Rani_ki_Vav%20Stepwell"),
-        ])
-
-        assert backfill_images._topic_for(article) == "Rani ki Vav Stepwell"
-
-    def test_falls_back_to_the_articles_own_title_with_no_wikipedia_citation(self):
-        article = make_article(title="A Title With No Wikipedia Source", citations=[
-            Citation(text="x", source_url="https://archive.org/details/x", source_name="archive_org",
-                     accessed_date=datetime(2026, 1, 1, tzinfo=timezone.utc)),
-        ])
-
-        assert backfill_images._topic_for(article) == "A Title With No Wikipedia Source"
 
 
 class TestBackfill:

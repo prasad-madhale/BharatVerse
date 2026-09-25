@@ -66,11 +66,18 @@ class ImageSourcer:
         self.llm_provider = llm_provider or get_llm_provider()
         self.settings = get_llm_settings()
 
-    async def source_images(self, article: Article, topic: str) -> list[ArticleImage]:
+    async def source_images(
+        self, article: Article, topic: str, exclude: set[str] = frozenset()
+    ) -> list[ArticleImage]:
         """
         Returns up to settings.target_image_count ArticleImages for the article, or an empty
         list if nothing usable was found -- callers should treat that as "publish with no
         images", not an error.
+
+        exclude: Commons file titles (e.g. "File:Foo.jpg", as recovered from a rejected
+        ArticleImage.source_url's last path segment) to leave out of the candidate set --
+        used by a critic-triggered retry so it can't just re-select an image already rejected
+        for failing the cohesion check.
         """
         candidates = await self._wikipedia_candidates(topic)
         needs_check = {filename: False for filename in candidates}
@@ -81,6 +88,13 @@ class ImageSourcer:
                 if filename not in candidates:
                     candidates[filename] = info
                     needs_check[filename] = True
+
+        if exclude:
+            excluded = {name.replace(" ", "_") for name in exclude}
+            candidates = {
+                filename: info for filename, info in candidates.items()
+                if filename.replace(" ", "_") not in excluded
+            }
 
         images: list[ArticleImage] = []
         for filename, info in candidates.items():
@@ -187,7 +201,9 @@ class ImageSourcer:
     async def _passes_relevance_check(self, image_bytes: bytes, info: dict, article: Article) -> bool:
         try:
             prompt = RELEVANCE_PROMPT_TEMPLATE.format(title=article.title, summary=article.summary)
-            raw = await self.llm_provider.generate_text_with_image(prompt, image_bytes, info["mime"])
+            raw = await self.llm_provider.generate_text_with_image(
+                prompt, image_bytes, info["mime"], effort="medium"
+            )
             parsed = json_repair.loads(_strip_code_fence(raw))
             return bool(isinstance(parsed, dict) and parsed.get("relevant"))
         except Exception:

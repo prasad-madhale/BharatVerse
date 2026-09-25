@@ -18,7 +18,7 @@ class FakeVisionLLM:
         self.relevant = relevant
         self.calls = 0
 
-    async def generate_text_with_image(self, prompt, image_bytes, media_type):
+    async def generate_text_with_image(self, prompt, image_bytes, media_type, effort=None):
         self.calls += 1
         return f'{{"relevant": {str(self.relevant).lower()}, "reason": "test"}}'
 
@@ -216,6 +216,24 @@ class TestImageSourcer:
         await sourcer.source_images(make_article(), topic="Mohenjo-daro")
 
         assert fake_llm.calls == 0
+
+    async def test_exclude_keeps_a_rejected_filename_out_even_when_it_would_be_top_pick(self, monkeypatch):
+        monkeypatch.setattr(ImageSourcer, "_get_json", stub_get_json({
+            "page": WIKIPEDIA_PAGE_RESPONSE,
+            "imageinfo": imageinfo_response({
+                "File:Mohenjodaro_Sindh.jpeg": GOOD_JPEG_INFO,
+                "File:Great_Bath.jpg": SECOND_GOOD_JPEG_INFO,
+            }),
+        }))
+        monkeypatch.setattr(ImageSourcer, "_download", lambda self, url: _bytes())
+        monkeypatch.setattr(ImageSourcer, "_host", fake_host)
+
+        sourcer = ImageSourcer(llm_provider=FakeVisionLLM())
+        images = await sourcer.source_images(
+            make_article(), topic="Mohenjo-daro", exclude={"File:Mohenjodaro_Sindh.jpeg"}
+        )
+
+        assert [i.alt_text for i in images] == ["File:Great_Bath.jpg"]
 
     async def test_returns_empty_list_rather_than_raising_when_nothing_is_found(self, monkeypatch):
         monkeypatch.setattr(ImageSourcer, "_get_json", stub_get_json({

@@ -216,6 +216,55 @@ class TestGenerateText:
 
     @patch('common.llm_provider.get_llm_settings')
     @patch('anthropic.Anthropic')
+    async def test_anthropic_generate_text_passes_effort_through_output_config(
+        self, mock_anthropic_class, mock_get_settings
+    ):
+        """effort="medium" caps adaptive-thinking depth for structured-output tasks (critic
+        review, revision) -- see llm_provider.py's _anthropic_kwargs docstring."""
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "anthropic"
+        mock_settings.anthropic_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        text_block = MagicMock(type="text", text="Generated anthropic text")
+        mock_client.messages.create.return_value = MagicMock(content=[text_block])
+        mock_anthropic_class.return_value = mock_client
+
+        provider = LLMProvider()
+        await provider.generate_text("prompt", max_tokens=500, effort="medium")
+
+        mock_client.messages.create.assert_called_once_with(
+            model="claude-sonnet-5",
+            max_tokens=500,
+            output_config={"effort": "medium"},
+            messages=[{"role": "user", "content": "prompt"}],
+        )
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('anthropic.Anthropic')
+    async def test_anthropic_generate_text_omits_output_config_when_effort_not_given(
+        self, mock_anthropic_class, mock_get_settings
+    ):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "anthropic"
+        mock_settings.anthropic_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        text_block = MagicMock(type="text", text="Generated anthropic text")
+        mock_client.messages.create.return_value = MagicMock(content=[text_block])
+        mock_anthropic_class.return_value = mock_client
+
+        provider = LLMProvider()
+        await provider.generate_text("prompt")
+
+        assert "output_config" not in mock_client.messages.create.call_args.kwargs
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('anthropic.Anthropic')
     async def test_anthropic_generate_text_skips_leading_thinking_block(self, mock_anthropic_class, mock_get_settings):
         """Extended-thinking-capable models can put a ThinkingBlock before the TextBlock."""
         mock_settings = MagicMock()
@@ -345,6 +394,27 @@ class TestGenerateTextWithImage:
         )
 
     @patch('common.llm_provider.get_llm_settings')
+    @patch('anthropic.Anthropic')
+    async def test_anthropic_generate_text_with_image_passes_effort_through(
+        self, mock_anthropic_class, mock_get_settings
+    ):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "anthropic"
+        mock_settings.anthropic_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        text_block = MagicMock(type="text", text='{"relevant": true}')
+        mock_client.messages.create.return_value = MagicMock(content=[text_block])
+        mock_anthropic_class.return_value = mock_client
+
+        provider = LLMProvider()
+        await provider.generate_text_with_image("prompt", b"fake-bytes", "image/jpeg", effort="medium")
+
+        assert mock_client.messages.create.call_args.kwargs["output_config"] == {"effort": "medium"}
+
+    @patch('common.llm_provider.get_llm_settings')
     @patch('openai.OpenAI')
     async def test_openai_not_implemented(self, mock_openai_class, mock_get_settings):
         mock_settings = MagicMock()
@@ -357,3 +427,75 @@ class TestGenerateTextWithImage:
 
         with pytest.raises(NotImplementedError):
             await provider.generate_text_with_image("prompt", b"fake-bytes", "image/jpeg")
+
+
+class TestOllamaProvider:
+    """The local, self-hosted provider -- no SDK, reached over its own REST API."""
+
+    def _mock_settings(self):
+        settings = MagicMock()
+        settings.llm_provider = "ollama"
+        settings.ollama_base_url = "http://localhost:11434"
+        settings.llm_model = None
+        return settings
+
+    @patch('common.llm_provider.get_llm_settings')
+    def test_default_model(self, mock_get_settings):
+        mock_get_settings.return_value = self._mock_settings()
+
+        provider = LLMProvider()
+
+        assert provider.model == "qwen3.5:9b"
+        assert provider.client is None  # no SDK client -- REST calls only
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('common.llm_provider.requests.post')
+    async def test_generate_text(self, mock_post, mock_get_settings):
+        mock_get_settings.return_value = self._mock_settings()
+        mock_post.return_value = MagicMock(
+            json=lambda: {"message": {"content": '{"ok": true}'}},
+        )
+
+        provider = LLMProvider()
+        result = await provider.generate_text("prompt", max_tokens=2000)
+
+        assert result == '{"ok": true}'
+        call = mock_post.call_args
+        assert call.args[0] == "http://localhost:11434/api/chat"
+        assert call.kwargs["json"]["model"] == "qwen3.5:9b"
+        assert call.kwargs["json"]["messages"] == [{"role": "user", "content": "prompt"}]
+        assert call.kwargs["json"]["think"] is False
+        assert call.kwargs["json"]["options"] == {"num_predict": 2000}
+        assert call.kwargs["timeout"] == 300
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('common.llm_provider.requests.post')
+    async def test_generate_text_with_image(self, mock_post, mock_get_settings):
+        mock_get_settings.return_value = self._mock_settings()
+        mock_post.return_value = MagicMock(
+            json=lambda: {"message": {"content": '{"cohesive": true}'}},
+        )
+
+        provider = LLMProvider()
+        result = await provider.generate_text_with_image("prompt", b"fake-bytes", "image/jpeg")
+
+        assert result == '{"cohesive": true}'
+        payload = mock_post.call_args.kwargs["json"]
+        assert payload["messages"][0]["images"] == ["ZmFrZS1ieXRlcw=="]
+        assert payload["options"] == {"num_predict": 8000}  # generate_text_with_image's default
+
+    @patch('common.llm_provider.get_llm_settings')
+    def test_provider_override_does_not_disturb_the_default(self, mock_get_settings):
+        """LLMProvider(provider=...) is used to run one step against a different provider than
+        the rest of the pipeline -- confirm the no-arg default still reads settings as before."""
+        settings = self._mock_settings()
+        settings.llm_provider = "gemini"
+        settings.gemini_api_key = "test-key"
+        mock_get_settings.return_value = settings
+
+        with patch('google.generativeai.configure'):
+            default_provider = LLMProvider()
+            overridden_provider = LLMProvider(provider="ollama")
+
+        assert default_provider.provider == "gemini"
+        assert overridden_provider.provider == "ollama"

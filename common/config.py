@@ -16,12 +16,13 @@ _REPO_ROOT_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 class LLMSettings(BaseSettings):
     """LLM provider configuration loaded from environment variables."""
 
-    llm_provider: str = "gemini"  # Options: "gemini", "anthropic", "openai", "groq"
+    llm_provider: str = "gemini"  # Options: "gemini", "anthropic", "openai", "groq", "ollama"
 
     gemini_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
+    ollama_base_url: str = "http://localhost:11434"  # a local, self-hosted model -- no API key
 
     llm_model: Optional[str] = None  # Auto-selected based on provider if not specified
 
@@ -31,6 +32,12 @@ class LLMSettings(BaseSettings):
     target_image_count: int = 3  # 1 featured + up to 2 inline
     min_images_to_proceed: int = 1  # publish with fewer than target_image_count rather than block
     min_image_width: int = 500  # pixels; below this a candidate is rejected
+
+    image_cohesion_check_enabled: bool = True  # off skips the critic's image-cohesion pass
+    # Cohesion checks are frequent (one per image, up to target_image_count, per critic round) --
+    # default to the local, free, already-vision-capable ollama model rather than the paid
+    # provider the rest of the pipeline uses.
+    image_cohesion_llm_provider: str = "ollama"
 
     model_config = SettingsConfigDict(
         env_file=_REPO_ROOT_ENV_FILE,

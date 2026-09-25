@@ -42,9 +42,11 @@ class FakeLLMProvider:
     def __init__(self, response: str):
         self.response = response
         self.last_prompt = None
+        self.last_effort = None
 
-    async def generate_text(self, prompt: str, max_tokens: int = 4000) -> str:
+    async def generate_text(self, prompt: str, max_tokens: int = 4000, effort: str | None = None) -> str:
         self.last_prompt = prompt
+        self.last_effort = effort
         return self.response
 
 
@@ -291,6 +293,21 @@ class TestReviseArticle:
 
         assert "An invented statistic appears in Origins" in llm.last_prompt
         assert draft.title in llm.last_prompt
+
+    @pytest.mark.asyncio
+    async def test_caps_thinking_depth_for_this_bounded_fix_it_task(self):
+        """A well-specified "fix these listed issues" task doesn't need open-ended exploratory
+        reasoning -- effort="medium" bounds it (see article_generator.py's revise_article)."""
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(VALID_LLM_RESPONSE))
+        draft = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire")
+        llm = FakeLLMProvider(REVISED_LLM_RESPONSE)
+        generator.llm_provider = llm
+
+        await generator.revise_article(
+            draft, [make_scraped_content()], topic="Mauryan Empire", feedback=make_feedback()
+        )
+
+        assert llm.last_effort == "medium"
 
     @pytest.mark.asyncio
     async def test_raises_on_invalid_json_response(self):

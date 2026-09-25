@@ -14,8 +14,8 @@ from time import perf_counter
 
 from backend.services.article_service import ArticleService
 from common.config import get_llm_settings
-from common.models import Article
-from scrapper.article_critic import ArticleCritic, CriticReview, critic_metrics
+from common.models import Article, ArticleImage
+from scrapper.article_critic import ArticleCritic, CriticIssue, CriticReview, critic_metrics
 from scrapper.article_generator import ArticleGenerator
 from scrapper.content_validator import ContentValidator, article_metrics
 from scrapper.image_sourcing import ImageSourcer
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 SOURCES = ["wikipedia", "archive_org", "new_world_encyclopedia", "indian_culture"]
 MAX_GENERATION_ATTEMPTS = 3
 GENERATION_BACKOFF_SECONDS = 5  # doubles after each failed attempt: 5 s, then 10 s
-CRITIC_MAX_ROUNDS = 2  # review/revise cycles per generation attempt, before falling back to a fresh attempt
+CRITIC_MAX_ROUNDS = 4  # up to 3 revisions per generation attempt, before falling back to a fresh attempt
 
 
 async def run_daily_pipeline(count: int = 1) -> int:
@@ -82,19 +82,12 @@ async def _generate_and_publish_one(
         return False
     logger.info(f"Scraped {len(scraped)} page(s) for '{topic}'")
 
-    article = await _generate_valid_article(scraped, topic, sequence, generator, validator, critic)
+    article = await _generate_valid_article(
+        scraped, topic, sequence, generator, validator, critic, image_sourcer
+    )
     if article is None:
         logger.error(f"Giving up on '{topic}' after {MAX_GENERATION_ATTEMPTS} attempt(s)")
         return False
-
-    if image_sourcer is not None:
-        # A sourcing failure (network error, nothing usable found) publishes the article with
-        # no images rather than losing an otherwise-good, critic-approved article over it.
-        try:
-            article.images = await image_sourcer.source_images(article, topic)
-            article.image_url = article.images[0].url if article.images else None
-        except Exception:
-            logger.warning(f"Image sourcing failed for '{topic}', publishing without images", exc_info=True)
 
     await article_service.save_article(article)
     logger.info(f"Published {article.id}: {article.title} ({len(article.images)} image(s))")
@@ -108,6 +101,7 @@ async def _generate_valid_article(
     generator: ArticleGenerator,
     validator: ContentValidator,
     critic: ArticleCritic | None,
+    image_sourcer: ImageSourcer | None,
 ) -> Article | None:
     """
     Generate an article, validate it, and (if a critic is configured) have it
@@ -146,8 +140,15 @@ async def _generate_valid_article(
         rounds = 0
         approved = True
         if critic is not None:
-            article, review, rounds = await _run_critic_loop(article, scraped, topic, generator, validator, critic)
+            article, review, rounds = await run_critic_loop(
+                article, scraped, topic, generator, validator, critic, image_sourcer
+            )
             approved = review.approved
+        elif image_sourcer is not None:
+            # No critic means no cohesion check to react to -- just source once, same as
+            # before this pipeline could re-source on a cohesion failure.
+            article.images = await _source_images(image_sourcer, article, topic)
+            article.image_url = article.images[0].url if article.images else None
 
         measured = {
             "topic": topic, "attempt": attempt, "valid": approved, **article_metrics(article),
@@ -167,25 +168,102 @@ async def _generate_valid_article(
     return None
 
 
-async def _run_critic_loop(
+async def run_critic_loop(
     article: Article,
     scraped: list[ScrapedContent],
     topic: str,
     generator: ArticleGenerator,
     validator: ContentValidator,
     critic: ArticleCritic,
+    image_sourcer: ImageSourcer | None = None,
+    initial_images: list[ArticleImage] | None = None,
 ) -> tuple[Article, CriticReview, int]:
     """
-    Up to CRITIC_MAX_ROUNDS review/revise cycles. A revision that breaks
-    structural validity ends the loop early (rejected) rather than spending
-    remaining rounds critiquing an already-broken draft.
+    Up to CRITIC_MAX_ROUNDS review/revise cycles. Public (not scheduler-internal) so
+    reprocess_articles.py can run existing articles through the exact same loop.
+
+    If image_sourcer is given, images are sourced (from initial_images if provided, else
+    freshly) before the first round, and every round also runs critic.review_image_cohesion
+    over all of them (not just the featured image) -- a cohesion failure is folded into the
+    round's issues like any other major issue, and triggers a full re-source (excluding every
+    filename rejected so far), not a partial swap. A text revision that breaks structural
+    validity, or that exhausts CRITIC_MAX_ROUNDS, ends the loop early (rejected).
     """
+    if image_sourcer is not None:
+        article.images = (
+            initial_images if initial_images is not None
+            else await _source_images(image_sourcer, article, topic)
+        )
+        article.image_url = article.images[0].url if article.images else None
+
+    excluded_filenames: set[str] = set()
     for round_num in range(1, CRITIC_MAX_ROUNDS + 1):
         review = await critic.review(article, scraped_content=scraped, topic=topic)
+
+        # critic.review() only judges grounding/neutrality/etc., never word count or section
+        # count -- the live pipeline's caller already guarantees the article is structurally
+        # valid before the first round, but a caller starting from an existing article (e.g.
+        # reprocess_articles.py, re-running one published before today's word-count bar) makes
+        # no such guarantee, so check it here too rather than silently approving a too-short
+        # or too-long draft the critic itself has no way to catch.
+        struct_valid, struct_issues = validator.validate(article)
+        if not struct_valid:
+            review.approved = False
+            review.issues = review.issues + [CriticIssue(
+                category="structure", severity="major", location="overall",
+                detail=f"Fails structural validation: {'; '.join(struct_issues)}",
+                suggestion="Revise to satisfy the structural requirements (word count, sections, citations).",
+            )]
+
+        image_issues: list[CriticIssue] = []
+        if article.images:
+            image_issues = await critic.review_image_cohesion(article, article.images)
+            if image_issues:
+                review.issues = review.issues + image_issues
+                review.approved = False
+
         if review.approved or round_num == CRITIC_MAX_ROUNDS:
             return article, review, round_num
-        article = await generator.revise_article(article, scraped_content=scraped, topic=topic, feedback=review)
-        valid, issues = validator.validate(article)
-        if not valid:
-            logger.warning(f"Revision of '{topic}' broke structural validity (round {round_num}): {issues}")
-            return article, review, round_num
+
+        if any(issue.category != "image_cohesion" for issue in review.issues):
+            current_images = article.images
+            article = await generator.revise_article(article, scraped_content=scraped, topic=topic, feedback=review)
+            # revise_article rebuilds the Article from scratch and doesn't carry images over.
+            article.images = current_images
+            article.image_url = current_images[0].url if current_images else None
+            valid, issues = validator.validate(article)
+            if not valid:
+                logger.warning(f"Revision of '{topic}' broke structural validity (round {round_num}): {issues}")
+                return article, review, round_num
+
+        if image_issues and image_sourcer is not None:
+            excluded_filenames.update(_filenames_to_exclude(article.images, image_issues))
+            article.images = await _source_images(image_sourcer, article, topic, exclude=excluded_filenames)
+            article.image_url = article.images[0].url if article.images else None
+
+    return article, review, round_num
+
+
+async def _source_images(
+    image_sourcer: ImageSourcer, article: Article, topic: str, exclude: set[str] = frozenset()
+) -> list[ArticleImage]:
+    """A sourcing failure (network error, nothing usable found) leaves the article with no
+    images rather than losing an otherwise-good, critic-approved article over it."""
+    try:
+        return await image_sourcer.source_images(article, topic, exclude=exclude)
+    except Exception:
+        logger.warning(f"Image sourcing failed for '{topic}', publishing without images", exc_info=True)
+        return []
+
+
+def _filenames_to_exclude(images: list[ArticleImage], image_issues: list[CriticIssue]) -> set[str]:
+    """Maps a review_image_cohesion issue's location ("featured image" / "inline image N")
+    back to the Commons file title (the last path segment of the image's source_url, exactly
+    as image_sourcing.py._host built it) so a re-source can exclude just the rejected image(s)."""
+    failing_locations = {issue.location for issue in image_issues}
+    filenames = set()
+    for index, image in enumerate(images):
+        label = "featured image" if index == 0 else f"inline image {index + 1}"
+        if label in failing_locations:
+            filenames.add(image.source_url.rsplit("/", 1)[-1])
+    return filenames
