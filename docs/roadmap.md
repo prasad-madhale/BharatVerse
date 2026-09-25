@@ -2,7 +2,7 @@
 
 Status and sequencing. [`design.md`](design.md) is the architectural reference and [`requirements.md`](requirements.md)
 the requirements; this file records what is built, where it differs from the design, and what is left. Status as of
-2026-09-23.
+2026-09-24.
 
 ## Phases
 
@@ -26,23 +26,34 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   plain HTTP requests, so it goes through a real browser session, retried with backoff since that interaction is
   measurably flaky; most of its catalog is archival-record metadata with no body text, so only results with real
   content are kept); an LLM writes the article; `ContentValidator`'s structural checks (length, sections,
-  citations) gate it, then `ArticleCritic` reviews it as an editor would -- grounding in the source material (the
-  check specific to an AI-from-scraped-sources pipeline), citation relevance, neutrality, contested claims stated as
-  settled fact, and structure -- and `ArticleGenerator.revise_article` addresses its feedback, up to
-  `CRITIC_MAX_ROUNDS` (2) review/revise cycles before falling back to a fresh generation. Closes requirements 2.5 and
-  10.3, which `ContentValidator` alone could not (it "cannot verify factual accuracy", by its own docstring). Set
-  `CRITIC_ENABLED=false` to skip it for a cheap local run; it otherwise uses the same `LLM_PROVIDER` as generation.
-  `image_sourcing.py` then attaches up to 3 images (1 featured, 2 inline) from the topic's own Wikipedia page (already
-  curated for relevance, since topics are chosen to match real Wikipedia titles), falling back to a Wikimedia Commons
-  keyword search -- vision-checked for relevance, unlike the Wikipedia-sourced images -- when that page has too few.
-  Only Public Domain/CC0/CC-BY/CC-BY-SA images at least 500px wide are used, downloaded and re-hosted in Storage, never
-  hotlinked; a sourcing failure publishes with no images rather than losing an otherwise-good article. Closes
-  requirement 5.5. `backfill_images.py` attaches images to already-published articles that predate this step. The
-  service-role client publishes the result. A generation failure retries with backoff, and one bad topic never
-  stops the batch. The daily GitHub Actions workflow runs on demand only: its schedule stays commented out until the
-  output is trusted over more unattended runs, so do not enable it without deciding that first. The daily workflow
-  uses Claude Sonnet 5; a local run defaults to Gemini. Groq's free tier was tried and rejected for weak adherence to
-  the word-count target.
+  citations) gate it, `image_sourcing.py` attaches up to 3 images (1 featured, 2 inline) from the topic's own
+  Wikipedia page (already curated for relevance, since topics are chosen to match real Wikipedia titles), falling
+  back to a Wikimedia Commons keyword search -- vision-checked for relevance, unlike the Wikipedia-sourced images --
+  when that page has too few, then `ArticleCritic` reviews the draft and its images as an editor would -- grounding
+  in the source material (the check specific to an AI-from-scraped-sources pipeline), citation relevance,
+  neutrality, contested claims stated as settled fact, structure, and whether every image (not only the featured
+  one) genuinely fits the piece, checked with a local model since it runs once per image, per round -- and
+  `ArticleGenerator.revise_article` addresses a text issue while a full image re-source (excluding whatever was
+  just rejected) addresses a cohesion one, both in the same round if needed, up to `CRITIC_MAX_ROUNDS` (4, i.e. up
+  to 3 revisions) review/revise cycles before falling back to a fresh generation. Closes requirements 2.5, 5.5 and
+  10.3, which `ContentValidator` alone could not (it "cannot verify factual accuracy", by its own docstring). Only
+  Public Domain/CC0/CC-BY/CC-BY-SA images at least 500px wide are used, downloaded and re-hosted in Storage, never
+  hotlinked; a sourcing failure publishes with no images rather than losing an otherwise-good article. Set
+  `CRITIC_ENABLED=false` or `IMAGE_SOURCING_ENABLED=false` to skip either for a cheap local run. `backfill_images.py`
+  attaches images to already-published articles that predate `image_sourcing.py`; `reprocess_articles.py` re-runs
+  an already-published article through the current critic and generator (grounding and image cohesion both), for
+  ones published before a critic or prompt fix landed -- it only overwrites when the critic ends up approving, so a
+  rejected reprocess just leaves the article as it was. The service-role client publishes the result. A generation
+  failure retries with backoff, and one bad topic never stops the batch. The daily GitHub Actions workflow runs on
+  demand only: its schedule stays commented out until the output is trusted over more unattended runs, so do not
+  enable it without deciding that first. The daily workflow uses Claude Sonnet 5; a local run defaults to Gemini.
+  Groq's free tier, and two local Ollama models tried for generation and review (`qwen3.5:9b`, `qwen2.5:7b-instruct`),
+  were rejected for weak word-count adherence -- Groq and `qwen2.5:7b-instruct` undershot, `qwen3.5:9b` overshot by
+  as much as 65% in a real run; local inference stays scoped to the free, per-image cohesion check
+  (`IMAGE_COHESION_LLM_PROVIDER`), not generation or the text critic. Claude Sonnet 5 runs adaptive thinking by
+  default, which shares `max_tokens` with the response and had caused the critic and revision calls to occasionally
+  return empty text on long prompts; both now pass `effort="medium"` to cap thinking depth, and their prompts use
+  XML-tag structuring with source material placed first, per Anthropic's current prompt-engineering guidance.
 - **API** (`backend/`): articles (`daily`, by id, paged list), full-text search, sign-up, login and logout, likes,
   rate limiting and JSON request logs.
 - **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms (matched by
@@ -88,6 +99,13 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 - **Hosting**, the daily cron, and app store accounts.
 - **Backfill images on the hosted project.** Every article published before `image_sourcing.py` landed has no
   `image_url`. Run `python scrapper/backfill_images.py` against the hosted project's credentials once.
+- **Reprocess the hosted project's existing articles.** They were written before this session's critic fixes
+  (image cohesion, the `effort`/prompt-reliability fix, `CRITIC_MAX_ROUNDS` raised to 4) landed. Run
+  `python scrapper/reprocess_articles.py` against the hosted project's credentials once there is Anthropic API
+  balance to spend -- a run against all 6 on 2026-09-24 exhausted the account's credit balance partway through
+  (`anthropic.BadRequestError: ... credit balance is too low`), so add credits before retrying. The one article
+  that did get reviewed before that (Mohenjo-daro) was correctly rejected for citing facts attributed to a source
+  not actually present in the scraped material -- expect genuine rejections, not just approvals, on a full run.
 
 ## Deviations from the design
 

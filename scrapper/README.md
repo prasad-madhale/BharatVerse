@@ -17,11 +17,14 @@ Put these in the `.env` at the repo root (template: [`.env.example`](../.env.exa
 | Variable | Meaning |
 |---|---|
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | the project to publish to (the service-role key writes) |
-| `LLM_PROVIDER` | `gemini` (default; has a free tier), `anthropic`, `openai` or `groq` |
+| `LLM_PROVIDER` | `gemini` (default; has a free tier), `anthropic`, `openai`, `groq` or `ollama` (a local, self-hosted model -- no API key) |
 | `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | the key for the chosen provider |
+| `OLLAMA_BASE_URL` | default `http://localhost:11434`; only used by the `ollama` provider |
 | `LLM_MODEL` | optional; defaults per provider are listed in `.env.example` |
 | `CRITIC_ENABLED` | default `true`; `false` skips the editorial critic pass, for a cheap local run |
 | `IMAGE_SOURCING_ENABLED` | default `true`; `false` skips attaching images, for a cheap local run |
+| `IMAGE_COHESION_CHECK_ENABLED` | default `true`; `false` skips the critic's per-image cohesion pass |
+| `IMAGE_COHESION_LLM_PROVIDER` | default `ollama` -- a local, free model, since this check runs once per image, per critic round |
 | `LOG_LEVEL` | default `INFO` |
 
 ## Run
@@ -51,24 +54,32 @@ JSON lines on stdout.
    characters of source text. Citations and reading time come from the sources, not the LLM.
 4. **Check** (`content_validator.py`): a title and summary, 1,300 to 2,200 words, at least 3 sections and 1 citation --
    cheap and structural; it cannot check facts.
-5. **Review** (`article_critic.py`, skipped if `CRITIC_ENABLED=false`): an LLM edits the way a history-encyclopedia
+5. **Images** (`image_sourcing.py`, skipped if `IMAGE_SOURCING_ENABLED=false`): sources up to 3 images (1 featured,
+   2 inline) from the topic's own Wikipedia page, which is already curated for relevance since every topic is chosen
+   to match a real Wikipedia title, before the critic reviews the draft -- so the critic can actually judge them (see
+   step 6). A Wikimedia Commons keyword search fills in when that page has too few usable images; because that path
+   is a keyword match rather than a curated choice, its candidates also get an LLM vision relevance check the
+   Wikipedia-sourced ones skip. Every candidate must be Public Domain/CC0/CC-BY/CC-BY-SA licensed and at least 500px
+   wide; images are downloaded and re-hosted in the `articles` Storage bucket, never hotlinked. A sourcing failure
+   publishes the article with no images rather than losing an otherwise-good article over it.
+6. **Review** (`article_critic.py`, skipped if `CRITIC_ENABLED=false`): an LLM edits the way a history-encyclopedia
    editor would -- is every claim grounded in the scraped source text (not just differently worded, actually
    invented), do the citations support what's near them, is the framing neutral, is a debated claim hedged, does it
-   have a real structure. `article_generator.py`'s `revise_article` addresses what it finds and it reviews again, up
-   to `CRITIC_MAX_ROUNDS` (2) times in `scheduler.py`; a revision that fails the structural check ends the round
-   early. There is still no human review.
-6. **Images** (`image_sourcing.py`, skipped if `IMAGE_SOURCING_ENABLED=false`): sources up to 3 images (1 featured,
-   2 inline) from the topic's own Wikipedia page, which is already curated for relevance since every topic is chosen
-   to match a real Wikipedia title. A Wikimedia Commons keyword search fills in when that page has too few usable
-   images; because that path is a keyword match rather than a curated choice, its candidates also get an LLM vision
-   relevance check the Wikipedia-sourced ones skip. Every candidate must be Public Domain/CC0/CC-BY/CC-BY-SA licensed
-   and at least 500px wide; images are downloaded and re-hosted in the `articles` Storage bucket, never hotlinked. A
-   sourcing failure publishes the article with no images rather than losing an otherwise-good article over it.
-7. **Publish** (`backend/services/article_service.py`): the content JSON (and now `images`) goes to the `articles`
+   have a real structure, and (skipped if `IMAGE_COHESION_CHECK_ENABLED=false`) does every image, not only the
+   featured one, genuinely fit the piece -- checked with a local model (`IMAGE_COHESION_LLM_PROVIDER`) since it runs
+   once per image, per round. `article_generator.py`'s `revise_article` addresses a text issue and a full image
+   re-source (excluding whatever was just rejected) addresses a cohesion one, both in the same round if needed, up
+   to `CRITIC_MAX_ROUNDS` (4, i.e. up to 3 revisions) times in `scheduler.py`; a revision that fails the structural
+   check ends the round early. There is still no human review.
+7. **Publish** (`backend/services/article_service.py`): the content JSON (and `images`) goes to the `articles`
    Storage bucket and the metadata to the `articles` table, keyed by id, so publishing again overwrites.
 
-`backfill_images.py` attaches images to already-published articles that predate this step: `python
+`backfill_images.py` attaches images to already-published articles that predate `image_sourcing.py`: `python
 scrapper/backfill_images.py` (imageless articles only) or `--all` to re-source every article.
+`reprocess_articles.py` re-runs every already-published article through the current critic and generator (grounding
+and image cohesion both), for ones published before a critic or prompt fix landed: `python
+scrapper/reprocess_articles.py`. It only overwrites when the critic ends up approving, so a rejected reprocess just
+leaves the article as it was.
 
 Up to 3 attempts per topic: a failed generation waits 5 s, then 10 s; a failed structural check or a critic that never
 approves retries with a fresh generation at once. Every attempt logs its word, section and citation counts, and (once
