@@ -14,6 +14,7 @@ import '../widgets/article_image.dart';
 import '../widgets/citation_item.dart';
 import '../widgets/content_column.dart';
 import '../widgets/like_button.dart';
+import '../widgets/save_button.dart';
 import 'auth_screen.dart';
 
 /// Opens [article], first noting the view so it stays in the offline cache.
@@ -39,11 +40,22 @@ class ArticleDetailScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBackBar(
         title: 'ARTICLE',
-        trailing: LikeButton(
-          articleId: article.id,
-          onRequireAuth: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const AuthScreen()),
-          ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SaveButton(
+              articleId: article.id,
+              onRequireAuth: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AuthScreen()),
+              ),
+            ),
+            LikeButton(
+              articleId: article.id,
+              onRequireAuth: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AuthScreen()),
+              ),
+            ),
+          ],
         ),
       ),
       body: ListView(

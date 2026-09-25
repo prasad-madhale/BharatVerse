@@ -4,12 +4,16 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import 'package:bharatverse_app/services/likes_client.dart';
+import 'package:bharatverse_app/services/saves_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/state/like_state.dart';
+import 'package:bharatverse_app/state/save_state.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
 class MockLikesClient extends Mock implements LikesClient {}
+
+class MockSavesClient extends Mock implements SavesClient {}
 
 User testUser({String id = 'user-123'}) => User(
       id: id,
@@ -55,10 +59,28 @@ MockLikesClient stubLikesClient() {
   return client;
 }
 
-/// Provides [authState] and the [LikeState] that follows it, as main.dart does.
+/// A saves client whose calls all succeed and whose saves start empty.
+MockSavesClient stubSavesClient() {
+  final client = MockSavesClient();
+  when(() => client.getSavedArticleIds(accessToken: any(named: 'accessToken')))
+      .thenAnswer((_) async => <String>{});
+  when(() => client.save(
+        accessToken: any(named: 'accessToken'),
+        userId: any(named: 'userId'),
+        articleId: any(named: 'articleId'),
+      )).thenAnswer((_) async {});
+  when(() => client.unsave(
+        accessToken: any(named: 'accessToken'),
+        articleId: any(named: 'articleId'),
+      )).thenAnswer((_) async {});
+  return client;
+}
+
+/// Provides [authState] and the [LikeState]/[SaveState] that follow it, as main.dart does.
 Widget withLikeProviders({
   required AuthState authState,
   required LikesClient likesClient,
+  required SavesClient savesClient,
   required Widget child,
 }) =>
     MultiProvider(
@@ -68,6 +90,11 @@ Widget withLikeProviders({
         ChangeNotifierProvider(
           create: (_) =>
               LikeState(likesClient: likesClient, authState: authState),
+        ),
+        Provider<SavesClient>.value(value: savesClient),
+        ChangeNotifierProvider(
+          create: (_) =>
+              SaveState(savesClient: savesClient, authState: authState),
         ),
       ],
       child: child,

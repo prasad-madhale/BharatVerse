@@ -11,6 +11,7 @@ from backend.api.articles import router as articles_router
 from backend.api.auth import router as auth_router
 from backend.api.likes import router as likes_router
 from backend.api.middleware import add_request_middleware
+from backend.api.saves import router as saves_router
 from backend.api.search import router as search_router
 from backend.config import Settings, get_settings
 from common.logging_config import configure_logging
@@ -36,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(articles_router, prefix=settings.api_prefix)
     app.include_router(auth_router, prefix=settings.api_prefix)
     app.include_router(likes_router, prefix=settings.api_prefix)
+    app.include_router(saves_router, prefix=settings.api_prefix)
 
     @app.get("/health")
     async def health() -> dict:

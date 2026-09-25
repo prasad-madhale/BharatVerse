@@ -43,12 +43,14 @@ Article sampleArticle({
 void main() {
   late MockGoTrueClient authClient;
   late MockLikesClient likesClient;
+  late MockSavesClient savesClient;
 
   Future<void> pumpScreen(WidgetTester tester, {Article? article}) async {
     await tester.pumpWidget(
       withLikeProviders(
         authState: AuthState(authClient: authClient),
         likesClient: likesClient,
+        savesClient: savesClient,
         child: MaterialApp(
           home: ArticleDetailScreen(article: article ?? sampleArticle()),
         ),
@@ -60,6 +62,7 @@ void main() {
   setUp(() {
     authClient = stubAuthClient();
     likesClient = stubLikesClient();
+    savesClient = stubSavesClient();
   });
 
   group('ArticleDetailScreen', () {
@@ -164,6 +167,7 @@ void main() {
     await tester.pumpWidget(withLikeProviders(
       authState: AuthState(authClient: authClient),
       likesClient: likesClient,
+      savesClient: savesClient,
       child: MaterialApp(
         home: Builder(
           builder: (context) => TextButton(

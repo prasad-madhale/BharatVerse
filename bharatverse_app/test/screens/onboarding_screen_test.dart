@@ -11,7 +11,7 @@ import 'package:bharatverse_app/state/onboarding_state.dart';
 
 import '../support/article_fixtures.dart';
 import '../support/like_fixtures.dart'
-    show stubAuthClient, stubLikesClient, withLikeProviders;
+    show stubAuthClient, stubLikesClient, stubSavesClient, withLikeProviders;
 
 Future<OnboardingState> _openOnboardingState() async {
   SharedPreferences.setMockInitialValues({});
@@ -22,6 +22,7 @@ Widget _wrap(ApiClient apiClient, OnboardingState onboardingState) =>
     withLikeProviders(
       authState: AuthState(authClient: stubAuthClient()),
       likesClient: stubLikesClient(),
+      savesClient: stubSavesClient(),
       child: MaterialApp(
         home: OnboardingScreen(
           apiClient: apiClient,

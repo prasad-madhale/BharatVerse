@@ -14,6 +14,7 @@ import '../support/like_fixtures.dart';
 
 void main() {
   late MockLikesClient likes;
+  late MockSavesClient saves;
   late MockGoTrueClient authClient;
 
   final firstRow = sampleArticleRow(id: 'art_1', title: 'First');
@@ -23,6 +24,7 @@ void main() {
     await tester.pumpWidget(withLikeProviders(
       authState: AuthState(authClient: authClient),
       likesClient: likes,
+      savesClient: saves,
       child: MaterialApp(
         home: LikedArticlesScreen(
           apiClient: ApiClient(client: articlesMockClient(() => [])),
@@ -45,6 +47,7 @@ void main() {
 
   setUp(() {
     likes = stubLikesClient();
+    saves = stubSavesClient();
     authClient = stubAuthClient()..signInAs(testUser());
   });
 
