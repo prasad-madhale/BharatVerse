@@ -77,8 +77,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   Today/Library tabs under a floating glass-blur tab bar and a separate Search button (`GlassSurface`,
   `lib/widgets/glass_surface.dart`); `HomeScreen`'s own header still carries its old search/liked icons too, a known
   redundancy until Phase 3 removes them. `OnboardingScreen` (splash + 3 feature slides, shown once per install via
-  `OnboardingState`) uses real published articles' hero photos in place of the mockup's bundled stock images -- see
-  "Deviations" below. `AuthScreen` is a bespoke rebuild (rounded pill fields and buttons, a "Continue with Apple"
+  `OnboardingState`) uses its own bundled photos in place of the mockup's stock images -- see "Deviations" below.
+  `AuthScreen` is a bespoke rebuild (rounded pill fields and buttons, a "Continue with Apple"
   entry point, a guest "Not now -- just browse" path when reached from onboarding) rather than the shared
   `AuthFormPage`, which `ForgotPasswordScreen`/`ResetPasswordScreen` still use, lightly restyled (sentence-case
   titles, pill fields/buttons). `era` (a short LLM-generated period label, e.g. "Gupta Empire") is a real field now:
@@ -159,9 +159,10 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   there is no `clearOldCache`.
 - `ContentValidator.validate` returns `(valid, issues)`, not a `ValidationResult`.
 - The `users` table has no `password_hash` or OAuth columns: Supabase Auth owns them.
-- The redesign's onboarding feature slides use the most recently published articles' own hero photos instead of the
-  design handoff's bundled stock photography, which has no equivalent in this app; fewer than 3 published articles
-  repeats a photo across slides, and none falls back to a flat colour block.
+- The redesign's onboarding feature slides use their own bundled photos (`bharatverse_app/assets/onboarding/`, one
+  per slide, sourced from Wikimedia Commons under CC BY-SA 4.0 / GODL-India) rather than the design handoff's own
+  stock art or a live fetch from published articles (tried first, then replaced: onboarding runs before the reader
+  has any articles to draw a photo from, and the design's own placeholder photos were judged not exciting enough).
 
 ## Not built
 

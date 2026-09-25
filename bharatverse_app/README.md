@@ -77,3 +77,13 @@ It also rewrites `ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json` t
 (adding pre-iOS-7 sizes this project doesn't target) and can reset an unrelated Xcode build setting
 (`ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`) to a wrong value -- check `git diff` on both after
 running it.
+
+## Onboarding images
+
+`assets/onboarding/` holds one photo per first-run feature slide (`lib/screens/onboarding_screen.dart`), each
+picked for that slide's period rather than pulled from live articles (onboarding runs before the reader has any).
+All from Wikimedia Commons, credited by filename:
+
+- `iron-pillar.jpg` -- [IRON PILLAR 4.jpg](https://commons.wikimedia.org/wiki/File:IRON_PILLAR_4.jpg), Cidsamir, CC BY-SA 4.0
+- `ashoka-pillar-vaishali.jpg` -- [Ananda Stupa with Ashok lion pillar at vaishali, Bihar 03.jpg](https://commons.wikimedia.org/wiki/File:Ananda_Stupa_with_Ashok_lion_pillar_at_vaishali,_Bihar_03.jpg), Rohit Sharma, CC BY-SA 4.0
+- `red-fort-independence.jpg` -- [Flag hoisting at Red Fort, Delhi on the occasion of 75th Independence day of India.jpg](https://commons.wikimedia.org/wiki/File:Flag_hoisting_at_Red_Fort,_Delhi_on_the_occasion_of_75th_Independence_day_of_India.jpg), Government of India, GODL-India
