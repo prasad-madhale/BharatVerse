@@ -1,7 +1,5 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../models/article.dart';
 import '../services/api_client.dart';
 import '../state/onboarding_state.dart';
 import '../theme/app_colors.dart';
@@ -22,12 +20,14 @@ class _Slide {
   final String headline;
   final String body;
   final String dateline;
+  final String assetPath;
 
   const _Slide({
     required this.kicker,
     required this.headline,
     required this.body,
     required this.dateline,
+    required this.assetPath,
   });
 }
 
@@ -38,6 +38,7 @@ const _slides = [
     body: 'Empires, uprisings, and the people who shaped India — one '
         'ten-minute story lands in your feed each day.',
     dateline: 'Delhi, c. 400 CE',
+    assetPath: 'assets/onboarding/iron-pillar.jpg',
   ),
   _Slide(
     kicker: 'Know your roots',
@@ -46,23 +47,26 @@ const _slides = [
         'that built modern India, told the way a good friend would tell '
         'them.',
     dateline: 'Vaishali, c. 250 BCE',
+    assetPath: 'assets/onboarding/ashoka-pillar-vaishali.jpg',
   ),
   _Slide(
     kicker: 'Every single day',
     headline: 'History, made a habit',
     body: 'Ten minutes each morning is all it takes to know more about '
         "India's past than you did yesterday.",
-    dateline: 'Delhi, 1947',
+    dateline: 'Delhi, Independence Day',
+    assetPath: 'assets/onboarding/red-fort-independence.jpg',
   ),
 ];
 
 /// First-run flow: a splash screen, then [_slides]' feature slides, ending at
 /// [AuthScreen] in sign-up mode -- or the reader can skip straight there, or
 /// reach sign-in directly via "I already have an account" on the splash.
-/// Shown once per install; see [OnboardingState]. Feature slides use real
-/// article photos (the mockup's own stock art has no equivalent in this
-/// app), fetched once on entry and reused across slides if fewer than three
-/// articles exist yet.
+/// Shown once per install; see [OnboardingState]. Feature slides use bundled
+/// photos (`assets/onboarding/`, curated for each slide -- Wikimedia Commons,
+/// CC BY-SA 4.0 / GODL-India) rather than the mockup's own stock art or a
+/// live fetch, since onboarding runs before the reader has any articles to
+/// draw a photo from.
 class OnboardingScreen extends StatefulWidget {
   final ApiClient apiClient;
   final OnboardingState onboardingState;
@@ -80,24 +84,6 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   /// 0 is the splash; 1.._slides.length is a feature slide.
   int _index = 0;
-  List<Article>? _articles;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.apiClient.getRecentArticles(limit: _slides.length).then((articles) {
-      if (mounted) setState(() => _articles = articles);
-    }).catchError((Object _) {
-      // No hero photos is fine -- the slide falls back to a flat block.
-      if (mounted) setState(() => _articles = const []);
-    });
-  }
-
-  String? _imageFor(int slideIndex) {
-    final articles = _articles;
-    if (articles == null || articles.isEmpty) return null;
-    return articles[slideIndex % articles.length].imageUrl;
-  }
 
   void _finish(bool signUp) {
     widget.onboardingState.markSeen();
@@ -133,7 +119,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ? _Splash(onGetStarted: _next, onSignIn: () => _finish(false))
               : _FeatureSlide(
                   slide: _slides[_index - 1],
-                  imageUrl: _imageFor(_index - 1),
                   dotCount: _slides.length + 1,
                   activeDot: _index,
                   ctaLabel:
@@ -263,7 +248,6 @@ class _Splash extends StatelessWidget {
 
 class _FeatureSlide extends StatelessWidget {
   final _Slide slide;
-  final String? imageUrl;
   final int dotCount;
   final int activeDot;
   final String ctaLabel;
@@ -271,7 +255,6 @@ class _FeatureSlide extends StatelessWidget {
 
   const _FeatureSlide({
     required this.slide,
-    required this.imageUrl,
     required this.dotCount,
     required this.activeDot,
     required this.ctaLabel,
@@ -281,7 +264,6 @@ class _FeatureSlide extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final imageUrl = this.imageUrl;
     return Column(
       children: [
         Expanded(
@@ -289,16 +271,15 @@ class _FeatureSlide extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               Container(color: colors.paper100),
-              if (imageUrl != null)
-                ColorFiltered(
-                  colorFilter: colors.imageFilter,
-                  child: CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                  ),
+              ColorFiltered(
+                colorFilter: colors.imageFilter,
+                child: Image.asset(
+                  slide.assetPath,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
                 ),
+              ),
               Positioned(
                 left: 16,
                 bottom: 16,
