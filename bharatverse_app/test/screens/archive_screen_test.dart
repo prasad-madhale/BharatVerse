@@ -57,6 +57,7 @@ void main() {
     await tester.pumpWidget(withLikeProviders(
       authState: AuthState(authClient: stubAuthClient()),
       likesClient: stubLikesClient(),
+      savesClient: stubSavesClient(),
       child: MaterialApp(
         home: ArchiveScreen(apiClient: ApiClient(client: client)),
       ),
@@ -234,6 +235,7 @@ void main() {
     await tester.pumpWidget(withLikeProviders(
       authState: AuthState(authClient: stubAuthClient()),
       likesClient: stubLikesClient(),
+      savesClient: stubSavesClient(),
       child: MaterialApp(home: ArchiveScreen(apiClient: apiClient)),
     ));
     await tester.pumpAndSettle();

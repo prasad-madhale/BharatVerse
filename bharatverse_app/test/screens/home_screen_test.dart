@@ -14,7 +14,7 @@ import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/widgets/article_card.dart';
 import '../support/like_fixtures.dart'
-    show MockLikesClient, testUser, withLikeProviders;
+    show MockLikesClient, MockSavesClient, testUser, withLikeProviders;
 import '../support/article_fixtures.dart';
 import '../support/layout_fixtures.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -34,6 +34,7 @@ Widget _wrapWithProviders(ApiClient apiClient, {bool signedIn = false}) {
   return withLikeProviders(
     authState: AuthState(authClient: mockAuthClient),
     likesClient: MockLikesClient(),
+    savesClient: MockSavesClient(),
     child: MaterialApp(home: HomeScreen(apiClient: apiClient)),
   );
 }

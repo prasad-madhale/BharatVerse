@@ -37,6 +37,7 @@ void main() {
     await tester.pumpWidget(withLikeProviders(
       authState: AuthState(authClient: stubAuthClient()),
       likesClient: stubLikesClient(),
+      savesClient: stubSavesClient(),
       child: MaterialApp(home: SearchScreen(apiClient: apiClient)),
     ));
   }

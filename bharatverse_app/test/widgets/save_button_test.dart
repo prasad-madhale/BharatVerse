@@ -5,7 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/theme/app_colors.dart';
-import 'package:bharatverse_app/widgets/like_button.dart';
+import 'package:bharatverse_app/widgets/save_button.dart';
 
 import '../support/like_fixtures.dart';
 
@@ -14,7 +14,7 @@ void main() {
   late MockLikesClient likesClient;
   late MockSavesClient savesClient;
 
-  /// Pumps a LikeButton for article 'art_1'; [onRequireAuth] defaults to doing nothing.
+  /// Pumps a SaveButton for article 'art_1'; [onRequireAuth] defaults to doing nothing.
   Future<void> pumpButton(
     WidgetTester tester, {
     VoidCallback? onRequireAuth,
@@ -26,7 +26,7 @@ void main() {
         savesClient: savesClient,
         child: MaterialApp(
           home: Scaffold(
-            body: LikeButton(
+            body: SaveButton(
               articleId: 'art_1',
               onRequireAuth: onRequireAuth ?? () {},
             ),
@@ -43,41 +43,41 @@ void main() {
     savesClient = stubSavesClient();
   });
 
-  group('LikeButton', () {
-    testWidgets('shows an outline heart when the article is not liked',
+  group('SaveButton', () {
+    testWidgets('shows an outline bookmark when the article is not saved',
         (tester) async {
       authClient.signInAs(testUser());
 
       await pumpButton(tester);
 
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsNothing);
-      expect(find.byTooltip('Like'), findsOneWidget);
+      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+      expect(find.byIcon(Icons.bookmark), findsNothing);
+      expect(find.byTooltip('Save'), findsOneWidget);
     });
 
-    testWidgets('shows a filled heart in the like accent when liked',
+    testWidgets('shows a filled bookmark in the accent colour when saved',
         (tester) async {
       authClient.signInAs(testUser());
-      when(() => likesClient.getLikedArticleIds(accessToken: 'user-token'))
+      when(() => savesClient.getSavedArticleIds(accessToken: 'user-token'))
           .thenAnswer((_) async => {'art_1'});
 
       await pumpButton(tester);
 
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
-      expect(find.byTooltip('Unlike'), findsOneWidget);
+      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+      expect(find.byTooltip('Remove from saved'), findsOneWidget);
       final button = tester.widget<IconButton>(find.byType(IconButton));
-      expect(button.color, AppColorTokens.light.likeActive);
+      expect(button.color, AppColorTokens.light.accentPrimary);
     });
 
-    testWidgets('tapping while signed in likes the article', (tester) async {
+    testWidgets('tapping while signed in saves the article', (tester) async {
       authClient.signInAs(testUser());
       await pumpButton(tester);
 
       await tester.tap(find.byType(IconButton));
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
-      verify(() => likesClient.like(
+      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+      verify(() => savesClient.save(
             accessToken: 'user-token',
             userId: 'user-123',
             articleId: 'art_1',
@@ -93,18 +93,18 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(signInRequests, 1);
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-      verifyNever(() => likesClient.like(
+      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+      verifyNever(() => savesClient.save(
             accessToken: any(named: 'accessToken'),
             userId: any(named: 'userId'),
             articleId: any(named: 'articleId'),
           ));
     });
 
-    testWidgets('shows a message and rolls back when liking fails',
+    testWidgets('shows a message and rolls back when saving fails',
         (tester) async {
       authClient.signInAs(testUser());
-      when(() => likesClient.like(
+      when(() => savesClient.save(
             accessToken: any(named: 'accessToken'),
             userId: any(named: 'userId'),
             articleId: any(named: 'articleId'),
@@ -114,16 +114,16 @@ void main() {
       await tester.tap(find.byType(IconButton));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('Could not update your like'), findsOneWidget);
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+      expect(find.textContaining('Could not update your save'), findsOneWidget);
+      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
     });
   });
 
-  group('LikeButton failure messages', () {
+  group('SaveButton failure messages', () {
     testWidgets('says plainly that the server could not be reached',
         (tester) async {
       authClient.signInAs(testUser());
-      when(() => likesClient.like(
+      when(() => savesClient.save(
                 accessToken: any(named: 'accessToken'),
                 userId: any(named: 'userId'),
                 articleId: any(named: 'articleId'),
@@ -143,7 +143,7 @@ void main() {
 
     testWidgets('names the status when the server refused', (tester) async {
       authClient.signInAs(testUser());
-      when(() => likesClient.like(
+      when(() => savesClient.save(
             accessToken: any(named: 'accessToken'),
             userId: any(named: 'userId'),
             articleId: any(named: 'articleId'),
@@ -153,12 +153,12 @@ void main() {
       await tester.tap(find.byType(IconButton));
       await tester.pumpAndSettle();
 
-      expect(find.text('Could not update your like (500). Please try again.'),
+      expect(find.text('Could not update your save (500). Please try again.'),
           findsOneWidget);
     });
   });
 
-  testWidgets('animates between the outline and the filled heart',
+  testWidgets('animates between the outline and the filled bookmark',
       (tester) async {
     authClient.signInAs(testUser());
     await pumpButton(tester);
@@ -166,10 +166,10 @@ void main() {
     await tester.tap(find.byType(IconButton));
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget); // fading out
+    expect(find.byIcon(Icons.bookmark), findsOneWidget);
+    expect(find.byIcon(Icons.bookmark_border), findsOneWidget); // fading out
 
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite_border), findsNothing);
+    expect(find.byIcon(Icons.bookmark_border), findsNothing);
   });
 }

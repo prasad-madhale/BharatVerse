@@ -8,11 +8,12 @@ import 'package:bharatverse_app/state/auth_state.dart';
 
 import '../support/article_fixtures.dart';
 import '../support/like_fixtures.dart'
-    show stubAuthClient, stubLikesClient, withLikeProviders;
+    show stubAuthClient, stubLikesClient, stubSavesClient, withLikeProviders;
 
 Widget _wrap(ApiClient apiClient) => withLikeProviders(
       authState: AuthState(authClient: stubAuthClient()),
       likesClient: stubLikesClient(),
+      savesClient: stubSavesClient(),
       child: MaterialApp(home: AppShell(apiClient: apiClient)),
     );
 

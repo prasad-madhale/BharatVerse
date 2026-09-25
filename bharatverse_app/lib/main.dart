@@ -11,9 +11,12 @@ import 'services/api_client.dart';
 import 'services/article_cache.dart';
 import 'services/likes_client.dart';
 import 'services/pending_likes.dart';
+import 'services/pending_saves.dart';
+import 'services/saves_client.dart';
 import 'state/auth_state.dart';
 import 'state/like_state.dart';
 import 'state/onboarding_state.dart';
+import 'state/save_state.dart';
 import 'state/theme_mode_state.dart';
 import 'theme/app_theme.dart';
 import 'widgets/recovery_gate.dart';
@@ -23,11 +26,13 @@ Future<void> main() async {
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
   final cache = await ArticleCache.open();
   final pendingLikes = await PendingLikes.open();
+  final pendingSaves = await PendingSaves.open();
   final themeModeState = await ThemeModeState.open();
   final onboardingState = await OnboardingState.open();
   runApp(BharatVerseApp(
     apiClient: ApiClient(cache: cache),
     pendingLikes: pendingLikes,
+    pendingSaves: pendingSaves,
     themeModeState: themeModeState,
     onboardingState: onboardingState,
   ));
@@ -36,6 +41,7 @@ Future<void> main() async {
 class BharatVerseApp extends StatelessWidget {
   final ApiClient apiClient;
   final PendingLikes pendingLikes;
+  final PendingSaves pendingSaves;
   final ThemeModeState themeModeState;
   final OnboardingState onboardingState;
 
@@ -43,6 +49,7 @@ class BharatVerseApp extends StatelessWidget {
     super.key,
     required this.apiClient,
     required this.pendingLikes,
+    required this.pendingSaves,
     required this.themeModeState,
     required this.onboardingState,
   });
@@ -61,6 +68,17 @@ class BharatVerseApp extends StatelessWidget {
             likesClient: context.read<LikesClient>(),
             authState: context.read<AuthState>(),
             pendingLikes: pendingLikes,
+          ),
+        ),
+        Provider(create: (_) => SavesClient()),
+        // SaveState reads the two above, so it comes after them. It is not lazy,
+        // so a returning user's saves are loaded before the first article opens.
+        ChangeNotifierProvider(
+          lazy: false,
+          create: (context) => SaveState(
+            savesClient: context.read<SavesClient>(),
+            authState: context.read<AuthState>(),
+            pendingSaves: pendingSaves,
           ),
         ),
         ChangeNotifierProvider.value(value: themeModeState),
