@@ -111,6 +111,10 @@ class Article {
   final int readingTimeMinutes;
   final String author;
   final List<String> tags;
+
+  /// Short label for the historical period covered (e.g. "Gupta Empire").
+  /// Empty for articles published before this field existed.
+  final String era;
   final String? imageUrl;
 
   const Article({
@@ -125,14 +129,26 @@ class Article {
     required this.readingTimeMinutes,
     required this.author,
     required this.tags,
+    this.era = '',
     this.imageUrl,
   });
+
+  static const _monthAbbrev = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
 
   /// "2026-09-20 · 12 min read", the byline under a title in lists and on the
   /// article.
   String get dateAndReadingTime =>
       '${publicationDate.toLocal().toString().split(' ').first}'
       ' · $readingTimeMinutes min read';
+
+  /// "20 Sep", for a compact byline that doesn't need the year.
+  String get shortDate {
+    final local = publicationDate.toLocal();
+    return '${local.day} ${_monthAbbrev[local.month - 1]}';
+  }
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -146,6 +162,7 @@ class Article {
         'reading_time_minutes': readingTimeMinutes,
         'author': author,
         'tags': tags,
+        'era': era,
         'image_url': imageUrl,
       };
 
@@ -167,6 +184,7 @@ class Article {
         readingTimeMinutes: json['reading_time_minutes'] as int,
         author: json['author'] as String,
         tags: List<String>.from(json['tags'] as List<dynamic>),
+        era: json['era'] as String? ?? '',
         imageUrl: json['image_url'] as String?,
       );
 }

@@ -24,6 +24,7 @@ class ArticleRecord(BaseModel):
     reading_time_minutes: int
     author: str = "BharatVerse AI"
     tags: list[str] = Field(default_factory=list)
+    era: str = ""
     image_url: Optional[str] = None
     content_file_path: str
     created_at: Optional[datetime] = None

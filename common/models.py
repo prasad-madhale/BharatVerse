@@ -137,6 +137,11 @@ class Article(BaseModel):
         default_factory=list,
         description="Tags/keywords for categorization (e.g., ['ancient-india', 'mauryan-empire'])",
     )
+    era: str = Field(
+        default="",
+        description="Short label for the historical period covered (e.g. 'Gupta Empire', "
+        "'Colonial India'). Empty for articles published before this field existed.",
+    )
     image_url: Optional[str] = Field(
         default=None,
         description="URL of the featured image for the article",

@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS articles (
     reading_time_minutes INTEGER NOT NULL,
     author TEXT NOT NULL,
     tags JSONB NOT NULL DEFAULT '[]'::jsonb,  -- JSON array
+    era TEXT NOT NULL DEFAULT '',  -- short label, e.g. 'Gupta Empire'; '' for pre-era articles
     image_url TEXT,
     content_file_path TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
