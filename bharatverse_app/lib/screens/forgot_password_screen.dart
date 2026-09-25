@@ -88,6 +88,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           keyboardType: TextInputType.emailAddress,
           placeholder: 'you@example.com',
           validator: validateEmail,
+          pill: true,
         ),
       ],
       error: _errorMessage,

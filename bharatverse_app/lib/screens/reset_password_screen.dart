@@ -65,6 +65,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           obscureText: true,
           placeholder: '••••••••',
           validator: validatePassword,
+          pill: true,
         ),
         AppInput(
           fieldKey: const Key('confirm-field'),
@@ -75,6 +76,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
           validator: (value) => value == _passwordController.text
               ? null
               : 'Passwords do not match',
+          pill: true,
         ),
       ],
       error: _errorMessage,

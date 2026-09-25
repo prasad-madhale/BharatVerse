@@ -60,9 +60,11 @@ class AuthFormPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  title.toUpperCase(),
-                  style: AppTypography.display2
-                      .copyWith(color: colors.textPrimary),
+                  title,
+                  style: AppTypography.display2.copyWith(
+                    color: colors.textPrimary,
+                    letterSpacing: -0.4,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.space5),
                 Column(
@@ -79,6 +81,8 @@ class AuthFormPage extends StatelessWidget {
                 ],
                 AppButton(
                   label: submitLabel,
+                  variant: AppButtonVariant.cta,
+                  pill: true,
                   wide: true,
                   onPressed: submitting ? null : onSubmit,
                   loadingChild: submitting
@@ -86,7 +90,7 @@ class AuthFormPage extends StatelessWidget {
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: colors.textOnAccent),
+                              strokeWidth: 2, color: colors.ctaFg),
                         )
                       : null,
                 ),

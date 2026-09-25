@@ -4,7 +4,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 
-enum AppButtonVariant { primary, secondary, ghost }
+enum AppButtonVariant { primary, secondary, ghost, cta }
 
 enum AppButtonSize { sm, md, lg }
 
@@ -18,6 +18,10 @@ class AppButton extends StatelessWidget {
   final bool wide;
   final Widget? loadingChild;
 
+  /// Full-stadium corners, for the reimagine's floating CTAs (onboarding,
+  /// auth) instead of the broadsheet's crisp [AppSpacing.radiusSm].
+  final bool pill;
+
   const AppButton({
     super.key,
     required this.label,
@@ -26,6 +30,7 @@ class AppButton extends StatelessWidget {
     this.size = AppButtonSize.md,
     this.wide = false,
     this.loadingChild,
+    this.pill = false,
   });
 
   EdgeInsets get _padding {
@@ -60,6 +65,9 @@ class AppButton extends StatelessWidget {
       case AppButtonVariant.ghost:
         background = Colors.transparent;
         foreground = disabled ? colors.textPlaceholder : colors.accentPrimary;
+      case AppButtonVariant.cta:
+        background = disabled ? colors.paper200 : colors.cta;
+        foreground = disabled ? colors.textPlaceholder : colors.ctaFg;
     }
 
     final child = loadingChild ??
@@ -83,7 +91,8 @@ class AppButton extends StatelessWidget {
         padding: _padding,
         side: border,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppSpacing.radiusSm)),
+            borderRadius: BorderRadius.circular(
+                pill ? AppSpacing.radiusFull : AppSpacing.radiusSm)),
       ),
       child: child,
     );

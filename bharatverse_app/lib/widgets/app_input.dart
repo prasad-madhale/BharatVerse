@@ -23,6 +23,10 @@ class AppInput extends StatelessWidget {
   /// can't target it by label text the way a bare TextFormField could.
   final Key? fieldKey;
 
+  /// Full-stadium corners, for the reimagine's rounded fields (onboarding,
+  /// auth) instead of the broadsheet's crisp [AppSpacing.radiusXs].
+  final bool pill;
+
   const AppInput({
     super.key,
     required this.label,
@@ -36,11 +40,14 @@ class AppInput extends StatelessWidget {
     this.textInputAction,
     this.autofocus = false,
     this.fieldKey,
+    this.pill = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final radius = BorderRadius.circular(
+        pill ? AppSpacing.radiusFull : AppSpacing.radiusXs);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -69,19 +76,19 @@ class AppInput extends StatelessWidget {
               vertical: AppSpacing.space3,
             ),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
+              borderRadius: radius,
               borderSide: BorderSide(color: colors.ink200),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
+              borderRadius: radius,
               borderSide: BorderSide(color: colors.ink200),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
+              borderRadius: radius,
               borderSide: BorderSide(color: colors.ink800),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
+              borderRadius: radius,
               borderSide: BorderSide(color: colors.colorError),
             ),
             errorStyle:

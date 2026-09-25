@@ -127,7 +127,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.favorite_border));
       await tester.pumpAndSettle();
 
-      expect(find.text('Sign In'), findsWidgets);
+      expect(find.text('Welcome back'), findsOneWidget);
     });
 
     testWidgets('liking sends this article\'s id', (tester) async {

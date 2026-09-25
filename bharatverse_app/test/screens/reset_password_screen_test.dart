@@ -51,7 +51,7 @@ void main() {
       (tester) async {
     await tester.pumpWidget(wrap());
 
-    expect(find.text('CHOOSE A NEW PASSWORD'), findsOneWidget);
+    expect(find.text('Choose a New Password'), findsOneWidget);
     expect(find.byKey(const Key('password-field')), findsOneWidget);
     expect(find.byKey(const Key('confirm-field')), findsOneWidget);
     expect(find.byIcon(Icons.arrow_back), findsNothing);

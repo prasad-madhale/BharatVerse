@@ -2,7 +2,7 @@
 
 Status and sequencing. [`design.md`](design.md) is the architectural reference and [`requirements.md`](requirements.md)
 the requirements; this file records what is built, where it differs from the design, and what is left. Status as of
-2026-09-24.
+2026-09-25.
 
 ## Phases
 
@@ -63,6 +63,22 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   works on a real phone without a local server. The design system is "Vintage Broadsheet" (parchment, saffron and India
   green; Newsreader and Work Sans) in `lib/theme/` and `lib/widgets/`. The Android, iOS and web launcher icons are the
   same saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README).
+- **App redesign, in progress** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff):
+  Phase 1 (theme + navigation) and Phase 2 (onboarding + auth) are done; Phase 3 (Home/Article/Library/Search, plus a
+  real `era` field and a real save/bookmark feature) and Phase 4 (Settings sheet) are not started, so most screens
+  still render in the old Vintage Broadsheet style. `lib/theme/app_colors.dart`/`app_typography.dart` are now a
+  `ThemeExtension<AppColorTokens>` with full Light and Dark ("Night Edition") palettes, resolved via the
+  `context.colors` shorthand; `ThemeModeState` (Provider + `SharedPreferences`, same `.open()` factory convention as
+  `ArticleCache`/`PendingLikes`) holds the reader's Light/Dark/System choice, not yet exposed in any UI (Phase 4's
+  Settings sheet) -- it defaults to System. `AppShell` replaces the old push-only root with an `IndexedStack` of
+  Today/Library tabs under a floating glass-blur tab bar and a separate Search button (`GlassSurface`,
+  `lib/widgets/glass_surface.dart`); `HomeScreen`'s own header still carries its old search/liked icons too, a known
+  redundancy until Phase 3 removes them. `OnboardingScreen` (splash + 3 feature slides, shown once per install via
+  `OnboardingState`) uses real published articles' hero photos in place of the mockup's bundled stock images -- see
+  "Deviations" below. `AuthScreen` is a bespoke rebuild (rounded pill fields and buttons, a "Continue with Apple"
+  entry point, a guest "Not now -- just browse" path when reached from onboarding) rather than the shared
+  `AuthFormPage`, which `ForgotPasswordScreen`/`ResetPasswordScreen` still use, lightly restyled (sentence-case
+  titles, pill fields/buttons).
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags and summary (not
   article bodies, which live in Storage), so a tag-only match is found too. PostgREST's `text_search` takes a column
   name, not an expression, which is why the vector is a stored column with a GIN index. A tag like `covid-19` is
@@ -96,6 +112,10 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   paused one promptly. Add the app's URL under Authentication > URL Configuration > Redirect URLs for password reset,
   and keep email confirmation off, or sign-up returns no session.
 - **OAuth.** Google and Facebook app registration has days of review lead time and has not been started.
+- **Apple Sign-In.** The app redesign's "Continue with Apple" button calls `AuthState.signInWithApple`, which is
+  wired to Supabase's real `signInWithOAuth(OAuthProvider.apple)` call path, but it cannot complete until the Apple
+  provider is configured on the Supabase project (an Apple Developer account, a Services ID, and the matching
+  entitlements) -- also days of lead time, and not started.
 - **Hosting**, the daily cron, and app store accounts.
 - **Backfill images on the hosted project.** Every article published before `image_sourcing.py` landed has no
   `image_url`. Run `python scrapper/backfill_images.py` against the hosted project's credentials once.
@@ -126,6 +146,9 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   there is no `clearOldCache`.
 - `ContentValidator.validate` returns `(valid, issues)`, not a `ValidationResult`.
 - The `users` table has no `password_hash` or OAuth columns: Supabase Auth owns them.
+- The redesign's onboarding feature slides use the most recently published articles' own hero photos instead of the
+  design handoff's bundled stock photography, which has no equivalent in this app; fewer than 3 published articles
+  repeats a photo across slides, and none falls back to a flat colour block.
 
 ## Not built
 

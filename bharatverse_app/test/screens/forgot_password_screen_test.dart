@@ -80,7 +80,7 @@ void main() {
   testWidgets('says what will happen and asks for the email', (tester) async {
     await tester.pumpWidget(_wrap(client));
 
-    expect(find.text('RESET PASSWORD'), findsOneWidget);
+    expect(find.text('Reset Password'), findsOneWidget);
     expect(find.textContaining('send you a link'), findsOneWidget);
     expect(find.byKey(const Key('email-field')), findsOneWidget);
   });
@@ -112,7 +112,7 @@ void main() {
 
     verify(() => client.resetPasswordForEmail('me@example.com',
         redirectTo: any(named: 'redirectTo'))).called(1);
-    expect(find.text('CHECK YOUR EMAIL'), findsOneWidget);
+    expect(find.text('Check Your Email'), findsOneWidget);
     expect(
         find.text('If an account exists for me@example.com, a link to '
             'choose a new password is on its way.'),
@@ -144,8 +144,8 @@ void main() {
         find.text('For security purposes, you can only request this after 45 '
             'seconds.'),
         findsOneWidget);
-    expect(find.text('RESET PASSWORD'), findsOneWidget);
-    expect(find.text('CHECK YOUR EMAIL'), findsNothing);
+    expect(find.text('Reset Password'), findsOneWidget);
+    expect(find.text('Check Your Email'), findsNothing);
   });
 
   testWidgets('says so plainly when the server cannot be reached',
@@ -180,7 +180,7 @@ void main() {
 
     answer.complete();
     await tester.pumpAndSettle();
-    expect(find.text('CHECK YOUR EMAIL'), findsOneWidget);
+    expect(find.text('Check Your Email'), findsOneWidget);
   });
 
   testWidgets('is left alone when the screen closes before a refusal',
