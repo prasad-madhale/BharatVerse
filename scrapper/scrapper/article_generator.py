@@ -71,6 +71,10 @@ more concrete detail, examples, or context from the source material to each thin
 than stopping early -- do not treat concision as a virtue here. Count roughly as you go and keep
 expanding sections that are thin.
 3-6 relevant lowercase, hyphenated tags (e.g. "mauryan-empire", "ancient-india").
+One short "era" label (2-4 words, title case) naming the historical period this article covers --
+e.g. "Indus Valley Civilization", "Mauryan Empire", "Gupta Empire", "Medieval India",
+"Mughal Empire", "Colonial India", "Freedom Struggle", "Modern India". Pick the closest fit;
+invent a similarly short label only if none fits.
 </structure_requirements>
 
 <task>
@@ -87,7 +91,8 @@ or any text before or after the JSON.
   "sections": [
     {{"heading": "...", "content": "..."}}
   ],
-  "tags": ["...", "..."]
+  "tags": ["...", "..."],
+  "era": "..."
 }}
 </output_format>"""
 
@@ -134,7 +139,8 @@ or any text before or after the JSON.
   "sections": [
     {{"heading": "...", "content": "..."}}
   ],
-  "tags": ["...", "..."]
+  "tags": ["...", "..."],
+  "era": "..."
 }}
 </output_format>"""
 
@@ -201,6 +207,7 @@ class ArticleGenerator:
             publication_date=publication_date,
             reading_time_minutes=max(1, round(word_count / WORDS_PER_MINUTE)),
             tags=list(parsed.get("tags", [])),
+            era=parsed.get("era", ""),
         )
 
     async def revise_article(
@@ -241,6 +248,7 @@ class ArticleGenerator:
             publication_date=article.publication_date,
             reading_time_minutes=max(1, round(word_count / WORDS_PER_MINUTE)),
             tags=list(parsed.get("tags", [])),
+            era=parsed.get("era", article.era),
         )
 
     def _build_prompt(self, scraped_content: list[ScrapedContent], topic: str) -> str:

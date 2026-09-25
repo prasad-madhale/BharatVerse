@@ -129,6 +129,7 @@ class ArticleService:
             reading_time_minutes=article.reading_time_minutes,
             author=article.author,
             tags=article.tags,
+            era=article.era,
             image_url=article.image_url,
             content_file_path=self._content_file_path(article.id, article.publication_date),
         )
@@ -156,6 +157,7 @@ class ArticleService:
             reading_time_minutes=record.reading_time_minutes,
             author=record.author,
             tags=record.tags,
+            era=record.era,
             image_url=record.image_url,
             created_at=record.created_at,
             updated_at=record.updated_at,
