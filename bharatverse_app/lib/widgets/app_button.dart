@@ -41,6 +41,7 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final disabled = onPressed == null;
 
     Color background;
@@ -49,19 +50,16 @@ class AppButton extends StatelessWidget {
 
     switch (variant) {
       case AppButtonVariant.primary:
-        background = disabled ? AppColors.paper200 : AppColors.accentPrimary;
-        foreground =
-            disabled ? AppColors.textPlaceholder : AppColors.textOnAccent;
+        background = disabled ? colors.paper200 : colors.accentPrimary;
+        foreground = disabled ? colors.textPlaceholder : colors.textOnAccent;
       case AppButtonVariant.secondary:
         background = Colors.transparent;
-        foreground =
-            disabled ? AppColors.textPlaceholder : AppColors.textPrimary;
-        border = BorderSide(
-            color: disabled ? AppColors.borderHairline : AppColors.ink200);
+        foreground = disabled ? colors.textPlaceholder : colors.textPrimary;
+        border =
+            BorderSide(color: disabled ? colors.borderHairline : colors.ink200);
       case AppButtonVariant.ghost:
         background = Colors.transparent;
-        foreground =
-            disabled ? AppColors.textPlaceholder : AppColors.accentPrimary;
+        foreground = disabled ? colors.textPlaceholder : colors.accentPrimary;
     }
 
     final child = loadingChild ??

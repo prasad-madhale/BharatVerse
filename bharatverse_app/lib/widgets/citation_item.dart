@@ -30,6 +30,7 @@ class CitationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Semantics(
       button: true,
       link: true,
@@ -38,8 +39,8 @@ class CitationItem extends StatelessWidget {
         child: Container(
           constraints: const BoxConstraints(minHeight: _minTapHeight),
           padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: const BoxDecoration(
-            border: Border(top: BorderSide(color: AppColors.borderHairline)),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: colors.borderHairline)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -50,13 +51,13 @@ class CitationItem extends StatelessWidget {
                 style: AppTypography.caption.copyWith(
                   fontWeight: FontWeight.w700,
                   letterSpacing: 12 * 0.02,
+                  color: colors.textSecondary,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 citation.text,
-                style:
-                    AppTypography.caption.copyWith(color: AppColors.textLink),
+                style: AppTypography.caption.copyWith(color: colors.textLink),
               ),
             ],
           ),

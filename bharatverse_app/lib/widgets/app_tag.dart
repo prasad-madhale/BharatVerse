@@ -15,34 +15,31 @@ class AppTag extends StatelessWidget {
 
   const AppTag(this.text, {super.key, this.tone = AppTagTone.neutral});
 
-  ({Color background, Color foreground}) get _colors {
+  ({Color background, Color foreground}) _tagColors(AppColorTokens colors) {
     switch (tone) {
       case AppTagTone.neutral:
-        return (
-          background: AppColors.paper100,
-          foreground: AppColors.textSecondary
-        );
+        return (background: colors.paper100, foreground: colors.textSecondary);
       case AppTagTone.green:
         return (
-          background: AppColors.accentSecondaryTint,
-          foreground: AppColors.green700
+          background: colors.accentSecondaryTint,
+          foreground: colors.green700
         );
       case AppTagTone.saffron:
         return (
-          background: AppColors.accentPrimaryTint,
-          foreground: AppColors.saffron600
+          background: colors.accentPrimaryTint,
+          foreground: colors.saffron600
         );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = _colors;
+    final tagColors = _tagColors(context.colors);
     return Container(
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.space3, vertical: 5),
       decoration: BoxDecoration(
-        color: colors.background,
+        color: tagColors.background,
         borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
       ),
       child: Text(
@@ -50,7 +47,7 @@ class AppTag extends StatelessWidget {
         style: AppTypography.caption.copyWith(
           fontWeight: FontWeight.w500,
           letterSpacing: 12 * 0.02,
-          color: colors.foreground,
+          color: tagColors.foreground,
         ),
       ),
     );

@@ -23,6 +23,7 @@ class SuggestionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     // The database matches the typed text with its whitespace collapsed.
     final matched = typed.trim().replaceAll(RegExp(r'\s+'), ' ').length;
     final split = matched.clamp(0, term.length);
@@ -33,24 +34,23 @@ class SuggestionTile extends StatelessWidget {
         child: Container(
           constraints: const BoxConstraints(minHeight: _minTapHeight),
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.space3),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppColors.borderHairline)),
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: colors.borderHairline)),
           ),
           child: Row(
             children: [
-              const Icon(Icons.search,
-                  size: 18, color: AppColors.textPlaceholder),
+              Icon(Icons.search, size: 18, color: colors.textPlaceholder),
               const SizedBox(width: AppSpacing.space3),
               Expanded(
                 child: Text.rich(
                   TextSpan(
-                    style: AppTypography.ui,
+                    style: AppTypography.ui.copyWith(color: colors.textPrimary),
                     children: [
                       TextSpan(
                         text: term.substring(0, split),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          color: AppColors.accentPrimary,
+                          color: colors.accentPrimary,
                         ),
                       ),
                       TextSpan(text: term.substring(split)),

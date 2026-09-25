@@ -9,16 +9,18 @@ void main() {
   testWidgets(
       'tints hover, press and ripple from the parchment and saffron palette',
       (tester) async {
-    final theme = AppTheme.theme;
+    final theme = AppTheme.light;
+    final colors = AppColorTokens.light;
 
-    expect(theme.hoverColor, AppColors.surfaceSunken);
-    expect(theme.highlightColor, AppColors.surfaceSunken);
-    expect(theme.splashColor, AppColors.accentPrimaryTint);
+    expect(theme.hoverColor, colors.surfaceSunken);
+    expect(theme.highlightColor, colors.surfaceSunken);
+    expect(theme.splashColor, colors.accentPrimaryTint);
   });
 
   testWidgets('shows snackbars as paper on ink', (tester) async {
+    final colors = AppColorTokens.light;
     await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.theme,
+      theme: AppTheme.light,
       home: Scaffold(
         body: Builder(
           builder: (context) => TextButton(
@@ -36,14 +38,15 @@ void main() {
     final material = tester.widget<Material>(find
         .descendant(of: find.byType(SnackBar), matching: find.byType(Material))
         .first);
-    expect(material.color, AppColors.ink950);
-    expect(AppTheme.theme.snackBarTheme.contentTextStyle?.color,
-        AppColors.textOnAccent);
+    expect(material.color, colors.ink950);
+    expect(AppTheme.light.snackBarTheme.contentTextStyle?.color,
+        colors.textOnAccent);
   });
 
   testWidgets('shows tooltips as paper on ink', (tester) async {
+    final colors = AppColorTokens.light;
     await tester.pumpWidget(MaterialApp(
-      theme: AppTheme.theme,
+      theme: AppTheme.light,
       home: Scaffold(
         body: Center(
           child: AppIconButton(
@@ -58,7 +61,7 @@ void main() {
     final tooltipBox = find.byWidgetPredicate((widget) =>
         widget is DecoratedBox &&
         widget.decoration is BoxDecoration &&
-        (widget.decoration as BoxDecoration).color == AppColors.ink950);
+        (widget.decoration as BoxDecoration).color == colors.ink950);
     expect(tooltipBox, findsOneWidget);
   });
 }

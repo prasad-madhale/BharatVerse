@@ -5,13 +5,14 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import 'config.dart';
-import 'screens/home_screen.dart';
+import 'screens/app_shell.dart';
 import 'services/api_client.dart';
 import 'services/article_cache.dart';
 import 'services/likes_client.dart';
 import 'services/pending_likes.dart';
 import 'state/auth_state.dart';
 import 'state/like_state.dart';
+import 'state/theme_mode_state.dart';
 import 'theme/app_theme.dart';
 import 'widgets/recovery_gate.dart';
 
@@ -20,20 +21,24 @@ Future<void> main() async {
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
   final cache = await ArticleCache.open();
   final pendingLikes = await PendingLikes.open();
+  final themeModeState = await ThemeModeState.open();
   runApp(BharatVerseApp(
     apiClient: ApiClient(cache: cache),
     pendingLikes: pendingLikes,
+    themeModeState: themeModeState,
   ));
 }
 
 class BharatVerseApp extends StatelessWidget {
   final ApiClient apiClient;
   final PendingLikes pendingLikes;
+  final ThemeModeState themeModeState;
 
   const BharatVerseApp({
     super.key,
     required this.apiClient,
     required this.pendingLikes,
+    required this.themeModeState,
   });
 
   @override
@@ -52,11 +57,16 @@ class BharatVerseApp extends StatelessWidget {
             pendingLikes: pendingLikes,
           ),
         ),
+        ChangeNotifierProvider.value(value: themeModeState),
       ],
-      child: MaterialApp(
-        title: 'BharatVerse',
-        theme: AppTheme.theme,
-        home: RecoveryGate(child: HomeScreen(apiClient: apiClient)),
+      child: Consumer<ThemeModeState>(
+        builder: (context, themeModeState, _) => MaterialApp(
+          title: 'BharatVerse',
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: themeModeState.mode,
+          home: RecoveryGate(child: AppShell(apiClient: apiClient)),
+        ),
       ),
     );
   }

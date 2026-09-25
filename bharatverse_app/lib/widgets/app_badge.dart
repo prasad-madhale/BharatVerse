@@ -13,14 +13,15 @@ class AppBadge extends StatelessWidget {
 
   const AppBadge(this.text, {super.key, this.tone = AppBadgeTone.saffron});
 
-  Color get _color {
+  Color _color(BuildContext context) {
+    final colors = context.colors;
     switch (tone) {
       case AppBadgeTone.saffron:
-        return AppColors.saffron600;
+        return colors.saffron600;
       case AppBadgeTone.green:
-        return AppColors.green600;
+        return colors.green600;
       case AppBadgeTone.neutral:
-        return AppColors.textSecondary;
+        return colors.textSecondary;
     }
   }
 
@@ -28,7 +29,7 @@ class AppBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text.toUpperCase(),
-      style: AppTypography.label.copyWith(color: _color),
+      style: AppTypography.label.copyWith(color: _color(context)),
     );
   }
 }

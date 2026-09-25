@@ -25,12 +25,13 @@ class AppBackBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfacePage,
+      decoration: BoxDecoration(
+        color: colors.surfacePage,
         border: Border(
-          top: BorderSide(color: AppColors.ink950, width: 2),
-          bottom: BorderSide(color: AppColors.ink200),
+          top: BorderSide(color: colors.ink950, width: 2),
+          bottom: BorderSide(color: colors.ink200),
         ),
       ),
       child: SafeArea(
@@ -56,6 +57,7 @@ class AppBackBar extends StatelessWidget implements PreferredSizeWidget {
                           fontFamily: AppTypography.headline.fontFamily,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 15 * 0.08,
+                          color: colors.textPrimary,
                         ),
                       ),
               ),

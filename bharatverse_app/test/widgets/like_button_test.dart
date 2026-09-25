@@ -63,7 +63,7 @@ void main() {
       expect(find.byIcon(Icons.favorite), findsOneWidget);
       expect(find.byTooltip('Unlike'), findsOneWidget);
       final button = tester.widget<IconButton>(find.byType(IconButton));
-      expect(button.color, AppColors.likeActive);
+      expect(button.color, AppColorTokens.light.likeActive);
     });
 
     testWidgets('tapping while signed in likes the article', (tester) async {

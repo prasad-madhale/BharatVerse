@@ -25,25 +25,26 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.space6, vertical: AppSpacing.space12),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 32, color: AppColors.ink300),
+          Icon(icon, size: 32, color: colors.ink300),
           const SizedBox(height: AppSpacing.space2),
           Text(
             title.toUpperCase(),
             textAlign: TextAlign.center,
-            style: AppTypography.headline,
+            style: AppTypography.headline.copyWith(color: colors.textPrimary),
           ),
           if (description != null) ...[
             const SizedBox(height: AppSpacing.space2),
             Text(
               description!,
               textAlign: TextAlign.center,
-              style: AppTypography.body,
+              style: AppTypography.body.copyWith(color: colors.textBody),
             ),
           ],
           if (actionLabel != null) ...[

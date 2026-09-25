@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/auth_state.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_input.dart';
 import '../widgets/auth_form_page.dart';
@@ -55,6 +56,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     if (_sent) {
       return AuthFormPage(
         title: 'Check Your Email',
@@ -63,7 +65,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           Text(
             'If an account exists for ${_emailController.text.trim()}, a link '
             'to choose a new password is on its way.',
-            style: AppTypography.body,
+            style: AppTypography.body.copyWith(color: colors.textBody),
           ),
         ],
         submitLabel: 'Back to Sign In',
@@ -77,7 +79,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Text(
           'Enter the email you signed up with and we will send you a link to '
           'choose a new password.',
-          style: AppTypography.body,
+          style: AppTypography.body.copyWith(color: colors.textBody),
         ),
         AppInput(
           fieldKey: const Key('email-field'),

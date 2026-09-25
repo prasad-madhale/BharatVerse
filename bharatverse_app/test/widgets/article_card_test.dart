@@ -33,7 +33,7 @@ void main() {
       expect(find.byType(CachedNetworkImage), findsNothing);
       expect(
         find.byWidgetPredicate(
-            (w) => w is Container && w.color == AppColors.paper200),
+            (w) => w is Container && w.color == AppColorTokens.light.paper200),
         findsOneWidget,
       );
     });

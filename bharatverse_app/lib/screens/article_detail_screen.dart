@@ -35,6 +35,7 @@ class ArticleDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Scaffold(
       appBar: AppBackBar(
         title: 'ARTICLE',
@@ -57,17 +58,20 @@ class ArticleDetailScreen extends StatelessWidget {
               horizontal: AppSpacing.space4,
               vertical: AppSpacing.space5,
             ),
-            decoration:
-                BoxDecoration(border: Border.all(color: AppColors.ink200)),
+            decoration: BoxDecoration(border: Border.all(color: colors.ink200)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(article.title.toUpperCase(),
-                    style: AppTypography.display1),
+                Text(
+                  article.title.toUpperCase(),
+                  style: AppTypography.display1
+                      .copyWith(color: colors.textPrimary),
+                ),
                 const SizedBox(height: AppSpacing.space4),
                 Text(
                   '${article.dateAndReadingTime} · ${article.author}',
-                  style: AppTypography.caption,
+                  style: AppTypography.caption
+                      .copyWith(color: colors.textSecondary),
                 ),
                 const SizedBox(height: AppSpacing.space5),
                 if (article.images.isNotEmpty)
@@ -76,7 +80,7 @@ class ArticleDetailScreen extends StatelessWidget {
                   AspectRatio(
                     aspectRatio: 16 / 9,
                     child: Container(
-                        width: double.infinity, color: AppColors.paper200),
+                        width: double.infinity, color: colors.paper200),
                   ),
                 const SizedBox(height: AppSpacing.space5),
                 for (final entry in article.sections.asMap().entries) ...[
@@ -96,9 +100,9 @@ class ArticleDetailScreen extends StatelessWidget {
                 if (article.tags.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.only(top: AppSpacing.space3),
-                    decoration: const BoxDecoration(
-                      border: Border(
-                          top: BorderSide(color: AppColors.borderHairline)),
+                    decoration: BoxDecoration(
+                      border:
+                          Border(top: BorderSide(color: colors.borderHairline)),
                     ),
                     child: Wrap(
                       spacing: AppSpacing.space2,
@@ -110,7 +114,7 @@ class ArticleDetailScreen extends StatelessWidget {
                   const SizedBox(height: AppSpacing.space4),
                   Text('SOURCES',
                       style: AppTypography.label
-                          .copyWith(color: AppColors.textSecondary)),
+                          .copyWith(color: colors.textSecondary)),
                   for (final citation in article.citations)
                     CitationItem(citation: citation),
                 ],
@@ -153,12 +157,18 @@ class _Section extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bodyStyleSheet = MarkdownStyleSheet(p: AppTypography.bodyLg);
+    final colors = context.colors;
+    final bodyStyleSheet = MarkdownStyleSheet(
+      p: AppTypography.bodyLg.copyWith(color: colors.textBody),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(section.heading.toUpperCase(), style: AppTypography.headline),
+        Text(
+          section.heading.toUpperCase(),
+          style: AppTypography.headline.copyWith(color: colors.textPrimary),
+        ),
         const SizedBox(height: AppSpacing.space2),
         if (isFirst && section.content.isNotEmpty)
           Row(
@@ -166,8 +176,8 @@ class _Section extends StatelessWidget {
             children: [
               Text(
                 section.content.substring(0, 1),
-                style: AppTypography.display1
-                    .copyWith(fontSize: 40 * 1.4, height: 0.8),
+                style: AppTypography.display1.copyWith(
+                    fontSize: 40 * 1.4, height: 0.8, color: colors.textPrimary),
               ),
               const SizedBox(width: 4),
               Expanded(

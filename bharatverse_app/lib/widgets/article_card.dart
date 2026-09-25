@@ -38,19 +38,20 @@ class ArticleCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return size == ArticleCardSize.featured
-        ? _buildFeatured()
-        : _buildCompact();
+        ? _buildFeatured(context)
+        : _buildCompact(context);
   }
 
-  Widget _buildFeatured() {
+  Widget _buildFeatured(BuildContext context) {
+    final colors = context.colors;
     return InkWell(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.space3),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           border: Border(
-            top: BorderSide(color: AppColors.ink200),
-            bottom: BorderSide(color: AppColors.ink200),
+            top: BorderSide(color: colors.ink200),
+            bottom: BorderSide(color: colors.ink200),
           ),
         ),
         child: Column(
@@ -67,25 +68,30 @@ class ArticleCard extends StatelessWidget {
                     children: [
                       Text(
                         article.title.toUpperCase(),
-                        style: AppTypography.display2,
+                        style: AppTypography.display2
+                            .copyWith(color: colors.textPrimary),
                       ),
                       const SizedBox(height: AppSpacing.space2),
-                      Text(article.dateAndReadingTime,
-                          style: AppTypography.caption),
+                      Text(
+                        article.dateAndReadingTime,
+                        style: AppTypography.caption
+                            .copyWith(color: colors.textSecondary),
+                      ),
                       const SizedBox(height: AppSpacing.space2),
                       Text(
                         article.summary,
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
-                        style: AppTypography.body,
+                        style:
+                            AppTypography.body.copyWith(color: colors.textBody),
                       ),
                       const SizedBox(height: AppSpacing.space3),
-                      Text('Read More →', style: arrowLinkStyle),
+                      Text('Read More →', style: arrowLinkStyle(context)),
                     ],
                   ),
                 ),
                 const SizedBox(width: AppSpacing.space4),
-                _thumbnail(width: 90, height: 150),
+                _thumbnail(context, width: 90, height: 150),
               ],
             ),
           ],
@@ -94,10 +100,12 @@ class ArticleCard extends StatelessWidget {
     );
   }
 
-  Widget _thumbnail({required double width, required double height}) {
+  Widget _thumbnail(BuildContext context,
+      {required double width, required double height}) {
+    final placeholderColor = context.colors.paper200;
     final url = article.imageUrl;
     if (url == null) {
-      return Container(width: width, height: height, color: AppColors.paper200);
+      return Container(width: width, height: height, color: placeholderColor);
     }
     return CachedNetworkImage(
       imageUrl: url,
@@ -105,9 +113,9 @@ class ArticleCard extends StatelessWidget {
       height: height,
       fit: BoxFit.cover,
       placeholder: (context, url) =>
-          Container(width: width, height: height, color: AppColors.paper200),
+          Container(width: width, height: height, color: placeholderColor),
       errorWidget: (context, url, error) =>
-          Container(width: width, height: height, color: AppColors.paper200),
+          Container(width: width, height: height, color: placeholderColor),
     );
   }
 
@@ -117,19 +125,20 @@ class ArticleCard extends StatelessWidget {
           term.isNotEmpty && tag.toLowerCase().contains(term.toLowerCase())))
       .toList();
 
-  Widget _buildCompact() {
+  Widget _buildCompact(BuildContext context) {
+    final colors = context.colors;
     final matchedTags = _matchedTags;
     return InkWell(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.space3),
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.borderHairline)),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: colors.borderHairline)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _thumbnail(width: 68, height: 68),
+            _thumbnail(context, width: 68, height: 68),
             const SizedBox(width: AppSpacing.space3),
             Expanded(
               child: Column(
@@ -139,18 +148,22 @@ class ArticleCard extends StatelessWidget {
                     article.title.toUpperCase(),
                     terms: highlight,
                     maxLines: 2,
-                    style: AppTypography.headline
-                        .copyWith(fontSize: 16, height: 1.3),
+                    style: AppTypography.headline.copyWith(
+                        fontSize: 16, height: 1.3, color: colors.textPrimary),
                   ),
                   const SizedBox(height: 3),
-                  Text(article.dateAndReadingTime,
-                      style: AppTypography.caption),
+                  Text(
+                    article.dateAndReadingTime,
+                    style: AppTypography.caption
+                        .copyWith(color: colors.textSecondary),
+                  ),
                   const SizedBox(height: 3),
                   HighlightedText(
                     article.summary,
                     terms: highlight,
                     maxLines: 2,
-                    style: AppTypography.caption,
+                    style: AppTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                   if (matchedTags.isNotEmpty) ...[
                     const SizedBox(height: 3),
@@ -158,7 +171,8 @@ class ArticleCard extends StatelessWidget {
                       'Tagged: ${matchedTags.join(', ')}',
                       terms: highlight,
                       maxLines: 1,
-                      style: AppTypography.caption,
+                      style: AppTypography.caption
+                          .copyWith(color: colors.textSecondary),
                     ),
                   ],
                 ],

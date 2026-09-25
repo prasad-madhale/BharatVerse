@@ -40,10 +40,14 @@ class AppInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label.toUpperCase(), style: AppTypography.label),
+        Text(
+          label.toUpperCase(),
+          style: AppTypography.label.copyWith(color: colors.textSecondary),
+        ),
         const SizedBox(height: 6),
         TextFormField(
           key: fieldKey,
@@ -55,33 +59,33 @@ class AppInput extends StatelessWidget {
           onFieldSubmitted: onSubmitted,
           textInputAction: textInputAction,
           autofocus: autofocus,
-          style: AppTypography.ui,
+          style: AppTypography.ui.copyWith(color: colors.textPrimary),
           decoration: InputDecoration(
             hintText: placeholder,
             filled: true,
-            fillColor: AppColors.surfaceCard,
+            fillColor: colors.surfaceCard,
             contentPadding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.space4,
               vertical: AppSpacing.space3,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
-              borderSide: const BorderSide(color: AppColors.ink200),
+              borderSide: BorderSide(color: colors.ink200),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
-              borderSide: const BorderSide(color: AppColors.ink200),
+              borderSide: BorderSide(color: colors.ink200),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
-              borderSide: const BorderSide(color: AppColors.ink800),
+              borderSide: BorderSide(color: colors.ink800),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
-              borderSide: const BorderSide(color: AppColors.colorError),
+              borderSide: BorderSide(color: colors.colorError),
             ),
             errorStyle:
-                AppTypography.caption.copyWith(color: AppColors.colorError),
+                AppTypography.caption.copyWith(color: colors.colorError),
           ),
         ),
       ],
