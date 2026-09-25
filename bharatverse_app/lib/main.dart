@@ -6,12 +6,14 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 import 'config.dart';
 import 'screens/app_shell.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/api_client.dart';
 import 'services/article_cache.dart';
 import 'services/likes_client.dart';
 import 'services/pending_likes.dart';
 import 'state/auth_state.dart';
 import 'state/like_state.dart';
+import 'state/onboarding_state.dart';
 import 'state/theme_mode_state.dart';
 import 'theme/app_theme.dart';
 import 'widgets/recovery_gate.dart';
@@ -22,10 +24,12 @@ Future<void> main() async {
   final cache = await ArticleCache.open();
   final pendingLikes = await PendingLikes.open();
   final themeModeState = await ThemeModeState.open();
+  final onboardingState = await OnboardingState.open();
   runApp(BharatVerseApp(
     apiClient: ApiClient(cache: cache),
     pendingLikes: pendingLikes,
     themeModeState: themeModeState,
+    onboardingState: onboardingState,
   ));
 }
 
@@ -33,12 +37,14 @@ class BharatVerseApp extends StatelessWidget {
   final ApiClient apiClient;
   final PendingLikes pendingLikes;
   final ThemeModeState themeModeState;
+  final OnboardingState onboardingState;
 
   const BharatVerseApp({
     super.key,
     required this.apiClient,
     required this.pendingLikes,
     required this.themeModeState,
+    required this.onboardingState,
   });
 
   @override
@@ -65,7 +71,14 @@ class BharatVerseApp extends StatelessWidget {
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: themeModeState.mode,
-          home: RecoveryGate(child: AppShell(apiClient: apiClient)),
+          home: RecoveryGate(
+            child: onboardingState.seen
+                ? AppShell(apiClient: apiClient)
+                : OnboardingScreen(
+                    apiClient: apiClient,
+                    onboardingState: onboardingState,
+                  ),
+          ),
         ),
       ),
     );

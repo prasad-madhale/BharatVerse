@@ -146,7 +146,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.login));
     await tester.pumpAndSettle();
 
-    expect(find.text('Sign In'), findsWidgets);
+    expect(find.text('Welcome back'), findsOneWidget);
   });
 
   testWidgets('the search icon opens the search screen', (tester) async {

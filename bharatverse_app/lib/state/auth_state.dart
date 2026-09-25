@@ -68,6 +68,14 @@ class AuthState extends ChangeNotifier {
     await _authClient.signInWithPassword(email: email, password: password);
   }
 
+  /// Starts Supabase's Apple OAuth flow. Needs the Apple provider configured
+  /// on the Supabase project (Apple Developer account, entitlements) before
+  /// it can actually complete -- see roadmap.md "Needs a person".
+  Future<void> signInWithApple() => _authClient.signInWithOAuth(
+        OAuthProvider.apple,
+        redirectTo: _resetRedirectTo,
+      );
+
   Future<void> logout() async {
     await _authClient.signOut();
   }

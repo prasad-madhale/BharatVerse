@@ -31,11 +31,10 @@ Widget _page({
 
 void main() {
   group('AuthFormPage', () {
-    testWidgets('shows the title in capitals, the fields and the button',
-        (tester) async {
+    testWidgets('shows the title, the fields and the button', (tester) async {
       await tester.pumpWidget(_page());
 
-      expect(find.text('RESET PASSWORD'), findsOneWidget);
+      expect(find.text('Reset Password'), findsOneWidget);
       expect(find.text('first field'), findsOneWidget);
       expect(find.text('second field'), findsOneWidget);
       expect(find.widgetWithText(ElevatedButton, 'Send'), findsOneWidget);
@@ -102,7 +101,7 @@ void main() {
     testWidgets('centres its content when there is room', (tester) async {
       await tester.pumpWidget(_page(footer: const [Text('Skip')]));
 
-      final top = tester.getTopLeft(find.text('RESET PASSWORD')).dy;
+      final top = tester.getTopLeft(find.text('Reset Password')).dy;
       final bottom = tester.getBottomLeft(find.text('Skip')).dy;
       final bar = tester.getBottomLeft(find.byType(AppBackBar)).dy;
       final room = tester.getBottomLeft(find.byType(Scaffold)).dy;

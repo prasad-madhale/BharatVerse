@@ -50,10 +50,14 @@ flutter analyze
 
 ## Layout
 
-- `lib/screens/`: home, article, archive, search, likes, sign-in, forgot and reset password
+- `lib/screens/`: `app_shell.dart` (the tab-bar root), `onboarding_screen.dart` (first-run only), home, article,
+  archive, search, likes, sign-in, forgot and reset password
 - `lib/services/`: `api_client.dart` (articles and search), `likes_client.dart`, `article_cache.dart` (offline copies)
-- `lib/state/`: `AuthState` and `LikeState`, the app's two `ChangeNotifier`s, provided with `provider`
-- `lib/theme/` and `lib/widgets/`: the design tokens (colors, spacing, type) and the shared components built on them
+- `lib/state/`: `AuthState`, `LikeState`, `ThemeModeState` and `OnboardingState`, provided with `provider` except the
+  latter (a plain constructor-injected dependency, not a `ChangeNotifier`)
+- `lib/theme/` and `lib/widgets/`: the design tokens (colors, spacing, type -- `app_colors.dart` is a
+  `ThemeExtension<AppColorTokens>` with Light and Dark palettes, read via the `context.colors` shorthand) and the
+  shared components built on them
 - `test/`: mirrors `lib/`; services are tested against a fake HTTP client
 
 The `android/`, `ios/` and `web/` folders hold the platform projects. To add desktop, run
