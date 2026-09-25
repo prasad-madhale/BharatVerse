@@ -10,11 +10,11 @@ behavior (those are covered by each collaborator's own tests).
 import logging
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
-from common.models import Article, Citation, Section
+from common.models import Article, ArticleImage, Citation, Section
 from scrapper import scheduler
 from scrapper.article_critic import CriticIssue, CriticReview
 from scrapper.article_generator import ArticleGenerationError
@@ -55,6 +55,20 @@ def _rejected(summary="needs work"):
     ])
 
 
+def _image(url="https://s/0.jpg", source_url="https://commons.wikimedia.org/wiki/File:X.jpg"):
+    return ArticleImage(
+        url=url, alt_text="a", credit="Someone via Wikimedia Commons",
+        source_url=source_url, license="CC BY-SA 4.0", width=1200, height=800,
+    )
+
+
+def _cohesion_issue(location="featured image", detail="Unrelated to the article"):
+    return CriticIssue(
+        category="image_cohesion", severity="major", location=location,
+        detail=detail, suggestion="Source a different image",
+    )
+
+
 @pytest.fixture
 def pipeline():
     """The pipeline with every collaborator mocked: one topic, scraped content, and articles that
@@ -81,6 +95,7 @@ def pipeline():
         validator.validate.return_value = (True, [])
         critic = critic_cls.return_value
         critic.review = AsyncMock(return_value=_approved())
+        critic.review_image_cohesion = AsyncMock(return_value=[])
         image_sourcer = image_sourcer_cls.return_value
         image_sourcer.source_images = AsyncMock(return_value=[])
         yield SimpleNamespace(service=service, topics=topics, scraper=scraper, generator=generator,
@@ -125,7 +140,11 @@ class TestRunDailyPipeline:
     async def test_retries_at_once_on_validation_failure_then_publishes(self, pipeline):
         second = _make_article("art_good")
         pipeline.generator.generate_article.side_effect = [_make_article("art_bad"), second]
-        pipeline.validator.validate.side_effect = [(False, ["too short"]), (True, [])]
+        # (False, ...) for the failed attempt's structural check, then (True, []) twice for the
+        # second attempt's: once before the critic loop, once again at the top of its round 1
+        # (run_critic_loop's own structural check, so it can catch an already-invalid starting
+        # article even when the caller didn't just validate it -- see reprocess_articles.py).
+        pipeline.validator.validate.side_effect = [(False, ["too short"]), (True, []), (True, [])]
 
         published = await scheduler.run_daily_pipeline(count=1)
 
@@ -268,7 +287,9 @@ class TestQualityMetrics:
 
     async def test_logs_them_for_an_article_that_is_rejected_too(self, pipeline, caplog):
         pipeline.generator.generate_article.side_effect = [_real_article(words=900), _real_article(words=1800)]
-        pipeline.validator.validate.side_effect = [(False, ["word count 900 outside allowed range"]), (True, [])]
+        pipeline.validator.validate.side_effect = [
+            (False, ["word count 900 outside allowed range"]), (True, []), (True, []),
+        ]
 
         with caplog.at_level(logging.INFO, logger="scrapper.scheduler"):
             await scheduler.run_daily_pipeline(count=1)
@@ -279,7 +300,7 @@ class TestQualityMetrics:
 
     async def test_times_each_attempt_separately(self, pipeline, caplog):
         pipeline.generator.generate_article.side_effect = [_real_article(), _real_article()]
-        pipeline.validator.validate.side_effect = [(False, ["too short"]), (True, [])]
+        pipeline.validator.validate.side_effect = [(False, ["too short"]), (True, []), (True, [])]
 
         with caplog.at_level(logging.INFO, logger="scrapper.scheduler"), \
                 patch("scrapper.scheduler.perf_counter", side_effect=[0.0, 2.0, 10.0, 17.0]):
@@ -332,8 +353,9 @@ class TestCriticLoop:
 
     async def test_a_revision_that_breaks_structural_validity_ends_the_round_early(self, pipeline):
         pipeline.critic.review.return_value = _rejected()
-        # First validate() call (the original draft) passes; the one after the revision fails.
-        pipeline.validator.validate.side_effect = [(True, []), (False, ["word count too low"])] * 3
+        # Per attempt: the outer pre-loop check passes, run_critic_loop's own top-of-round check
+        # on that same (still-unrevised) draft also passes, and the one after the revision fails.
+        pipeline.validator.validate.side_effect = [(True, []), (True, []), (False, ["word count too low"])] * 3
 
         published = await scheduler.run_daily_pipeline(count=1)
 
@@ -380,3 +402,129 @@ class TestCriticLoop:
         [entry] = [r for r in caplog.records if hasattr(r, "critic_rounds")]
         assert (entry.critic_rounds, entry.critic_approved) == (2, True)
         assert entry.critic_issue_categories == []
+
+
+class TestRunCriticLoop:
+    """Calls scheduler.run_critic_loop directly (the same entry point reprocess_articles.py
+    uses) with hand-built collaborators, rather than going through run_daily_pipeline."""
+
+    def _collaborators(self, images=None, review=None, cohesion_issues=None):
+        critic = MagicMock()
+        # A fresh CriticReview per call (not a shared return_value) -- run_critic_loop mutates
+        # the review it gets back (folding in image issues), matching the real critic, which
+        # parses a brand-new object from each LLM response rather than reusing one.
+        critic.review = AsyncMock(side_effect=lambda *a, **k: review or _approved())
+        critic.review_image_cohesion = AsyncMock(
+            return_value=cohesion_issues if cohesion_issues is not None else []
+        )
+        generator = MagicMock()
+        generator.revise_article = AsyncMock(return_value=_real_article())
+        validator = MagicMock()
+        validator.validate.return_value = (True, [])
+        image_sourcer = MagicMock()
+        image_sourcer.source_images = AsyncMock(return_value=images if images is not None else [])
+        return critic, generator, validator, image_sourcer
+
+    async def test_sources_images_before_the_first_round_when_no_initial_images_given(self):
+        image = _image()
+        critic, generator, validator, image_sourcer = self._collaborators(images=[image])
+
+        result, review, rounds = await scheduler.run_critic_loop(
+            _real_article(), ["scraped"], "Topic", generator, validator, critic, image_sourcer,
+        )
+
+        image_sourcer.source_images.assert_awaited_once_with(ANY, "Topic", exclude=frozenset())
+        assert result.images == [image]
+        assert result.image_url == image.url
+        assert review.approved is True
+
+    async def test_uses_initial_images_instead_of_sourcing_fresh(self):
+        image = _image()
+        critic, generator, validator, image_sourcer = self._collaborators()
+
+        result, review, rounds = await scheduler.run_critic_loop(
+            _real_article(), ["scraped"], "Topic", generator, validator, critic, image_sourcer,
+            initial_images=[image],
+        )
+
+        image_sourcer.source_images.assert_not_awaited()
+        assert result.images == [image]
+
+    async def test_structural_invalidity_forces_a_revision_even_when_the_critic_approves(self):
+        """critic.review only judges grounding/neutrality/etc., never word count -- this catches
+        a too-short starting article (e.g. one reprocess_articles.py loads from before today's
+        word-count bar) that the critic itself has no way to flag."""
+        critic, generator, validator, image_sourcer = self._collaborators()
+        validator.validate = MagicMock(side_effect=[
+            (False, ["word count 200 outside allowed range [1300, 2200]"]),  # round 1, starting draft
+            (True, []),  # right after the revision
+            (True, []),  # round 2's top-of-round check on the now-fixed draft
+        ])
+
+        result, review, rounds = await scheduler.run_critic_loop(
+            _real_article(), ["scraped"], "Topic", generator, validator, critic, image_sourcer,
+        )
+
+        generator.revise_article.assert_awaited_once()
+        assert review.approved is True
+        assert rounds == 2
+
+    async def test_cohesion_failure_triggers_a_full_resource_not_text_revision(self):
+        bad = _image(url="https://s/bad.jpg", source_url="https://commons.wikimedia.org/wiki/File:Bad.jpg")
+        replacement = _image(
+            url="https://s/replacement.jpg", source_url="https://commons.wikimedia.org/wiki/File:Repl.jpg"
+        )
+        critic, generator, validator, image_sourcer = self._collaborators()
+        image_sourcer.source_images = AsyncMock(side_effect=[[bad], [replacement]])
+        critic.review_image_cohesion = AsyncMock(side_effect=[[_cohesion_issue()], []])
+
+        result, review, rounds = await scheduler.run_critic_loop(
+            _real_article(), ["scraped"], "Topic", generator, validator, critic, image_sourcer,
+        )
+
+        generator.revise_article.assert_not_awaited()
+        assert image_sourcer.source_images.await_count == 2
+        second_call = image_sourcer.source_images.await_args_list[1]
+        assert second_call.kwargs["exclude"] == {"File:Bad.jpg"}
+        assert result.images == [replacement]
+        assert review.approved is True
+        assert rounds == 2
+
+    async def test_a_text_and_image_issue_in_the_same_round_are_both_addressed(self):
+        bad = _image(url="https://s/bad.jpg", source_url="https://commons.wikimedia.org/wiki/File:Bad.jpg")
+        replacement = _image(
+            url="https://s/good.jpg", source_url="https://commons.wikimedia.org/wiki/File:Good.jpg"
+        )
+        critic, generator, validator, image_sourcer = self._collaborators()
+        image_sourcer.source_images = AsyncMock(side_effect=[[bad], [replacement]])
+        critic.review = AsyncMock(side_effect=[_rejected(), _approved()])
+        critic.review_image_cohesion = AsyncMock(side_effect=[[_cohesion_issue()], []])
+
+        result, review, rounds = await scheduler.run_critic_loop(
+            _real_article(), ["scraped"], "Topic", generator, validator, critic, image_sourcer,
+        )
+
+        generator.revise_article.assert_awaited_once()
+        assert image_sourcer.source_images.await_count == 2
+        assert result.images == [replacement]
+        assert review.approved is True
+
+    async def test_exclude_accumulates_across_rounds(self):
+        # CRITIC_MAX_ROUNDS bumped to 3 so a second cohesion failure gets a chance to
+        # trigger a second re-source, accumulating both rejected filenames in one `exclude`.
+        first_bad = _image(url="https://s/a.jpg", source_url="https://commons.wikimedia.org/wiki/File:A.jpg")
+        second_bad = _image(url="https://s/b.jpg", source_url="https://commons.wikimedia.org/wiki/File:B.jpg")
+        replacement = _image(url="https://s/c.jpg", source_url="https://commons.wikimedia.org/wiki/File:C")
+        critic, generator, validator, image_sourcer = self._collaborators()
+        image_sourcer.source_images = AsyncMock(side_effect=[[first_bad], [second_bad], [replacement]])
+        critic.review_image_cohesion = AsyncMock(side_effect=[[_cohesion_issue()], [_cohesion_issue()], []])
+
+        with patch.object(scheduler, "CRITIC_MAX_ROUNDS", 3):
+            result, review, rounds = await scheduler.run_critic_loop(
+                _real_article(), ["scraped"], "Topic", generator, validator, critic, image_sourcer,
+            )
+
+        assert image_sourcer.source_images.await_count == 3
+        third_call = image_sourcer.source_images.await_args_list[2]
+        assert third_call.kwargs["exclude"] == {"File:A.jpg", "File:B.jpg"}
+        assert result.images == [replacement]

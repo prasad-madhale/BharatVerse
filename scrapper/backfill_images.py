@@ -21,7 +21,6 @@ import logging
 import os
 import sys
 from pathlib import Path
-from urllib.parse import unquote
 
 # Make both this package (`scrapper`) and the repo root (`common`, `backend`)
 # importable regardless of which directory this script is invoked from.
@@ -34,19 +33,9 @@ for _path in (_SCRAPPER_DIR, _REPO_ROOT):
 from backend.services.article_service import ArticleService  # noqa: E402
 from common.logging_config import configure_logging  # noqa: E402
 from scrapper.image_sourcing import ImageSourcer  # noqa: E402
+from scrapper.topic_recovery import recover_topic  # noqa: E402
 
 logger = logging.getLogger(__name__)
-
-
-def _topic_for(article) -> str:
-    """The real Wikipedia title the article was generated from, recovered from its own
-    Wikipedia citation, falling back to the article's (LLM-written headline) title when there
-    is no Wikipedia citation to recover it from."""
-    for citation in article.citations:
-        if citation.source_name == "wikipedia":
-            title = citation.source_url.rstrip("/").rsplit("/", 1)[-1]
-            return unquote(title).replace("_", " ")
-    return article.title
 
 
 async def backfill(all_articles: bool = False) -> int:
@@ -70,7 +59,7 @@ async def backfill(all_articles: bool = False) -> int:
         if article is None:
             logger.warning(f"{article_id} disappeared, skipping")
             continue
-        topic = _topic_for(article)
+        topic = recover_topic(article)
         try:
             images = await image_sourcer.source_images(article, topic=topic)
         except Exception:
