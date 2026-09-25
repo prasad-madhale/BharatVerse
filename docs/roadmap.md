@@ -64,9 +64,12 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   green; Newsreader and Work Sans) in `lib/theme/` and `lib/widgets/`. The Android, iOS and web launcher icons are the
   same saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README).
 - **App redesign, in progress** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff):
-  Phase 1 (theme + navigation) and Phase 2 (onboarding + auth) are done; Phase 3 (Home/Article/Library/Search, plus a
-  real `era` field and a real save/bookmark feature) and Phase 4 (Settings sheet) are not started, so most screens
-  still render in the old Vintage Broadsheet style. `lib/theme/app_colors.dart`/`app_typography.dart` are now a
+  Phase 1 (theme + navigation) and Phase 2 (onboarding + auth) are done. Phase 3 (Home/Article/Library/Search) is
+  in progress: the `era` field and a real save/bookmark feature (both described below) are done; the four screens'
+  visual redesign is not started, so they still render in the old Vintage Broadsheet style -- the new `SaveButton`
+  is live on the article screen's existing header for now, alongside the like button, rather than sitting unused
+  until that screen's redesign lands. Phase 4 (Settings sheet) is not started. `lib/theme/app_colors.dart`/
+  `app_typography.dart` are now a
   `ThemeExtension<AppColorTokens>` with full Light and Dark ("Night Edition") palettes, resolved via the
   `context.colors` shorthand; `ThemeModeState` (Provider + `SharedPreferences`, same `.open()` factory convention as
   `ArticleCache`/`PendingLikes`) holds the reader's Light/Dark/System choice, not yet exposed in any UI (Phase 4's
@@ -78,7 +81,14 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   "Deviations" below. `AuthScreen` is a bespoke rebuild (rounded pill fields and buttons, a "Continue with Apple"
   entry point, a guest "Not now -- just browse" path when reached from onboarding) rather than the shared
   `AuthFormPage`, which `ForgotPasswordScreen`/`ResetPasswordScreen` still use, lightly restyled (sentence-case
-  titles, pill fields/buttons).
+  titles, pill fields/buttons). `era` (a short LLM-generated period label, e.g. "Gupta Empire") is a real field now:
+  the generation/revision prompts ask for it, `common.models.Article`/`ArticleRecord`/the Flutter `Article` model
+  all carry it (defaulting to `""`, so it needs no backfill to keep old rows and test fixtures working), and
+  `schema.sql`/`2026-09-era-field.sql` add the column -- not yet wired into full-text search (`search_vector`),
+  which is Search's own sub-phase. Save/bookmark is a full second vertical slice paralleling Likes exactly, not a
+  reuse of it: `saved_articles` table, `SaveService`, `/articles/{id}/save` + `/users/me/saves` routes on the
+  backend; `SavesClient`/`SaveState`/`PendingSaves`/`SaveButton` in the app, registered in `main.dart` right after
+  the equivalent Likes classes.
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags and summary (not
   article bodies, which live in Storage), so a tag-only match is found too. PostgREST's `text_search` takes a column
   name, not an expression, which is why the vector is a stored column with a GIN index. A tag like `covid-19` is
@@ -107,7 +117,10 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   checked it lacked the `search_vector` column and the `search_articles` function, and it has the earlier, unused
   `search_suggestions` and `article_embeddings` tables. Run `2026-09-search-and-autocomplete.sql` in the SQL editor: it
   adds search, replaces those tables with the new suggestions and its trigger, takes the write rights off `articles` from
-  the public key, and can be run twice. Until then search fails there and the app shows no suggestions. Supabase
+  the public key, and can be run twice. Until then search fails there and the app shows no suggestions. It also lacks the
+  `era` column (`2026-09-era-field.sql`) and the `saved_articles` table (`2026-09-saved-articles.sql`) the app redesign
+  added -- until the latter is run, the app's new Save button reaches the real project (the app talks to Supabase's REST
+  API directly, not through this backend) and gets a "relation does not exist" failure on every tap. Supabase
   permanently deactivates free projects paused for over 90 days, which is how the first project was lost: restore a
   paused one promptly. Add the app's URL under Authentication > URL Configuration > Redirect URLs for password reset,
   and keep email confirmation off, or sign-up returns no session.
