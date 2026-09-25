@@ -5,11 +5,11 @@ import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 
 /// Underlined serif style for links that end in an arrow, like "Read More →".
-TextStyle get arrowLinkStyle => AppTypography.ui.copyWith(
+TextStyle arrowLinkStyle(BuildContext context) => AppTypography.ui.copyWith(
       fontFamily: AppTypography.headline.fontFamily,
       fontWeight: FontWeight.w700,
       decoration: TextDecoration.underline,
-      color: AppColors.textPrimary,
+      color: context.colors.textPrimary,
     );
 
 /// A text link such as "Browse the archive →".
@@ -25,7 +25,7 @@ class ArrowLink extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.space4),
-        child: Text('$label →', style: arrowLinkStyle),
+        child: Text('$label →', style: arrowLinkStyle(context)),
       ),
     );
   }

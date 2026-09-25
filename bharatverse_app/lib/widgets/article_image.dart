@@ -43,6 +43,7 @@ class ArticleImageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     final aspectRatio =
         image.aspectRatio.clamp(_minAspectRatio, _maxAspectRatio);
     return Column(
@@ -54,14 +55,17 @@ class ArticleImageView extends StatelessWidget {
             imageUrl: image.url,
             width: double.infinity,
             fit: BoxFit.cover,
-            placeholder: (context, url) => Container(color: AppColors.paper200),
+            placeholder: (context, url) => Container(color: colors.paper200),
             errorWidget: (context, url, error) =>
-                Container(color: AppColors.paper200),
+                Container(color: colors.paper200),
           ),
         ),
         const SizedBox(height: AppSpacing.space2),
         if (image.caption != null && image.caption!.isNotEmpty) ...[
-          Text(image.caption!, style: AppTypography.caption),
+          Text(
+            image.caption!,
+            style: AppTypography.caption.copyWith(color: colors.textSecondary),
+          ),
           const SizedBox(height: 2),
         ],
         Semantics(
@@ -74,8 +78,7 @@ class ArticleImageView extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 '${image.credit} · ${image.license}',
-                style:
-                    AppTypography.caption.copyWith(color: AppColors.textLink),
+                style: AppTypography.caption.copyWith(color: colors.textLink),
               ),
             ),
           ),

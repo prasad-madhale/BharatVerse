@@ -4,62 +4,69 @@ import 'app_colors.dart';
 import 'app_spacing.dart';
 import 'app_typography.dart';
 
-/// Builds the app's ThemeData from the design system tokens, so incidental
-/// Material widgets (CircularProgressIndicator, Form validation color,
-/// default text) stay visually consistent with the custom widgets in
-/// lib/widgets/ even though most screens don't rely on Material theming
-/// directly.
+/// Builds the app's light and dark [ThemeData], so incidental Material
+/// widgets (CircularProgressIndicator, Form validation color, default text)
+/// stay visually consistent with the custom widgets in lib/widgets/ even
+/// though most screens read [AppColorTokens]/[AppTypography] directly via
+/// `context.colors` rather than relying on Material theming.
 abstract class AppTheme {
-  static ThemeData get theme {
+  static ThemeData get light => _build(AppColorTokens.light, Brightness.light);
+  static ThemeData get dark => _build(AppColorTokens.dark, Brightness.dark);
+
+  static ThemeData _build(AppColorTokens colors, Brightness brightness) {
+    TextStyle withColor(TextStyle style, Color color) =>
+        style.copyWith(color: color);
+
     return ThemeData(
-      scaffoldBackgroundColor: AppColors.surfacePage,
+      brightness: brightness,
+      scaffoldBackgroundColor: colors.surfacePage,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.accentPrimary,
-        primary: AppColors.accentPrimary,
-        secondary: AppColors.accentSecondary,
-        error: AppColors.colorError,
-        surface: AppColors.surfaceCard,
+        brightness: brightness,
+        seedColor: colors.accentPrimary,
+        primary: colors.accentPrimary,
+        secondary: colors.accentSecondary,
+        error: colors.colorError,
+        surface: colors.surfaceCard,
       ),
+      extensions: [colors],
       textTheme: TextTheme(
-        displayLarge: AppTypography.display1,
-        displayMedium: AppTypography.display2,
-        headlineSmall: AppTypography.headline,
-        bodyLarge: AppTypography.bodyLg,
-        bodyMedium: AppTypography.body,
-        labelLarge: AppTypography.ui,
-        labelSmall: AppTypography.label,
-        bodySmall: AppTypography.caption,
+        displayLarge: withColor(AppTypography.display1, colors.textPrimary),
+        displayMedium: withColor(AppTypography.display2, colors.textPrimary),
+        headlineSmall: withColor(AppTypography.headline, colors.textPrimary),
+        bodyLarge: withColor(AppTypography.bodyLg, colors.textBody),
+        bodyMedium: withColor(AppTypography.body, colors.textBody),
+        labelLarge: withColor(AppTypography.ui, colors.textPrimary),
+        labelSmall: withColor(AppTypography.label, colors.textSecondary),
+        bodySmall: withColor(AppTypography.caption, colors.textSecondary),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.accentPrimary,
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: colors.accentPrimary,
       ),
-      dividerColor: AppColors.ink200,
-      hoverColor: AppColors.surfaceSunken,
-      highlightColor: AppColors.surfaceSunken,
-      splashColor: AppColors.accentPrimaryTint,
+      dividerColor: colors.ink200,
+      hoverColor: colors.surfaceSunken,
+      highlightColor: colors.surfaceSunken,
+      splashColor: colors.accentPrimaryTint,
       tooltipTheme: TooltipThemeData(
         decoration: BoxDecoration(
-          color: AppColors.ink950,
+          color: colors.ink950,
           borderRadius: BorderRadius.circular(AppSpacing.radiusXs),
         ),
-        textStyle:
-            AppTypography.caption.copyWith(color: AppColors.textOnAccent),
+        textStyle: withColor(AppTypography.caption, colors.textOnAccent),
         padding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.space2,
           vertical: AppSpacing.space1,
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppColors.ink950,
-        contentTextStyle:
-            AppTypography.ui.copyWith(color: AppColors.textOnAccent),
-        actionTextColor: AppColors.saffron500,
+        backgroundColor: colors.ink950,
+        contentTextStyle: withColor(AppTypography.ui, colors.textOnAccent),
+        actionTextColor: colors.saffron500,
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.surfacePage,
-        foregroundColor: AppColors.textPrimary,
+        backgroundColor: colors.surfacePage,
+        foregroundColor: colors.textPrimary,
         elevation: 0,
-        titleTextStyle: AppTypography.headline,
+        titleTextStyle: withColor(AppTypography.headline, colors.textPrimary),
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/article.dart';
 import '../services/api_client.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_back_bar.dart';
@@ -100,8 +101,12 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.space4),
         child: Column(
           children: [
-            Text(describeError(_error),
-                textAlign: TextAlign.center, style: AppTypography.caption),
+            Text(
+              describeError(_error),
+              textAlign: TextAlign.center,
+              style: AppTypography.caption
+                  .copyWith(color: context.colors.textSecondary),
+            ),
             const SizedBox(height: AppSpacing.space2),
             AppButton(
               label: 'Retry',
@@ -117,8 +122,11 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.space4),
         child: Center(
-          child: Text('That is every article so far.',
-              style: AppTypography.caption),
+          child: Text(
+            'That is every article so far.',
+            style: AppTypography.caption
+                .copyWith(color: context.colors.textSecondary),
+          ),
         ),
       );
     }

@@ -34,7 +34,7 @@ class AppIconButton extends StatelessWidget {
       iconSize: 20,
       tooltip: label,
       onPressed: onPressed,
-      color: active ? AppColors.accentPrimary : AppColors.textPrimary,
+      color: active ? context.colors.accentPrimary : context.colors.textPrimary,
       constraints: BoxConstraints.tightFor(width: size, height: size),
       splashRadius: size / 2,
     );

@@ -86,7 +86,7 @@ void main() {
       await tester.pumpWidget(_page(error: 'That did not work'));
 
       final error = tester.widget<Text>(find.text('That did not work'));
-      expect(error.style?.color, AppColors.colorError);
+      expect(error.style?.color, AppColorTokens.light.colorError);
     });
 
     testWidgets('lists the footer actions under the button', (tester) async {

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/article.dart';
 import '../services/api_client.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../widgets/app_back_bar.dart';
@@ -174,7 +175,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 padding: const EdgeInsets.only(bottom: AppSpacing.space2),
                 child: Text(
                   '${articles.length} ${articles.length == 1 ? 'result' : 'results'}',
-                  style: AppTypography.caption,
+                  style: AppTypography.caption
+                      .copyWith(color: context.colors.textSecondary),
                 ),
               );
             }

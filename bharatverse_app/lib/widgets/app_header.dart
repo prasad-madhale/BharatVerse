@@ -57,16 +57,17 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     // Both sides are as wide as the left icons (48px tap targets), so the
     // wordmark stays centered.
     final showLiked = authenticated && onLikedClick != null;
     final sideWidth = showLiked ? 96.0 : 48.0;
     return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surfacePage,
+      decoration: BoxDecoration(
+        color: colors.surfacePage,
         border: Border(
-          top: BorderSide(color: AppColors.ink950, width: 2),
-          bottom: BorderSide(color: AppColors.ink200),
+          top: BorderSide(color: colors.ink950, width: 2),
+          bottom: BorderSide(color: colors.ink200),
         ),
       ),
       child: SafeArea(
@@ -103,12 +104,18 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                       children: [
                         Text(
                           'BHARATVERSE',
-                          style: AppTypography.headline
-                              .copyWith(fontSize: 20, letterSpacing: 20 * 0.1),
+                          style: AppTypography.headline.copyWith(
+                            fontSize: 20,
+                            letterSpacing: 20 * 0.1,
+                            color: colors.textPrimary,
+                          ),
                         ),
                         const SizedBox(height: 2),
-                        Text(_formatLongDate(date ?? DateTime.now()),
-                            style: AppTypography.caption),
+                        Text(
+                          _formatLongDate(date ?? DateTime.now()),
+                          style: AppTypography.caption
+                              .copyWith(color: colors.textSecondary),
+                        ),
                       ],
                     ),
                   ),

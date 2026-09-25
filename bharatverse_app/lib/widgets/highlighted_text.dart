@@ -88,7 +88,7 @@ class HighlightedText extends StatelessWidget {
     }
     final marked = style.copyWith(
       fontWeight: FontWeight.w700,
-      color: AppColors.accentPrimary,
+      color: context.colors.accentPrimary,
     );
     final spans = <TextSpan>[];
     var last = 0;

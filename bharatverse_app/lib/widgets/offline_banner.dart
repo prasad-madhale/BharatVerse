@@ -21,19 +21,23 @@ class OfflineBanner extends StatelessWidget {
         if (!isOffline) {
           return const SizedBox.shrink();
         }
+        final colors = context.colors;
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: AppSpacing.space2),
-          decoration: const BoxDecoration(
-            color: AppColors.surfaceSunken,
-            border: Border(bottom: BorderSide(color: AppColors.borderStrong)),
+          decoration: BoxDecoration(
+            color: colors.surfaceSunken,
+            border: Border(bottom: BorderSide(color: colors.borderStrong)),
           ),
           child: ContentColumn(
             child: Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: AppSpacing.space4),
-              child: Text('OFFLINE · SHOWING SAVED ARTICLES',
-                  style: AppTypography.label),
+              child: Text(
+                'OFFLINE · SHOWING SAVED ARTICLES',
+                style:
+                    AppTypography.label.copyWith(color: colors.textSecondary),
+              ),
             ),
           ),
         );

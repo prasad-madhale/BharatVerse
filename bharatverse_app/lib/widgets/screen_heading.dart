@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import 'content_column.dart';
@@ -18,7 +19,11 @@ class ScreenHeading extends StatelessWidget {
         padding: const EdgeInsets.all(AppSpacing.space4),
         child: Align(
           alignment: Alignment.centerLeft,
-          child: Text(text.toUpperCase(), style: AppTypography.display2),
+          child: Text(
+            text.toUpperCase(),
+            style: AppTypography.display2
+                .copyWith(color: context.colors.textPrimary),
+          ),
         ),
       ),
     );

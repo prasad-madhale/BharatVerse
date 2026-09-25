@@ -10,7 +10,7 @@ List<String> marked(WidgetTester tester) {
     rich.text.visitChildren((span) {
       if (span is TextSpan &&
           span.text != null &&
-          span.style?.color == AppColors.accentPrimary) {
+          span.style?.color == AppColorTokens.light.accentPrimary) {
         texts.add(span.text!);
       }
       return true;

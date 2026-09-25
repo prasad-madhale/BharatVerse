@@ -47,6 +47,7 @@ class AuthFormPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Scaffold(
       appBar: AppBackBar(showBack: showBack),
       body: _CenterOrScroll(
@@ -58,7 +59,11 @@ class AuthFormPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(title.toUpperCase(), style: AppTypography.display2),
+                Text(
+                  title.toUpperCase(),
+                  style: AppTypography.display2
+                      .copyWith(color: colors.textPrimary),
+                ),
                 const SizedBox(height: AppSpacing.space5),
                 Column(
                   spacing: AppSpacing.space4,
@@ -69,7 +74,7 @@ class AuthFormPage extends StatelessWidget {
                 if (error != null) ...[
                   Text(error!,
                       style: AppTypography.caption
-                          .copyWith(color: AppColors.colorError)),
+                          .copyWith(color: colors.colorError)),
                   const SizedBox(height: AppSpacing.space4),
                 ],
                 AppButton(
@@ -77,11 +82,11 @@ class AuthFormPage extends StatelessWidget {
                   wide: true,
                   onPressed: submitting ? null : onSubmit,
                   loadingChild: submitting
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: AppColors.textOnAccent),
+                              strokeWidth: 2, color: colors.textOnAccent),
                         )
                       : null,
                 ),
