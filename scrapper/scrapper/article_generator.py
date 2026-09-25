@@ -25,53 +25,62 @@ logger = logging.getLogger(__name__)
 # Chosen so the BRD's stated 1500-2500 word target maps to ~10-15 minutes.
 WORDS_PER_MINUTE = 150
 
-PROMPT_TEMPLATE = """# Role
+PROMPT_TEMPLATE = """<source_material>
+{source_text}
+</source_material>
+
+<role>
 You are a historical content curator for BharatVerse, specializing in Indian history. You write for
 a Gen Z / young-adult audience who are curious but time-poor: they'll drop off if an article reads
 like a textbook, but they'll stay for surprising, vivid, well-told history -- as long as every claim
 is true.
+</role>
 
-# Task
-Transform the scraped source material below (topic: "{topic}") into a structured historical article.
+<grounding_rules>
+Every factual claim (names, dates, numbers, quotes, cause-and-effect) must be directly supported by
+the source material above. Do not add, embellish, or "round up" facts that aren't there.
+If the source material is ambiguous, incomplete, or conflicting on a point, say so plainly or omit
+the point -- do not resolve the gap by inventing specifics.
+Do not invent quotes, statistics, or named individuals that do not appear in the source material.
+Vivid language, framing, and narrative structure are encouraged; invented facts are not. When in
+doubt, prefer a true, less dramatic sentence over a false, more dramatic one.
+</grounding_rules>
 
-# Grounding rules (do not violate)
-- Every factual claim (names, dates, numbers, quotes, cause-and-effect) must be directly supported by
-  the source material. Do not add, embellish, or "round up" facts that aren't there.
-- If the source material is ambiguous, incomplete, or conflicting on a point, say so plainly or omit
-  the point -- do not resolve the gap by inventing specifics.
-- Do not invent quotes, statistics, or named individuals that do not appear in the source material.
-- Vivid language, framing, and narrative structure are encouraged; invented facts are not. When in
-  doubt, prefer a true, less dramatic sentence over a false, more dramatic one.
+<voice_and_style>
+Hook readers in the first two sentences -- lead with the most striking, human, or surprising detail
+from the source material, not with dynasties/dates/background first.
+Write like a smart friend explaining something fascinating, not like an encyclopedia: short,
+punchy sentences mixed with longer ones; active voice; concrete imagery over abstract summary.
+Connect the past to something the reader recognizes today where the source material supports it
+(e.g. scale, ambition, betrayal, innovation) -- but only draw comparisons that follow from the
+actual facts, never a forced or inaccurate one.
+Avoid textbook filler phrases ("played a significant role in", "it is important to note that").
+Make each section heading tease what's interesting about that section, not just label a topic.
+</voice_and_style>
 
-# Voice and style (make it compelling, not dry)
-- Hook readers in the first two sentences -- lead with the most striking, human, or surprising detail
-  from the source material, not with dynasties/dates/background first.
-- Write like a smart friend explaining something fascinating, not like an encyclopedia: short,
-  punchy sentences mixed with longer ones; active voice; concrete imagery over abstract summary.
-- Connect the past to something the reader recognizes today where the source material supports it
-  (e.g. scale, ambition, betrayal, innovation) -- but only draw comparisons that follow from the
-  actual facts, never a forced or inaccurate one.
-- Avoid textbook filler phrases ("played a significant role in", "it is important to note that").
-- Each section heading should tease what's interesting about that section, not just label a topic.
+<structure_requirements>
+A compelling, specific title (not generic, not clickbait that oversells beyond the facts).
+A 2-3 sentence summary that captures the hook, not just a topic restatement.
+4-6 sections, each with a heading and substantial Markdown-formatted content -- aim for roughly
+300-450 words per section, not a couple of short paragraphs each.
+STRICT LENGTH REQUIREMENT, applying to every section, not only the first: the article body (all
+sections combined) must land between 1500 and 2000 words total. This is a hard requirement in
+both directions, not just a ceiling -- under 1500 words is just as much a failure as over 2000,
+and either will be automatically rejected. If you're unsure whether you've written enough, add
+more concrete detail, examples, or context from the source material to each thin section rather
+than stopping early -- do not treat concision as a virtue here. Count roughly as you go and keep
+expanding sections that are thin.
+3-6 relevant lowercase, hyphenated tags (e.g. "mauryan-empire", "ancient-india").
+</structure_requirements>
 
-# Structure
-- Compelling, specific title (not generic, not clickbait that oversells beyond the facts)
-- A 2-3 sentence summary that captures the hook, not just a topic restatement
-- 4-6 sections, each with a heading and substantial Markdown-formatted content -- aim for
-  roughly 300-450 words per section, not a couple of short paragraphs each.
-- STRICT LENGTH REQUIREMENT: the article body (all sections combined) must land between 1500
-  and 2000 words total -- this is a hard requirement in BOTH directions, not just a ceiling.
-  Under 1500 words is just as much a failure as over 2000: it will be automatically rejected
-  either way. If you're unsure whether you've written enough, add more concrete detail, examples,
-  or context from the source material to each section rather than stopping early -- do not treat
-  concision as a virtue here. Count roughly as you go and keep expanding sections that are thin.
-- Provide 3-6 relevant lowercase, hyphenated tags (e.g. "mauryan-empire", "ancient-india")
+<task>
+Using only the source material above, write a structured historical article about "{topic}" that
+follows the grounding rules, voice and style, and structure requirements given.
+</task>
 
-# Source material
-{source_text}
-
-# Output format
-Respond with ONLY a JSON object (no markdown code fences, no extra commentary) matching exactly this shape:
+<output_format>
+Respond with only a JSON object matching exactly this shape. Do not include markdown code fences
+or any text before or after the JSON.
 {{
   "title": "...",
   "summary": "...",
@@ -79,40 +88,46 @@ Respond with ONLY a JSON object (no markdown code fences, no extra commentary) m
     {{"heading": "...", "content": "..."}}
   ],
   "tags": ["...", "..."]
-}}"""
+}}
+</output_format>"""
 
-REVISION_PROMPT_TEMPLATE = """# Role
-You are the historical content curator for BharatVerse who wrote the draft below (topic:
-"{topic}"). An editor reviewed it and found issues. Revise the draft to address them,
-keeping everything that already works.
+REVISION_PROMPT_TEMPLATE = """<source_material>
+{source_text}
+</source_material>
 
-# Grounding rules (do not violate)
-- Every factual claim (names, dates, numbers, quotes, cause-and-effect) must be directly
-  supported by the source material below.
-- If an issue is about an unsupported claim or a citation that doesn't support its claim,
-  fix it by softening or removing the claim -- never by inventing new grounding for it.
-
-# What to fix
-- Address every issue marked "major" below.
-- Address a "minor" issue only if it doesn't require rewriting the section around it.
-- Keep the 1500-2000 word total, the section structure, and the voice unless an issue
-  specifically requires changing them.
-
-# Editor's feedback
-{issues}
-
-# Current draft
+<current_draft>
 ## {title}
 {summary}
 
 {sections}
+</current_draft>
 
-# Source material
-{source_text}
+<editors_feedback>
+{issues}
+</editors_feedback>
 
-# Output format
-Respond with ONLY a JSON object (no markdown code fences, no extra commentary) matching
-exactly this shape:
+<role>
+You are the historical content curator for BharatVerse who wrote the draft above (topic:
+"{topic}"). An editor reviewed it and found the issues listed above. Revise the draft to
+address them, keeping everything that already works.
+</role>
+
+<grounding_rules>
+Every factual claim (names, dates, numbers, quotes, cause-and-effect) must be directly
+supported by the source material above.
+If an issue is about an unsupported claim or a citation that doesn't support its claim,
+fix it by softening or removing the claim -- never by inventing new grounding for it.
+</grounding_rules>
+
+<task>
+Address every issue marked "major" in the editor's feedback above. Address a "minor" issue
+only if it doesn't require rewriting the section around it. Keep the 1500-2000 word total,
+the section structure, and the voice unless an issue specifically requires changing them.
+</task>
+
+<output_format>
+Respond with only a JSON object matching exactly this shape. Do not include markdown code fences
+or any text before or after the JSON.
 {{
   "title": "...",
   "summary": "...",
@@ -120,7 +135,8 @@ exactly this shape:
     {{"heading": "...", "content": "..."}}
   ],
   "tags": ["...", "..."]
-}}"""
+}}
+</output_format>"""
 
 
 class ArticleGenerationError(Exception):
@@ -162,11 +178,12 @@ class ArticleGenerator:
             )
 
         prompt = self._build_prompt(scraped_content, topic)
-        # Generous ceiling, not a cost driver (billed on actual usage) -- needs
-        # headroom beyond the ~2000-word article itself since extended-thinking
-        # -capable models (e.g. claude-sonnet-5) spend part of this budget on
-        # internal reasoning before producing the final JSON.
-        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=8000)
+        # Generous ceiling, not a cost driver (billed on actual usage) -- needs headroom beyond
+        # the ~2000-word article itself since claude-sonnet-5 runs adaptive thinking by default
+        # and max_tokens caps thinking plus the response together (see llm_provider.py's
+        # generate_text docstring). effort is left unset (implicit "high") since this is the
+        # open-ended creative-writing step, not a structured, bounded task.
+        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=16000)
         parsed = self._parse_llm_response(raw_response)
 
         sections = self._build_sections(parsed)
@@ -201,7 +218,12 @@ class ArticleGenerator:
                 the expected shape.
         """
         prompt = self._build_revision_prompt(article, scraped_content, topic, feedback)
-        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=8000)
+        # effort="medium": a bounded, well-specified fix-the-listed-issues task, not open-ended
+        # exploration -- caps adaptive-thinking depth so it can't consume the whole max_tokens
+        # budget and return empty text (this prompt is the longest of the three: source material
+        # plus the full current draft plus feedback), per Anthropic's own guidance for this
+        # failure mode.
+        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=16000, effort="medium")
         parsed = self._parse_llm_response(raw_response)
 
         sections = self._build_sections(parsed)
