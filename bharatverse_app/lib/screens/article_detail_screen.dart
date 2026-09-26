@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models/article.dart';
 import '../services/api_client.dart';
+import '../services/reading_history.dart';
 import '../state/auth_state.dart';
 import '../state/like_state.dart';
 import '../state/save_state.dart';
@@ -19,13 +20,20 @@ import '../widgets/content_column.dart';
 import '../widgets/glass_surface.dart';
 import 'auth_screen.dart';
 
-/// Opens [article], first noting the view so it stays in the offline cache.
+/// Opens [article], first noting the view so it stays in the offline cache
+/// and in the Library screen's "Recently read".
 Future<void> openArticle(
   BuildContext context,
   ApiClient apiClient,
   Article article,
 ) {
   unawaited(apiClient.markViewed(article));
+  // Best-effort: a widget test that doesn't care about Library's "Recently
+  // read" won't have registered a ReadingHistory, and missing one entry
+  // there is harmless, unlike the offline cache markViewed keeps.
+  try {
+    unawaited(context.read<ReadingHistory>().recordOpened(article.id));
+  } catch (_) {}
   return Navigator.of(context).push(
     MaterialPageRoute(builder: (_) => ArticleDetailScreen(article: article)),
   );

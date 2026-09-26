@@ -65,9 +65,9 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   same saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README).
 - **App redesign, in progress** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff):
   Phase 1 (theme + navigation) and Phase 2 (onboarding + auth) are done. Phase 3 (Home/Article/Library/Search) is
-  in progress: the `era` field, a real save/bookmark feature, and the Home and Article screens' visual redesign are
-  done; Library (still `LikedArticlesScreen`, pending its "Saved"/"Recently read" rebuild) and Search still render
-  in the old Vintage Broadsheet style. Phase 4 (Settings sheet) is not started. `lib/theme/app_colors.dart`/
+  in progress: the `era` field, a real save/bookmark feature, and the Home, Article and Library screens' visual
+  redesign are done; Search still renders in the old Vintage Broadsheet style. Phase 4 (Settings sheet) is not
+  started. `lib/theme/app_colors.dart`/
   `app_typography.dart` are now a `ThemeExtension<AppColorTokens>` with full Light and Dark ("Night Edition")
   palettes, resolved via the `context.colors` shorthand; `ThemeModeState` (Provider + `SharedPreferences`, same
   `.open()` factory convention as `ArticleCache`/`PendingLikes`) holds the reader's Light/Dark/System choice, not
@@ -94,7 +94,14 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   deleted, superseded by the masthead and by the article screen's own labelled Save/Like pills. `ArticleDetailScreen`
   is rebuilt around those two pills, a floating glass back button, and a plain (not overlaid) date/read-time/era
   byline; it has no share button yet (no share package, and no defined per-article URL to share), which
-  "Not built" below tracks.
+  "Not built" below tracks. `LikedArticlesScreen` (a standalone "your likes" list, opened from a header icon) is
+  deleted along with that icon: the redesign has no such screen, only the per-article Like toggle. In its place,
+  the Library tab is a real `LibraryScreen` -- a "Saved" section (`SaveState`/`SavesClient`, mirroring how Likes
+  load) and a "Recently read" section backed by a new `ReadingHistory` (`SharedPreferences`-backed like
+  `ArticleCache`, but device-local rather than per-user, since it is reading history, not an account record);
+  `openArticle()` records into it for every screen that opens an article. The mockup's per-row "remove from saved"
+  button reuses `SaveButton`; recently-read rows have no action, matching the mockup. The continue-reading mini-bar
+  that also reads from `ReadingHistory` is not wired into `AppShell` yet.
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags and summary (not
   article bodies, which live in Storage), so a tag-only match is found too. PostgREST's `text_search` takes a column
   name, not an expression, which is why the vector is a stored column with a GIN index. A tag like `covid-19` is
@@ -152,9 +159,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   routes do not exist. The app signs in through `supabase_flutter`, not these endpoints.
 - The app reads articles straight from Supabase's REST and Storage APIs instead of proxying through the backend, which
   is what lets a physical phone work without the dev machine.
-- Articles do not carry `is_liked`. `LikeButton` reads `LikeState` and `AuthState` itself, and `LikeState` loads a user's
-  likes on sign-in, so neither has the design's `fetchUserLikes` or `likedArticleIds`. Likes open from a header icon,
-  as there is no `ProfileScreen`.
+- Articles do not carry `is_liked`. The article screen's Like pill reads `LikeState` and `AuthState` itself, and
+  `LikeState` loads a user's likes on sign-in, so neither has the design's `fetchUserLikes` or `likedArticleIds`.
 - Suggestions come from a pre-computed `search_suggestions` table filled by a trigger, as the design says, but it holds
   titles and tags only: no person, event or period entities, which would need named-entity extraction (requirement 7.6's
   names that appear only in an article's text are found by search, not suggested). Its `frequency` column became

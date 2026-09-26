@@ -6,7 +6,7 @@ import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../widgets/glass_surface.dart';
 import 'home_screen.dart';
-import 'liked_articles_screen.dart';
+import 'library_screen.dart';
 import 'search_screen.dart';
 
 enum _AppTab { today, library }
@@ -16,12 +16,6 @@ enum _AppTab { today, library }
 /// button -- Milestone 1's navigation model (see docs/roadmap.md and the
 /// design handoff's "Tab bar, now and later" section). Screens stay resident
 /// in the stack, so switching tabs never loses scroll position.
-///
-/// The Library tab is [LikedArticlesScreen] for now -- Phase 3 replaces it
-/// with a real Library screen (Saved + Recently read); [HomeScreen] still
-/// carries its own header with search/liked icons too, which will look
-/// redundant next to the new tab bar until Phase 3's Home redesign removes
-/// them. Both are known, temporary Phase 1 states, not final design.
 class AppShell extends StatefulWidget {
   final ApiClient apiClient;
 
@@ -43,7 +37,7 @@ class _AppShellState extends State<AppShell> {
             index: _tab.index,
             children: [
               HomeScreen(apiClient: widget.apiClient),
-              LikedArticlesScreen(apiClient: widget.apiClient),
+              LibraryScreen(apiClient: widget.apiClient),
             ],
           ),
           Positioned(

@@ -12,6 +12,7 @@ import 'services/article_cache.dart';
 import 'services/likes_client.dart';
 import 'services/pending_likes.dart';
 import 'services/pending_saves.dart';
+import 'services/reading_history.dart';
 import 'services/saves_client.dart';
 import 'state/auth_state.dart';
 import 'state/like_state.dart';
@@ -29,12 +30,14 @@ Future<void> main() async {
   final pendingSaves = await PendingSaves.open();
   final themeModeState = await ThemeModeState.open();
   final onboardingState = await OnboardingState.open();
+  final readingHistory = await ReadingHistory.open();
   runApp(BharatVerseApp(
     apiClient: ApiClient(cache: cache),
     pendingLikes: pendingLikes,
     pendingSaves: pendingSaves,
     themeModeState: themeModeState,
     onboardingState: onboardingState,
+    readingHistory: readingHistory,
   ));
 }
 
@@ -44,6 +47,7 @@ class BharatVerseApp extends StatelessWidget {
   final PendingSaves pendingSaves;
   final ThemeModeState themeModeState;
   final OnboardingState onboardingState;
+  final ReadingHistory readingHistory;
 
   const BharatVerseApp({
     super.key,
@@ -52,6 +56,7 @@ class BharatVerseApp extends StatelessWidget {
     required this.pendingSaves,
     required this.themeModeState,
     required this.onboardingState,
+    required this.readingHistory,
   });
 
   @override
@@ -82,6 +87,7 @@ class BharatVerseApp extends StatelessWidget {
           ),
         ),
         ChangeNotifierProvider.value(value: themeModeState),
+        Provider.value(value: readingHistory),
       ],
       child: Consumer<ThemeModeState>(
         builder: (context, themeModeState, _) => MaterialApp(
