@@ -18,6 +18,7 @@ import 'state/auth_state.dart';
 import 'state/like_state.dart';
 import 'state/onboarding_state.dart';
 import 'state/save_state.dart';
+import 'state/settings_state.dart';
 import 'state/theme_mode_state.dart';
 import 'theme/app_theme.dart';
 import 'widgets/recovery_gate.dart';
@@ -31,6 +32,7 @@ Future<void> main() async {
   final themeModeState = await ThemeModeState.open();
   final onboardingState = await OnboardingState.open();
   final readingHistory = await ReadingHistory.open();
+  final settingsState = await SettingsState.open();
   runApp(BharatVerseApp(
     apiClient: ApiClient(cache: cache),
     pendingLikes: pendingLikes,
@@ -38,6 +40,7 @@ Future<void> main() async {
     themeModeState: themeModeState,
     onboardingState: onboardingState,
     readingHistory: readingHistory,
+    settingsState: settingsState,
   ));
 }
 
@@ -48,6 +51,7 @@ class BharatVerseApp extends StatelessWidget {
   final ThemeModeState themeModeState;
   final OnboardingState onboardingState;
   final ReadingHistory readingHistory;
+  final SettingsState settingsState;
 
   const BharatVerseApp({
     super.key,
@@ -57,6 +61,7 @@ class BharatVerseApp extends StatelessWidget {
     required this.themeModeState,
     required this.onboardingState,
     required this.readingHistory,
+    required this.settingsState,
   });
 
   @override
@@ -88,6 +93,7 @@ class BharatVerseApp extends StatelessWidget {
         ),
         ChangeNotifierProvider.value(value: themeModeState),
         Provider.value(value: readingHistory),
+        ChangeNotifierProvider.value(value: settingsState),
       ],
       child: Consumer<ThemeModeState>(
         builder: (context, themeModeState, _) => MaterialApp(

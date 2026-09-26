@@ -66,12 +66,12 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 - **App redesign, in progress** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff):
   Phase 1 (theme + navigation) and Phase 2 (onboarding + auth) are done. Phase 3 (Home/Article/Library/Search) is
   in progress: the `era` field, a real save/bookmark feature, and the Home, Article and Library screens' visual
-  redesign are done; Search still renders in the old Vintage Broadsheet style. Phase 4 (Settings sheet) is not
-  started. `lib/theme/app_colors.dart`/
+  redesign are done; Search still renders in the old Vintage Broadsheet style. Phase 4 (Settings sheet) is done.
+  `lib/theme/app_colors.dart`/
   `app_typography.dart` are now a `ThemeExtension<AppColorTokens>` with full Light and Dark ("Night Edition")
   palettes, resolved via the `context.colors` shorthand; `ThemeModeState` (Provider + `SharedPreferences`, same
-  `.open()` factory convention as `ArticleCache`/`PendingLikes`) holds the reader's Light/Dark/System choice, not
-  yet exposed in any UI (Phase 4's Settings sheet) -- it defaults to System. `AppShell` replaces the old push-only
+  `.open()` factory convention as `ArticleCache`/`PendingLikes`) holds the reader's Light/Dark/System choice,
+  exposed via the Settings sheet's Appearance rows -- it defaults to System. `AppShell` replaces the old push-only
   root with an `IndexedStack` of Today/Library tabs under a floating glass-blur tab bar and a separate Search
   button (`GlassSurface`, `lib/widgets/glass_surface.dart`). `OnboardingScreen` (splash + 3 feature slides, shown
   once per install via `OnboardingState`) uses its own bundled photos (hand-picked from Wikimedia Commons after a
@@ -86,8 +86,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   which is Search's own sub-phase. Save/bookmark is a full second vertical slice paralleling Likes exactly, not a
   reuse of it: `saved_articles` table, `SaveService`, `/articles/{id}/save` + `/users/me/saves` routes on the
   backend; `SavesClient`/`SaveState`/`PendingSaves` in the app, registered in `main.dart` right after the
-  equivalent Likes classes. `HomeScreen` ("Today") is rebuilt: a masthead (date, an avatar button that still just
-  signs in/out until Phase 4's Settings sheet replaces it), category chips that filter the loaded articles by tag
+  equivalent Likes classes. `HomeScreen` ("Today") is rebuilt: a masthead (date, an avatar button -- see the
+  Settings sheet, below), category chips that filter the loaded articles by tag
   or era, a rounded-artwork featured card, and an "Earlier this week" list -- both card sizes moved into
   `ArticleCard`, which now also carries the save-toggle bookmark button used everywhere it appears (Home, Archive,
   Search, Library). The old `AppHeader` (and the icon-only `LikeButton` it and the article screen used) are
@@ -101,7 +101,17 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   `ArticleCache`, but device-local rather than per-user, since it is reading history, not an account record);
   `openArticle()` records into it for every screen that opens an article. The mockup's per-row "remove from saved"
   button reuses `SaveButton`; recently-read rows have no action, matching the mockup. The continue-reading mini-bar
-  that also reads from `ReadingHistory` is not wired into `AppShell` yet.
+  that also reads from `ReadingHistory` is not wired into `AppShell` yet. Tapping the masthead's `AccountAvatar`
+  while signed in opens `SettingsSheet` (a modal bottom sheet, not a pushed screen) instead of signing out directly;
+  signed out, it still opens `AuthScreen`. The sheet shows the real signed-in email under a generic "Your account"
+  label rather than the mockup's fake "Reader" display name, since the app has no real name concept. Its Appearance
+  rows read/write the existing `ThemeModeState`, so the Light/Dark/System choice from Phase 1 is now reachable from
+  the UI. A new `SettingsState` (`ChangeNotifier`, `SharedPreferences`-backed, same `.open()` factory convention)
+  holds the rest: a `TextSize` enum (small/medium/large, 16/18/21pt) that `ArticleDetailScreen`'s body text actually
+  resizes to (read defensively -- `TextSize.medium` when nothing registered a `SettingsState`, so tests that don't
+  care about text size don't need to wire one up, the same tradeoff as `ReadingHistory` above); three notification
+  toggles (daily story, weekly digest, product news); and an offline-download toggle. Both are documented in "Not
+  built" below, since neither does anything beyond persisting a preference.
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags and summary (not
   article bodies, which live in Storage), so a tag-only match is found too. PostgREST's `text_search` takes a column
   name, not an expression, which is why the vector is a stored column with a GIN index. A tag like `covid-19` is
@@ -189,6 +199,14 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   an offline `search_articles` would need its own copy of that logic).
 - A share button on the article screen: the redesign's mockup has one, but there is no share package dependency yet
   and no defined per-article URL to share (the app has no deep-linkable article routes).
+- The Settings sheet's notification toggles (`SettingsState.notifDaily`/`notifWeekly`/`notifAnnounce`) are UI +
+  `SharedPreferences` only: no FCM/APNs integration, no backend table, and no code path that ever sends a
+  notification. Toggling one can never mean a notification actually arrives -- push is out of scope for the
+  product (`docs/requirements.md`), and neither design file for this redesign mentions it.
+- The Settings sheet's "Download for offline" toggle (`SettingsState.offlineOn`) persists but is not wired to
+  `ArticleCache`: every article opened is already cached regardless of this toggle's value, and turning it off does
+  not stop that. Wiring it to real behavior (e.g. always keeping today's article cached even if it would otherwise
+  be evicted) was judged more invasive than Milestone 1's scope warrants.
 
 ## Decisions
 

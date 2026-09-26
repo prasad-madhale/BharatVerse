@@ -5,12 +5,11 @@ import '../screens/auth_screen.dart';
 import '../state/auth_state.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_typography.dart';
+import 'settings_sheet.dart';
 
 /// The circular account button used on Today's and Library's mastheads: the
 /// signed-in user's initial, or a person icon when signed out. Tapping it
-/// signs out when signed in, or opens [AuthScreen] otherwise -- the same
-/// behavior the old header's auth icon had, until Phase 4's Settings sheet
-/// replaces it with a proper account row.
+/// opens the Settings sheet when signed in, or [AuthScreen] otherwise.
 class AccountAvatar extends StatelessWidget {
   const AccountAvatar({super.key});
 
@@ -24,10 +23,10 @@ class AccountAvatar extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: authState.isAuthenticated ? 'Account and sign out' : 'Sign in',
+      label: authState.isAuthenticated ? 'Account settings' : 'Sign in',
       child: InkWell(
         onTap: () => authState.isAuthenticated
-            ? authState.logout()
+            ? SettingsSheet.show(context)
             : Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => const AuthScreen())),
         customBorder: const CircleBorder(),
