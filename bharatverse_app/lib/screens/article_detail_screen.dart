@@ -10,6 +10,7 @@ import '../services/reading_history.dart';
 import '../state/auth_state.dart';
 import '../state/like_state.dart';
 import '../state/save_state.dart';
+import '../state/settings_state.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
@@ -37,6 +38,18 @@ Future<void> openArticle(
   return Navigator.of(context).push(
     MaterialPageRoute(builder: (_) => ArticleDetailScreen(article: article)),
   );
+}
+
+/// The Settings sheet's text-size preference, or the default when nothing
+/// registered a [SettingsState] -- best-effort like [ReadingHistory] above:
+/// a test rendering an article that doesn't care about text size shouldn't
+/// need to register this just to build.
+TextSize _textSize(BuildContext context) {
+  try {
+    return context.watch<SettingsState>().textSize;
+  } catch (_) {
+    return TextSize.medium;
+  }
 }
 
 class ArticleDetailScreen extends StatelessWidget {
@@ -355,7 +368,8 @@ class _Section extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final bodyStyleSheet = MarkdownStyleSheet(
-      p: AppTypography.bodyLg.copyWith(color: colors.textBody),
+      p: AppTypography.bodyLg.copyWith(
+          color: colors.textBody, fontSize: _textSize(context).points),
     );
 
     return Column(
