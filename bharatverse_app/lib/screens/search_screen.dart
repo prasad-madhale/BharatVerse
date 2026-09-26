@@ -16,6 +16,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/highlighted_text.dart';
 import '../widgets/suggestion_tile.dart';
 import 'article_detail_screen.dart';
+import 'auth_screen.dart';
 
 /// Full-text search over the archive. Searches on submit and highlights the
 /// matched terms in the results. While the reader types, the titles and tags
@@ -185,6 +186,9 @@ class _SearchScreenState extends State<SearchScreen> {
               article: article,
               highlight: terms,
               onTap: () => openArticle(context, widget.apiClient, article),
+              onRequireAuth: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AuthScreen()),
+              ),
             );
           },
         );

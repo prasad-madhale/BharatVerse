@@ -13,6 +13,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/offline_banner.dart';
 import '../widgets/screen_heading.dart';
 import 'article_detail_screen.dart';
+import 'auth_screen.dart';
 
 /// Every past article, newest first, loaded a page at a time as the reader
 /// scrolls.
@@ -49,7 +50,12 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
   }
 
   void _loadMoreIfNeeded() {
-    if (_scroll.hasClients && _scroll.position.extentAfter < 300) {
+    // Not when an error is already showing: that must wait for an explicit
+    // Retry tap, or staying scrolled to the bottom would retry it silently
+    // on every frame without the reader ever seeing it failed.
+    if (_scroll.hasClients &&
+        _scroll.position.extentAfter < 300 &&
+        _error == null) {
       _loadMore();
     }
   }
@@ -168,6 +174,9 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
         return ArticleCard(
           article: article,
           onTap: () => openArticle(context, widget.apiClient, article),
+          onRequireAuth: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const AuthScreen()),
+          ),
         );
       },
     );

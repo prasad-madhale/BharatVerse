@@ -8,8 +8,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:bharatverse_app/screens/archive_screen.dart';
 import 'package:bharatverse_app/screens/home_screen.dart';
-import 'package:bharatverse_app/screens/liked_articles_screen.dart';
-import 'package:bharatverse_app/screens/search_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/widgets/article_card.dart';
@@ -22,8 +20,9 @@ import 'package:bharatverse_app/services/article_cache.dart';
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
-/// Wraps HomeScreen with a signed-out AuthState and LikeState: the account icon
-/// and the detail screen's like button need them whether or not a test cares.
+/// Wraps HomeScreen with a signed-out AuthState and LikeState: the account
+/// avatar and the detail screen's like button need them whether or not a
+/// test cares.
 Widget _wrapWithProviders(ApiClient apiClient, {bool signedIn = false}) {
   final mockAuthClient = MockGoTrueClient();
   when(() => mockAuthClient.currentUser)
@@ -51,16 +50,15 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('THE MAURYAN EMPIRE'), findsOneWidget);
+    expect(find.text('The Mauryan Empire'), findsOneWidget);
     expect(find.text('A summary of the Mauryan Empire.'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
-  testWidgets('shows up to 5 articles with the label only on the first',
-      (tester) async {
-    // Tall enough that ListView.builder lays out all 5 cards without needing
-    // to scroll -- it only builds what's within the viewport.
-    await tester.binding.setSurfaceSize(const Size(800, 2400));
+  testWidgets('shows up to 5 articles, the first one featured', (tester) async {
+    // Tall enough that ListView lays out all 5 cards without needing to
+    // scroll -- it only builds what's within the viewport.
+    await tester.binding.setSurfaceSize(const Size(800, 3200));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
     final mockClient = articlesMockClient(() => List.generate(
@@ -73,10 +71,10 @@ void main() {
     await tester.pumpAndSettle();
 
     for (var i = 0; i < 5; i++) {
-      expect(find.text('ARTICLE $i'), findsOneWidget);
+      expect(find.text('Article $i'), findsOneWidget);
     }
     expect(find.byType(ArticleCard), findsNWidgets(5));
-    expect(find.text('TODAY\'S ARTICLE'), findsOneWidget);
+    expect(find.textContaining("Today's story"), findsOneWidget);
   });
 
   testWidgets('shows an empty state when there are no articles',
@@ -116,7 +114,7 @@ void main() {
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
 
-    expect(find.text('THE MAURYAN EMPIRE'), findsOneWidget);
+    expect(find.text('The Mauryan Empire'), findsOneWidget);
   });
 
   testWidgets('navigates to article detail on tap', (tester) async {
@@ -130,64 +128,87 @@ void main() {
     await tester.pumpAndSettle();
 
     // Detail screen renders the (uppercased) section heading.
-    expect(find.text('ORIGINS'), findsOneWidget);
+    expect(find.text('Origins'), findsOneWidget);
   });
 
-  testWidgets(
-      'shows a sign-in icon when logged out and opens AuthScreen on tap',
-      (tester) async {
-    final mockClient = articlesMockClient(() => [sampleArticleRow()]);
-    final apiClient = ApiClient(client: mockClient);
-
-    await tester.pumpWidget(_wrapWithProviders(apiClient));
-    await tester.pumpAndSettle();
-
-    expect(find.byIcon(Icons.login), findsOneWidget);
-
-    await tester.tap(find.byIcon(Icons.login));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Welcome back'), findsOneWidget);
-  });
-
-  testWidgets('the search icon opens the search screen', (tester) async {
-    final apiClient =
-        ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
-    await tester.pumpWidget(_wrapWithProviders(apiClient));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byTooltip('Search'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(SearchScreen), findsOneWidget);
-  });
-
-  group('the liked-articles icon', () {
-    late ApiClient apiClient;
-
-    setUp(() {
-      apiClient =
+  group('the account avatar', () {
+    testWidgets('shows a person icon when signed out and opens AuthScreen',
+        (tester) async {
+      final apiClient =
           ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
-    });
-
-    testWidgets('is only there while signed in', (tester) async {
       await tester.pumpWidget(_wrapWithProviders(apiClient));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Liked articles'), findsNothing);
 
-      await tester.pumpWidget(_wrapWithProviders(apiClient, signedIn: true));
+      expect(find.byIcon(Icons.person_outline), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.person_outline));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Liked articles'), findsOneWidget);
+
+      expect(find.text('Welcome back'), findsOneWidget);
     });
 
-    testWidgets('opens the liked articles', (tester) async {
+    testWidgets('shows the signed-in email\'s initial when signed in',
+        (tester) async {
+      final apiClient =
+          ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
       await tester.pumpWidget(_wrapWithProviders(apiClient, signedIn: true));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Liked articles'));
+      expect(find.byIcon(Icons.person_outline), findsNothing);
+      expect(find.text(testUser().email![0].toUpperCase()), findsOneWidget);
+    });
+  });
+
+  group('category chips', () {
+    testWidgets('filter the visible articles by tag or era', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 3200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final apiClient = ApiClient(
+        client: articlesMockClient(() => [
+              sampleArticleRow(
+                  id: 'a1',
+                  title: 'Empire Story',
+                  tags: const ['mauryan-empire']),
+              sampleArticleRow(
+                  id: 'a2', title: 'Trade Story', tags: const ['silk-trade']),
+            ]),
+      );
+
+      await tester.pumpWidget(_wrapWithProviders(apiClient));
+      await tester.pumpAndSettle();
+      expect(find.text('Empire Story'), findsOneWidget);
+      expect(find.text('Trade Story'), findsOneWidget);
+
+      await tester.tap(find.text('Trade'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(LikedArticlesScreen), findsOneWidget);
+      expect(find.text('Empire Story'), findsNothing);
+      expect(find.text('Trade Story'), findsOneWidget);
+    });
+
+    testWidgets('"All" shows every article again', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(800, 3200));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final apiClient = ApiClient(
+        client: articlesMockClient(() => [
+              sampleArticleRow(
+                  id: 'a1',
+                  title: 'Empire Story',
+                  tags: const ['mauryan-empire']),
+              sampleArticleRow(
+                  id: 'a2', title: 'Trade Story', tags: const ['silk-trade']),
+            ]),
+      );
+
+      await tester.pumpWidget(_wrapWithProviders(apiClient));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Trade'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('All'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Empire Story'), findsOneWidget);
+      expect(find.text('Trade Story'), findsOneWidget);
     });
   });
 
@@ -214,19 +235,6 @@ void main() {
     expect(tester.getSize(find.byType(ArticleCard)).width, 720 - 2 * 16);
   });
 
-  testWidgets('keeps the header icons in the reading column on a wide screen',
-      (tester) async {
-    useWideScreen(tester);
-    final apiClient =
-        ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
-    await tester.pumpWidget(_wrapWithProviders(apiClient));
-    await tester.pumpAndSettle();
-
-    // The column is 720 wide, centered in 1600, with 4px and 12px row padding.
-    expect(tester.getTopLeft(find.byTooltip('Search')).dx, closeTo(444, 12));
-    expect(tester.getTopRight(find.byTooltip('Sign in')).dx, closeTo(1148, 12));
-  });
-
   testWidgets('shows a plain message, not the raw error, when loading fails',
       (tester) async {
     final apiClient = ApiClient(
@@ -246,7 +254,7 @@ void main() {
 
   group('the archive link', () {
     Future<void> pumpHome(WidgetTester tester, int articles) async {
-      await tester.binding.setSurfaceSize(const Size(800, 2400));
+      await tester.binding.setSurfaceSize(const Size(800, 3200));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final apiClient = ApiClient(
         client: articlesMockClient(() => List.generate(articles,
@@ -256,11 +264,10 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('follows a full page of recent articles and opens the archive',
-        (tester) async {
+    testWidgets('follows "Earlier this week" to the archive', (tester) async {
       await pumpHome(tester, 5);
 
-      await tester.tap(find.text('Browse the archive →'));
+      await tester.tap(find.text('Earlier this week'));
       await tester.pumpAndSettle();
 
       expect(find.byType(ArchiveScreen), findsOneWidget);
@@ -268,9 +275,9 @@ void main() {
 
     testWidgets('is left out when there is nothing older to browse',
         (tester) async {
-      await pumpHome(tester, 3);
+      await pumpHome(tester, 1);
 
-      expect(find.text('Browse the archive →'), findsNothing);
+      expect(find.text('Earlier this week'), findsNothing);
     });
   });
 
@@ -306,7 +313,7 @@ void main() {
       await tester.pumpWidget(_wrapWithProviders(client()));
       await tester.pumpAndSettle();
 
-      expect(find.text('KEPT COPY'), findsOneWidget);
+      expect(find.text('Kept copy'), findsOneWidget);
       expect(find.text('OFFLINE · SHOWING SAVED ARTICLES'), findsOneWidget);
     });
 
@@ -316,10 +323,12 @@ void main() {
       await tester.pumpAndSettle();
       online = true;
 
-      await tester.fling(find.byType(ListView), const Offset(0, 400), 1000);
+      // .first: the category-chip row is also a (horizontal) ListView.
+      await tester.fling(
+          find.byType(ListView).first, const Offset(0, 400), 1000);
       await tester.pumpAndSettle();
 
-      expect(find.text('LIVE NEWS'), findsOneWidget);
+      expect(find.text('Live news'), findsOneWidget);
       expect(find.text('OFFLINE · SHOWING SAVED ARTICLES'), findsNothing);
     });
   });

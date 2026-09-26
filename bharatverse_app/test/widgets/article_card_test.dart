@@ -2,38 +2,70 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:bharatverse_app/models/article.dart';
+import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/theme/app_colors.dart';
 import 'package:bharatverse_app/widgets/article_card.dart';
 
 import '../support/article_fixtures.dart';
 import '../support/highlight_finder.dart';
+import '../support/like_fixtures.dart';
+
+Widget _pumpCard({
+  required Article article,
+  required ArticleCardSize size,
+  List<String> highlight = const [],
+}) =>
+    withLikeProviders(
+      authState: AuthState(authClient: stubAuthClient()),
+      likesClient: stubLikesClient(),
+      savesClient: stubSavesClient(),
+      child: MaterialApp(
+        home: Scaffold(
+          // A bare Scaffold body isn't scrollable, but the real app always
+          // hosts an ArticleCard inside one (ListView), and the featured
+          // variant's stacked image+text is taller than a test viewport.
+          body: SingleChildScrollView(
+            child: ArticleCard(
+              article: article,
+              size: size,
+              onTap: () {},
+              onRequireAuth: () {},
+              highlight: highlight,
+            ),
+          ),
+        ),
+      ),
+    );
 
 void main() {
   for (final size in ArticleCardSize.values) {
-    testWidgets('the ${size.name} card shows the date and reading time',
+    testWidgets('the ${size.name} card shows the era and reading time',
         (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: ArticleCard(article: sampleArticle(), size: size, onTap: () {}),
-        ),
-      ));
+      await tester.pumpWidget(_pumpCard(article: sampleArticle(), size: size));
 
-      expect(find.text('2026-07-03 · 13 min read'), findsOneWidget);
+      expect(find.textContaining('Ancient India'), findsOneWidget);
+      expect(find.textContaining('13 min'), findsOneWidget);
+    });
+
+    testWidgets(
+        'the ${size.name} card omits the era when the article predates it',
+        (tester) async {
+      await tester
+          .pumpWidget(_pumpCard(article: sampleArticle(era: ''), size: size));
+
+      expect(find.textContaining('Ancient India'), findsNothing);
     });
 
     testWidgets(
         'the ${size.name} card shows a parchment placeholder with no image',
         (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: ArticleCard(article: sampleArticle(), size: size, onTap: () {}),
-        ),
-      ));
+      await tester.pumpWidget(_pumpCard(article: sampleArticle(), size: size));
 
       expect(find.byType(CachedNetworkImage), findsNothing);
       expect(
         find.byWidgetPredicate(
-            (w) => w is Container && w.color == AppColorTokens.light.paper200),
+            (w) => w is Container && w.color == AppColorTokens.light.paper100),
         findsOneWidget,
       );
     });
@@ -41,14 +73,9 @@ void main() {
     testWidgets(
         'the ${size.name} card shows the featured image when there is one',
         (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: ArticleCard(
-            article: sampleArticle(imageUrl: 'https://storage.example/0.jpg'),
-            size: size,
-            onTap: () {},
-          ),
-        ),
+      await tester.pumpWidget(_pumpCard(
+        article: sampleArticle(imageUrl: 'https://storage.example/0.jpg'),
+        size: size,
       ));
 
       final picture =
@@ -60,16 +87,11 @@ void main() {
   group('the compact card lists the tags a search term is in', () {
     Future<void> pump(WidgetTester tester, List<String> highlight,
         {ArticleCardSize size = ArticleCardSize.compact}) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: ArticleCard(
-            article: sampleArticle(
-                tags: const ['medieval-india', 'gupta-empire', 'chola']),
-            size: size,
-            onTap: () {},
-            highlight: highlight,
-          ),
-        ),
+      await tester.pumpWidget(_pumpCard(
+        article: sampleArticle(
+            tags: const ['medieval-india', 'gupta-empire', 'chola']),
+        size: size,
+        highlight: highlight,
       ));
     }
 

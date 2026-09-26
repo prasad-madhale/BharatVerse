@@ -15,8 +15,10 @@ class MockLikesClient extends Mock implements LikesClient {}
 
 class MockSavesClient extends Mock implements SavesClient {}
 
-User testUser({String id = 'user-123'}) => User(
+User testUser({String id = 'user-123', String email = 'reader@example.com'}) =>
+    User(
       id: id,
+      email: email,
       appMetadata: const {},
       userMetadata: const {},
       aud: 'authenticated',

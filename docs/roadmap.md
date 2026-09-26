@@ -65,30 +65,36 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   same saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README).
 - **App redesign, in progress** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff):
   Phase 1 (theme + navigation) and Phase 2 (onboarding + auth) are done. Phase 3 (Home/Article/Library/Search) is
-  in progress: the `era` field and a real save/bookmark feature (both described below) are done; the four screens'
-  visual redesign is not started, so they still render in the old Vintage Broadsheet style -- the new `SaveButton`
-  is live on the article screen's existing header for now, alongside the like button, rather than sitting unused
-  until that screen's redesign lands. Phase 4 (Settings sheet) is not started. `lib/theme/app_colors.dart`/
-  `app_typography.dart` are now a
-  `ThemeExtension<AppColorTokens>` with full Light and Dark ("Night Edition") palettes, resolved via the
-  `context.colors` shorthand; `ThemeModeState` (Provider + `SharedPreferences`, same `.open()` factory convention as
-  `ArticleCache`/`PendingLikes`) holds the reader's Light/Dark/System choice, not yet exposed in any UI (Phase 4's
-  Settings sheet) -- it defaults to System. `AppShell` replaces the old push-only root with an `IndexedStack` of
-  Today/Library tabs under a floating glass-blur tab bar and a separate Search button (`GlassSurface`,
-  `lib/widgets/glass_surface.dart`); `HomeScreen`'s own header still carries its old search/liked icons too, a known
-  redundancy until Phase 3 removes them. `OnboardingScreen` (splash + 3 feature slides, shown once per install via
-  `OnboardingState`) uses its own bundled photos in place of the mockup's stock images -- see "Deviations" below.
-  `AuthScreen` is a bespoke rebuild (rounded pill fields and buttons, a "Continue with Apple"
-  entry point, a guest "Not now -- just browse" path when reached from onboarding) rather than the shared
-  `AuthFormPage`, which `ForgotPasswordScreen`/`ResetPasswordScreen` still use, lightly restyled (sentence-case
-  titles, pill fields/buttons). `era` (a short LLM-generated period label, e.g. "Gupta Empire") is a real field now:
-  the generation/revision prompts ask for it, `common.models.Article`/`ArticleRecord`/the Flutter `Article` model
-  all carry it (defaulting to `""`, so it needs no backfill to keep old rows and test fixtures working), and
+  in progress: the `era` field, a real save/bookmark feature, and the Home and Article screens' visual redesign are
+  done; Library (still `LikedArticlesScreen`, pending its "Saved"/"Recently read" rebuild) and Search still render
+  in the old Vintage Broadsheet style. Phase 4 (Settings sheet) is not started. `lib/theme/app_colors.dart`/
+  `app_typography.dart` are now a `ThemeExtension<AppColorTokens>` with full Light and Dark ("Night Edition")
+  palettes, resolved via the `context.colors` shorthand; `ThemeModeState` (Provider + `SharedPreferences`, same
+  `.open()` factory convention as `ArticleCache`/`PendingLikes`) holds the reader's Light/Dark/System choice, not
+  yet exposed in any UI (Phase 4's Settings sheet) -- it defaults to System. `AppShell` replaces the old push-only
+  root with an `IndexedStack` of Today/Library tabs under a floating glass-blur tab bar and a separate Search
+  button (`GlassSurface`, `lib/widgets/glass_surface.dart`). `OnboardingScreen` (splash + 3 feature slides, shown
+  once per install via `OnboardingState`) uses its own bundled photos (hand-picked from Wikimedia Commons after a
+  live-fetch-from-articles attempt, and the mockup's own stock art, both looked underwhelming) -- see "Deviations"
+  below. `AuthScreen` is a bespoke rebuild (rounded pill fields and buttons, a "Continue with Apple" entry point, a
+  guest "Not now -- just browse" path when reached from onboarding) rather than the shared `AuthFormPage`, which
+  `ForgotPasswordScreen`/`ResetPasswordScreen` still use, lightly restyled (sentence-case titles, pill
+  fields/buttons). `era` (a short LLM-generated period label, e.g. "Gupta Empire") is a real field now: the
+  generation/revision prompts ask for it, `common.models.Article`/`ArticleRecord`/the Flutter `Article` model all
+  carry it (defaulting to `""`, so it needs no backfill to keep old rows and test fixtures working), and
   `schema.sql`/`2026-09-era-field.sql` add the column -- not yet wired into full-text search (`search_vector`),
   which is Search's own sub-phase. Save/bookmark is a full second vertical slice paralleling Likes exactly, not a
   reuse of it: `saved_articles` table, `SaveService`, `/articles/{id}/save` + `/users/me/saves` routes on the
-  backend; `SavesClient`/`SaveState`/`PendingSaves`/`SaveButton` in the app, registered in `main.dart` right after
-  the equivalent Likes classes.
+  backend; `SavesClient`/`SaveState`/`PendingSaves` in the app, registered in `main.dart` right after the
+  equivalent Likes classes. `HomeScreen` ("Today") is rebuilt: a masthead (date, an avatar button that still just
+  signs in/out until Phase 4's Settings sheet replaces it), category chips that filter the loaded articles by tag
+  or era, a rounded-artwork featured card, and an "Earlier this week" list -- both card sizes moved into
+  `ArticleCard`, which now also carries the save-toggle bookmark button used everywhere it appears (Home, Archive,
+  Search, Library). The old `AppHeader` (and the icon-only `LikeButton` it and the article screen used) are
+  deleted, superseded by the masthead and by the article screen's own labelled Save/Like pills. `ArticleDetailScreen`
+  is rebuilt around those two pills, a floating glass back button, and a plain (not overlaid) date/read-time/era
+  byline; it has no share button yet (no share package, and no defined per-article URL to share), which
+  "Not built" below tracks.
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags and summary (not
   article bodies, which live in Storage), so a tag-only match is found too. PostgREST's `text_search` takes a column
   name, not an expression, which is why the vector is a stored column with a GIN index. A tag like `covid-19` is
@@ -175,6 +181,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   up leaves the reader signed in without one.
 - `SearchFilters`; search while offline (nothing to search but the 50 cached articles' titles, tags and summaries --
   an offline `search_articles` would need its own copy of that logic).
+- A share button on the article screen: the redesign's mockup has one, but there is no share package dependency yet
+  and no defined per-article URL to share (the app has no deep-linkable article routes).
 
 ## Decisions
 
