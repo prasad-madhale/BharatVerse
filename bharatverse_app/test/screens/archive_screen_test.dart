@@ -82,8 +82,8 @@ void main() {
       expect(query['limit'], '20');
       expect(query['order'], 'date.desc,created_at.desc,id.desc');
       expect(find.text('ARCHIVE'), findsOneWidget);
-      expect(find.text('ARTICLE 45'), findsOneWidget);
-      expect(find.text('2026-07-03 · 13 min read'), findsWidgets);
+      expect(find.text('Article 45'), findsOneWidget);
+      expect(find.textContaining('13 min'), findsWidgets);
     });
 
     testWidgets('loads further pages as the reader scrolls, until the end',
@@ -97,7 +97,7 @@ void main() {
       expect(requests.map((r) => r.url.queryParameters['offset']),
           ['0', '20', '40']);
       expect(find.text('That is every article so far.'), findsOneWidget);
-      expect(find.text('ARTICLE 1'), findsOneWidget);
+      expect(find.text('Article 1'), findsOneWidget);
     });
 
     testWidgets('asks for a page only once while it is still loading',
@@ -156,7 +156,7 @@ void main() {
 
       await pumpArchive(tester, client);
 
-      expect(find.text('ARTICLE 11'), findsOneWidget);
+      expect(find.text('Article 11'), findsOneWidget);
       expect(find.byType(ArticleCard), findsNWidgets(30));
     });
 
@@ -183,7 +183,7 @@ void main() {
       await tester.tap(find.widgetWithText(AppButton, 'Retry'));
       await tester.pumpAndSettle();
 
-      expect(find.text('ARTICLE 3'), findsOneWidget);
+      expect(find.text('Article 3'), findsOneWidget);
     });
 
     testWidgets('keeps what it has and offers a retry when a later page fails',
@@ -240,8 +240,8 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('SAVED A'), findsOneWidget);
-    expect(find.text('SAVED B'), findsOneWidget);
+    expect(find.text('Saved A'), findsOneWidget);
+    expect(find.text('Saved B'), findsOneWidget);
     expect(find.text('OFFLINE · SHOWING SAVED ARTICLES'), findsOneWidget);
   });
 }

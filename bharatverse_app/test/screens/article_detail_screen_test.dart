@@ -8,7 +8,6 @@ import 'package:bharatverse_app/screens/article_detail_screen.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/theme/app_colors.dart';
 import 'package:bharatverse_app/widgets/article_image.dart';
-import 'package:bharatverse_app/widgets/like_button.dart';
 
 import '../support/article_fixtures.dart' show sampleImage;
 import '../support/like_fixtures.dart';
@@ -37,6 +36,7 @@ Article sampleArticle({
       'reading_time_minutes': 13,
       'author': 'BharatVerse AI',
       'tags': [],
+      'era': 'Ancient India',
       'image_url': images.isNotEmpty ? images.first['url'] as String : null,
     });
 
@@ -66,12 +66,14 @@ void main() {
   });
 
   group('ArticleDetailScreen', () {
-    testWidgets('shows the article with a like button in the header',
+    testWidgets('shows the article, its era, and the save/like actions',
         (tester) async {
       await pumpScreen(tester);
 
-      expect(find.text('ORIGINS'), findsOneWidget);
-      expect(find.byType(LikeButton), findsOneWidget);
+      expect(find.text('Origins'), findsOneWidget);
+      expect(find.text('Ancient India'), findsOneWidget);
+      expect(find.text('Save'), findsOneWidget);
+      expect(find.text('Like'), findsOneWidget);
     });
 
     testWidgets('shows a parchment placeholder when the article has no images',
@@ -81,7 +83,7 @@ void main() {
       expect(find.byType(ArticleImageView), findsNothing);
       expect(
         find.byWidgetPredicate(
-            (w) => w is Container && w.color == AppColorTokens.light.paper200),
+            (w) => w is Container && w.color == AppColorTokens.light.paper100),
         findsOneWidget,
       );
     });
@@ -127,6 +129,8 @@ void main() {
         (tester) async {
       await pumpScreen(tester);
 
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.favorite_border));
       await tester.pumpAndSettle();
 
@@ -137,6 +141,8 @@ void main() {
       authClient.signInAs(testUser());
       await pumpScreen(tester);
 
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.favorite_border));
       await tester.pumpAndSettle();
 
@@ -146,6 +152,59 @@ void main() {
             articleId: _articleId,
           )).called(1);
     });
+
+    testWidgets('a signed-out tap on the bookmark opens the sign-in screen',
+        (tester) async {
+      await pumpScreen(tester);
+
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.bookmark_border));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Welcome back'), findsOneWidget);
+    });
+
+    testWidgets('saving sends this article\'s id', (tester) async {
+      authClient.signInAs(testUser());
+      await pumpScreen(tester);
+
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.bookmark_border));
+      await tester.pumpAndSettle();
+
+      verify(() => savesClient.save(
+            accessToken: 'user-token',
+            userId: 'user-123',
+            articleId: _articleId,
+          )).called(1);
+    });
+
+    testWidgets('the back button pops the screen', (tester) async {
+      await tester.pumpWidget(withLikeProviders(
+        authState: AuthState(authClient: authClient),
+        likesClient: likesClient,
+        savesClient: savesClient,
+        child: MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) =>
+                      ArticleDetailScreen(article: sampleArticle()))),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ArticleDetailScreen), findsNothing);
+    });
   });
 
   testWidgets('keeps the article in a readable column on a wide screen',
@@ -153,10 +212,10 @@ void main() {
     useWideScreen(tester);
     await pumpScreen(tester);
 
-    final article = find
-        .descendant(of: find.byType(ListView), matching: find.byType(Container))
-        .first;
-    expect(tester.getSize(article).width, 720 - 2 * 20);
+    // The no-image placeholder spans the full reading column, edge to edge.
+    final placeholder = find.byWidgetPredicate(
+        (w) => w is Container && w.color == AppColorTokens.light.paper100);
+    expect(tester.getSize(placeholder).width, 720);
   });
 
   testWidgets('openArticle shows the article and saves the view',

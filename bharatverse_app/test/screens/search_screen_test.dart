@@ -74,7 +74,7 @@ void main() {
       await search(tester, 'mauryan');
 
       // the title, the summary, then the tag the term is also in
-      expect(marked(tester), ['MAURYAN', 'Mauryan', 'mauryan']);
+      expect(marked(tester), ['Mauryan', 'Mauryan', 'mauryan']);
     });
 
     testWidgets('sends the trimmed query to the ranked search', (tester) async {

@@ -13,6 +13,7 @@ import '../widgets/content_column.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/screen_heading.dart';
 import 'article_detail_screen.dart';
+import 'auth_screen.dart';
 
 /// The signed-in user's liked articles, most recently liked first.
 class LikedArticlesScreen extends StatefulWidget {
@@ -100,6 +101,9 @@ class _LikedArticlesScreenState extends State<LikedArticlesScreen> {
                   itemBuilder: (context, index) => ArticleCard(
                     article: articles[index],
                     onTap: () => _open(articles[index]),
+                    onRequireAuth: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AuthScreen()),
+                    ),
                   ),
                 );
               },

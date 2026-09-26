@@ -115,7 +115,10 @@ void main() {
       await tester.tap(find.byType(ArticleCard).first);
       await tester.pumpAndSettle();
       expect(find.byType(ArticleDetailScreen), findsOneWidget);
-      await tester.tap(find.byTooltip('Unlike'));
+      // The article is already liked, so the pill shows the filled heart.
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.favorite));
       await tester.pumpAndSettle();
       await tester.pageBack();
       await tester.pumpAndSettle();
