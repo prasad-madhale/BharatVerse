@@ -32,19 +32,19 @@ ALTER TABLE articles DROP COLUMN search_vector;
 CREATE INDEX idx_articles_fts ON articles USING GIN (to_tsvector('english', title || ' ' || summary));
 GRANT INSERT, UPDATE, DELETE, TRUNCATE ON articles TO anon, authenticated;
 """
-ARTICLES = [("a1", "The Mauryan Empire: India's First Great Dynasty", ["mauryan-empire", "ancient-india", "ashoka"]),
-            ("a2", "The Indus Valley Civilisation", ["indus-valley", "ancient-india", "harappa"]),
-            ("a3", "The Cholas and the Sea", ["chola-dynasty", "medieval-india", "maritime-history"]),
-            ("a4", "The Revolt: Uprising of 1857", ["revolt-1857", "covid-19"]),
-            ("a5", "Ashoka -Kalinga Aftermath", [])]
+ARTICLES = [("a1", "The Mauryan Empire: India's First Great Dynasty", ["mauryan-empire", "ancient-india", "ashoka"], ""),
+            ("a2", "The Indus Valley Civilisation", ["indus-valley", "ancient-india", "harappa"], ""),
+            ("a3", "The Cholas and the Sea", ["chola-dynasty", "medieval-india", "maritime-history"], ""),
+            ("a4", "The Revolt: Uprising of 1857", ["revolt-1857", "covid-19"], ""),
+            ("a5", "Ashoka -Kalinga Aftermath", [], "Gupta Empire")]
 PREFIXES = ["m", "ma", "the", "the m", "ind", "chola", "a", "ancient", "revolt", "co", "ash", "zzz", "  MAUR  "]
-INSERT = ("INSERT INTO articles (id, title, summary, date, reading_time_minutes, author, tags, content_file_path) "
-          "VALUES (:i, :t, 'A summary.', '2026-07-09', 5, 'x', CAST(:g AS jsonb), 'p')")
+INSERT = ("INSERT INTO articles (id, title, summary, date, reading_time_minutes, author, tags, era, content_file_path) "
+          "VALUES (:i, :t, 'A summary.', '2026-07-09', 5, 'x', CAST(:g AS jsonb), :e, 'p')")
 
 
 def add_articles(conn):
-    for article_id, title, tags in ARTICLES:
-        conn.run(INSERT, i=article_id, t=title, g=json.dumps(tags))
+    for article_id, title, tags, era in ARTICLES:
+        conn.run(INSERT, i=article_id, t=title, g=json.dumps(tags), e=era)
 
 
 def behaviour(conn):
@@ -52,7 +52,8 @@ def behaviour(conn):
     return {
         "table": conn.run("SELECT term_key, term, category, article_count FROM search_suggestions ORDER BY term_key"),
         "lookups": {p: conn.run("SELECT term FROM autocomplete_suggestions(:p, 10)", p=p) for p in PREFIXES},
-        "searches": {q: conn.run("SELECT id FROM search_articles(:q, 10)", q=q) for q in ("chola", "empire", "mauryan empire", "1857")},
+        "searches": {q: conn.run("SELECT id FROM search_articles(:q, 10)", q=q)
+                     for q in ("chola", "empire", "mauryan empire", "1857", "gupta")},
     }
 
 
@@ -101,7 +102,7 @@ def test_the_migration_brings_an_older_project_to_what_schema_sql_makes_and_can_
     assert older.run("SELECT relrowsecurity FROM pg_class WHERE relname = 'search_suggestions'") == [[True]]
     with pytest.raises(pg8000.exceptions.DatabaseError, match="permission denied for table articles"):
         as_anon(older, "DELETE FROM articles WHERE id = 'a1'")
-    older.run(INSERT, i="new", t="Zzqnew Article", g="[]")  # publishing works, and its suggestion follows at once
+    older.run(INSERT, i="new", t="Zzqnew Article", g="[]", e="")  # publishing works, and its suggestion follows at once
     assert older.run("SELECT term FROM autocomplete_suggestions('zzqnew')") == [["Zzqnew Article"]]
 
 

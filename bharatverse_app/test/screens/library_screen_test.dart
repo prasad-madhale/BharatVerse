@@ -18,7 +18,7 @@ Future<Widget> _wrap(
   bool signedIn = false,
   MockSavesClient? savesClient,
 }) async =>
-    Provider<ReadingHistory>.value(
+    ChangeNotifierProvider<ReadingHistory>.value(
       value: ReadingHistory(await SharedPreferences.getInstance()),
       child: withLikeProviders(
         authState: AuthState(
@@ -97,7 +97,7 @@ void main() {
         client:
             articlesMockClient(() => [sampleArticleRow(title: 'Read Before')]));
 
-    await tester.pumpWidget(Provider<ReadingHistory>.value(
+    await tester.pumpWidget(ChangeNotifierProvider<ReadingHistory>.value(
       value: history,
       child: withLikeProviders(
         authState: AuthState(authClient: stubAuthClient()),

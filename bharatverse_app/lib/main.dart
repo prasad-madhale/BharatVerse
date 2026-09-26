@@ -92,7 +92,7 @@ class BharatVerseApp extends StatelessWidget {
           ),
         ),
         ChangeNotifierProvider.value(value: themeModeState),
-        Provider.value(value: readingHistory),
+        ChangeNotifierProvider.value(value: readingHistory),
         ChangeNotifierProvider.value(value: settingsState),
       ],
       child: Consumer<ThemeModeState>(

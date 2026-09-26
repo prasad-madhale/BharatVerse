@@ -22,8 +22,15 @@ def test_the_migration_adds_era_matching_schema_sql_and_can_be_run_twice(new_dat
     fresh = new_database(SCHEMA.read_text())
     assert columns(fresh) == [["era", "NO", "''::text"]]
 
+    # A project without `era` yet also predates search_vector referencing it -- strip both, or the
+    # generated column's own expression fails to compile against a table with no `era` column.
     older = new_database(SCHEMA.read_text().replace(
-        "    era TEXT NOT NULL DEFAULT '',  -- short label, e.g. 'Gupta Empire'; '' for pre-era articles\n", ""))
+        "    era TEXT NOT NULL DEFAULT '',  -- short label, e.g. 'Gupta Empire'; '' for pre-era articles\n", ""
+    ).replace(
+        "to_tsvector('english', regexp_replace(tags::text, '-(?=[0-9])', ' ', 'g')) ||\n"
+        "            to_tsvector('english', era),",
+        "to_tsvector('english', regexp_replace(tags::text, '-(?=[0-9])', ' ', 'g')),"
+    ))
     assert columns(older) == []
     older.run(INSERT_OLD)  # publishing already worked before this column existed
 

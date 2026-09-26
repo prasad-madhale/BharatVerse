@@ -23,6 +23,14 @@ import '../support/layout_fixtures.dart';
 void main() {
   late List<http.Request> requests;
 
+  // `requests` tracks the search/suggestion RPC calls these tests assert on
+  // (both POST); the era grid's own metadata fetch (a GET, see
+  // ApiClient.getEras) is a separate, unrelated concern these tests were
+  // never meant to track, so it is left out here.
+  void trackPost(http.Request r) {
+    if (r.method == 'POST') requests.add(r);
+  }
+
   Future<void> pumpSearch(
     WidgetTester tester, {
     List<Map<String, dynamic>> Function()? rows,
@@ -32,7 +40,7 @@ void main() {
     final apiClient = ApiClient(
       client: client ??
           articlesMockClient(rows ?? () => [sampleArticleRow()],
-              onRequest: requests.add),
+              onRequest: trackPost),
     );
     await tester.pumpWidget(withLikeProviders(
       authState: AuthState(authClient: stubAuthClient()),
@@ -49,11 +57,62 @@ void main() {
   }
 
   group('SearchScreen', () {
-    testWidgets('starts with a prompt and sends nothing', (tester) async {
+    testWidgets('starts by browsing by era and sends no search or suggestion',
+        (tester) async {
       await pumpSearch(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Browse by era'), findsOneWidget);
+      expect(
+          find.text('Ancient India'), findsOneWidget); // sampleArticleRow's era
+      expect(requests, isEmpty);
+    });
+
+    testWidgets('falls back to the old prompt when there is nothing to browse',
+        (tester) async {
+      await pumpSearch(tester, rows: () => [sampleArticleRow(era: '')]);
+      await tester.pumpAndSettle();
 
       expect(find.text('SEARCH THE ARCHIVE'), findsOneWidget);
-      expect(requests, isEmpty);
+      expect(find.text('Browse by era'), findsNothing);
+    });
+
+    testWidgets('lists each distinct era once, and searches for it when tapped',
+        (tester) async {
+      await pumpSearch(tester,
+          rows: () => [
+                sampleArticleRow(id: 'a1', era: 'Ancient India'),
+                sampleArticleRow(id: 'a2', era: 'Gupta Empire'),
+              ]);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ancient India'), findsOneWidget);
+      expect(find.text('Gupta Empire'), findsOneWidget);
+
+      await tester.tap(find.text('Gupta Empire'));
+      await tester.pumpAndSettle();
+
+      expect(requests, hasLength(1));
+      expect(jsonDecode(requests.single.body)['search_query'], 'Gupta Empire');
+      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          'Gupta Empire');
+      expect(find.byType(ArticleCard), findsWidgets);
+    });
+
+    testWidgets('the clear button empties the field and returns to browsing',
+        (tester) async {
+      await pumpSearch(tester);
+
+      await tester.enterText(find.byType(TextField), 'mauryan');
+      await tester.pump();
+      expect(find.byIcon(Icons.cancel), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.cancel));
+      await tester.pump();
+
+      expect(tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          isEmpty);
+      expect(find.byIcon(Icons.cancel), findsNothing);
     });
 
     testWidgets(
@@ -105,7 +164,7 @@ void main() {
       await search(tester, '   ');
 
       expect(requests, isEmpty);
-      expect(find.text('SEARCH THE ARCHIVE'), findsOneWidget);
+      expect(find.text('Browse by era'), findsOneWidget);
     });
 
     testWidgets('says so, and suggests another search, when nothing matches',
@@ -126,7 +185,10 @@ void main() {
         if (request.url.path.contains('/storage/')) {
           return http.Response(jsonEncode(sampleArticleContent()), 200);
         }
-        requests.add(request);
+        if (request.method != 'POST') {
+          return http.Response('[]', 200); // the era grid's own fetch
+        }
+        trackPost(request);
         if (failNext) {
           failNext = false;
           return http.Response('boom', 500);
@@ -168,8 +230,7 @@ void main() {
         ];
 
     MockClient client(Future<List<String>?> Function(String prefix) suggest) =>
-        searchMockClient(
-            suggest: suggest, onRequest: (request) => requests.add(request));
+        searchMockClient(suggest: suggest, onRequest: trackPost);
 
     /// Types [text], lets the debounce pass and delivers the answer.
     Future<void> type(WidgetTester tester, String text) async {
@@ -279,7 +340,10 @@ void main() {
                 ]),
                 200);
           }
-          requests.add(request);
+          if (request.method != 'POST') {
+            return http.Response('[]', 200); // the era grid's own fetch
+          }
+          trackPost(request);
           if (failNext) {
             failNext = false;
             return http.Response('boom', 500);
@@ -355,7 +419,7 @@ void main() {
       await tester.pump();
 
       expect(find.byType(SuggestionTile), findsNothing);
-      expect(find.text('SEARCH THE ARCHIVE'), findsOneWidget);
+      expect(find.text('Browse by era'), findsOneWidget);
     });
 
     testWidgets('emptying the field drops the request still waiting',
@@ -407,7 +471,8 @@ void main() {
       await type(tester, 'ash');
 
       expect(find.byType(SuggestionTile), findsNothing);
-      expect(find.text('SEARCH THE ARCHIVE'), findsOneWidget);
+      expect(
+          find.text('Browse by era'), findsOneWidget); // nothing searched yet
       expect(find.textContaining('went wrong'), findsNothing);
 
       await tester.tap(find.widgetWithText(AppButton, 'Search'));
@@ -558,7 +623,8 @@ void main() {
     useWideScreen(tester);
     await pumpSearch(tester);
 
-    expect(tester.getSize(find.byType(TextField)).width, 720 - 2 * 16);
+    expect(tester.getSize(find.byKey(const Key('search-field'))).width,
+        720 - 2 * 16);
   });
 
   testWidgets('hides an unexpected error behind a generic message',

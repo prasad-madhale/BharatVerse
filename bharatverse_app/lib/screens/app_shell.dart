@@ -1,10 +1,15 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../models/article.dart';
 import '../services/api_client.dart';
+import '../services/reading_history.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
 import '../widgets/glass_surface.dart';
+import 'article_detail_screen.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
 import 'search_screen.dart';
@@ -30,6 +35,10 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Watched, not read: a ChangeNotifier so this rebuilds the moment any
+    // screen opens a new article, without AppShell needing its own signal
+    // for every place that can open one (Home, Library, Search, era cards).
+    final lastReadId = context.watch<ReadingHistory>().articleIds.firstOrNull;
     return Scaffold(
       body: Stack(
         children: [
@@ -46,19 +55,120 @@ class _AppShellState extends State<AppShell> {
             bottom: 28,
             child: SafeArea(
               top: false,
-              child: _TabBar(
-                tab: _tab,
-                onSelectTab: (t) => setState(() => _tab = t),
-                onSearch: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => SearchScreen(apiClient: widget.apiClient),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (lastReadId != null) ...[
+                    _ContinueReadingBar(
+                      key: ValueKey(lastReadId),
+                      apiClient: widget.apiClient,
+                      articleId: lastReadId,
+                    ),
+                    const SizedBox(height: AppSpacing.space2),
+                  ],
+                  _TabBar(
+                    tab: _tab,
+                    onSelectTab: (t) => setState(() => _tab = t),
+                    onSearch: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            SearchScreen(apiClient: widget.apiClient),
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The most recently opened article, in a floating glass pill above the tab
+/// bar -- tapping it re-opens that article. Shows the article's own reading
+/// time rather than the design's "N min left": with no reading-progress
+/// tracking, a time *remaining* would be fabricated, unlike its total length.
+class _ContinueReadingBar extends StatelessWidget {
+  final ApiClient apiClient;
+  final String articleId;
+
+  const _ContinueReadingBar({
+    super.key,
+    required this.apiClient,
+    required this.articleId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Article>(
+      future: apiClient.getArticleById(articleId),
+      builder: (context, snapshot) {
+        final article = snapshot.data;
+        if (article == null) {
+          // Loading, or the article is gone (deleted, or offline with no
+          // cached copy) -- either way there is nothing worth showing yet.
+          return const SizedBox.shrink();
+        }
+        final colors = context.colors;
+        final url = article.imageUrl;
+        return GlassSurface(
+          height: 56,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
+            onTap: () => openArticle(context, apiClient, article),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, AppSpacing.space4, 0),
+              child: Row(
+                children: [
+                  ClipOval(
+                    child: SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: url == null
+                          ? Container(color: colors.paper100)
+                          : ColorFiltered(
+                              colorFilter: colors.imageFilter,
+                              child: CachedNetworkImage(
+                                imageUrl: url,
+                                fit: BoxFit.cover,
+                                errorWidget: (context, url, error) =>
+                                    Container(color: colors.paper100),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.space3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          article.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.ui.copyWith(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: colors.textPrimary),
+                        ),
+                        Text(
+                          'Continue reading · ${article.readingTimeMinutes} min read',
+                          style: AppTypography.caption.copyWith(
+                              fontSize: 12, color: colors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(Icons.menu_book_outlined, size: 20, color: colors.tint),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
