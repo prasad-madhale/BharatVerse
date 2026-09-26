@@ -77,7 +77,12 @@ async def reprocess() -> int:
             original_image_urls = [image.url for image in article.images]
             reprocessed, review, rounds = await scheduler.run_critic_loop(
                 article, scraped, topic, generator, validator, critic,
-                image_sourcer=image_sourcer, initial_images=article.images,
+                image_sourcer=image_sourcer,
+                # An empty list here (a pre-image-era article, or one left imageless by a
+                # previous save that failed partway through -- see ArticleService.save_article's
+                # non-atomic content-then-row write) must source fresh, not be taken as "this
+                # article intentionally has no images, leave it that way".
+                initial_images=article.images or None,
             )
         except Exception:
             logger.warning(f"Reprocessing failed for {article.id} ('{topic}')", exc_info=True)
@@ -93,7 +98,15 @@ async def reprocess() -> int:
             )
             continue
 
-        await article_service.save_article(reprocessed)
+        try:
+            await article_service.save_article(reprocessed)
+        except Exception:
+            # An approved reprocess that fails to save (a transient network error, or a schema
+            # mismatch like a column PostgREST's cache doesn't know about yet) must not abort
+            # the rest of the batch -- the published article is simply left as it was, same as
+            # a rejected review above.
+            logger.warning(f"Saving reprocessed {article.id} failed -- leaving it unchanged", exc_info=True)
+            continue
         image_changed = [image.url for image in reprocessed.images] != original_image_urls
         logger.info(
             f"Reprocessed {reprocessed.id}: {reprocessed.title} "

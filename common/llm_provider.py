@@ -6,6 +6,7 @@ Supports multiple LLM providers with a unified interface:
 - Anthropic Claude
 - OpenAI
 - Groq
+- OpenRouter (any model it routes to, e.g. Google Gemma)
 
 Used by scrapper/ (topic and article generation) -- see common/config.py for where its
 settings come from.
@@ -24,14 +25,17 @@ class LLMProvider:
     Unified interface for different LLM providers.
     """
 
-    def __init__(self, provider: str | None = None):
+    def __init__(self, provider: str | None = None, model: str | None = None):
         """provider overrides settings.llm_provider -- used to run a specific step (e.g. the
-        image-cohesion check) against a different provider than the rest of the pipeline."""
+        image-cohesion check) against a different provider than the rest of the pipeline.
+        model overrides the resolved model name -- used to run a step against a different
+        model on the *same* provider (e.g. the critic reviewing with a different OpenRouter
+        model than generation used); settings.llm_model still wins when this is left unset."""
         settings = get_llm_settings()
         self.provider = (provider or settings.llm_provider).lower()
         self.ollama_base_url = settings.ollama_base_url
         self.client = self._initialize_client()
-        self.model = self._get_model()
+        self.model = model or self._get_model()
 
     def _initialize_client(self):
         """Initialize the appropriate LLM client based on provider."""
@@ -52,6 +56,12 @@ class LLMProvider:
         elif self.provider == "groq":
             from groq import Groq
             return Groq(api_key=settings.groq_api_key)
+
+        elif self.provider == "openrouter":
+            # OpenRouter's API is OpenAI-compatible, so the openai SDK works
+            # unchanged against its base_url -- see https://openrouter.ai/docs.
+            from openai import OpenAI
+            return OpenAI(api_key=settings.openrouter_api_key, base_url="https://openrouter.ai/api/v1")
 
         elif self.provider == "ollama":
             return None  # no SDK client -- generate_text[_with_image] call its REST API directly
@@ -76,13 +86,16 @@ class LLMProvider:
         # quality; article volume is low enough (~1/day) that cost is
         # negligible either way. The openai default below is unverified
         # against a live API key and may be stale -- confirm before relying
-        # on it. qwen3.5:9b is whatever's pulled locally (`ollama list`) --
+        # on it. google/gemma-4-31b-it is confirmed available on OpenRouter
+        # (checked against GET /api/v1/models as of 2026-09). qwen3.5:9b is
+        # whatever's pulled locally (`ollama list`) --
         # confirmed vision-capable, used for the image-cohesion check.
         defaults = {
             "gemini": "gemini-2.5-flash",
             "anthropic": "claude-sonnet-5",
             "openai": "gpt-3.5-turbo",
             "groq": "llama-3.3-70b-versatile",
+            "openrouter": "google/gemma-4-31b-it",
             "ollama": "qwen3.5:9b",
         }
         return defaults.get(self.provider, "")
@@ -137,6 +150,14 @@ class LLMProvider:
             )
             return response.choices[0].message.content
 
+        elif self.provider == "openrouter":
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens
+            )
+            return response.choices[0].message.content
+
         elif self.provider == "ollama":
             return await self._ollama_chat(prompt, max_tokens=max_tokens)
 
@@ -150,8 +171,9 @@ class LLMProvider:
         """
         Like generate_text, but with an image attached -- used by
         scrapper/image_sourcing.py's relevance check and article_critic.py's
-        image-cohesion check. gemini, anthropic and ollama are implemented;
-        openai/groq raise NotImplementedError until one of them is needed.
+        image-cohesion check. gemini, anthropic, openrouter and ollama are
+        implemented; openai/groq raise NotImplementedError until one of them
+        is needed.
 
         max_tokens defaults to 8000, matching article_critic.py's measured
         finding: claude-sonnet-5's extended thinking can consume a too-small
@@ -187,6 +209,28 @@ class LLMProvider:
             )
             text_blocks = [block.text for block in response.content if block.type == "text"]
             return "".join(text_blocks)
+
+        elif self.provider == "openrouter":
+            # OpenAI-style content-array vision format, which OpenRouter's
+            # chat/completions endpoint accepts for any vision-capable model.
+            response = self.client.chat.completions.create(
+                model=self.model,
+                max_tokens=max_tokens,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,"
+                                f"{base64.b64encode(image_bytes).decode('ascii')}",
+                            },
+                        },
+                    ],
+                }],
+            )
+            return response.choices[0].message.content
 
         elif self.provider == "ollama":
             return await self._ollama_chat(prompt, image_bytes=image_bytes, max_tokens=max_tokens)

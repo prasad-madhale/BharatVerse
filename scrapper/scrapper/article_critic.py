@@ -155,12 +155,19 @@ class ArticleCritic:
     def __init__(
         self, llm_provider: LLMProvider | None = None, image_llm_provider: LLMProvider | None = None
     ):
-        self.llm_provider = llm_provider or get_llm_provider()
+        settings = get_llm_settings()
+        # settings.critic_llm_provider/_model default to None, which LLMProvider resolves to the
+        # same provider/model generation uses -- set them to review with a different model.
+        self.llm_provider = llm_provider or (
+            get_llm_provider()
+            if settings.critic_llm_provider is None and settings.critic_llm_model is None
+            else LLMProvider(provider=settings.critic_llm_provider, model=settings.critic_llm_model)
+        )
         # Separate provider for review_image_cohesion: defaults to a local, free, already
         # vision-capable model (settings.image_cohesion_llm_provider) rather than whatever paid
         # provider the text review above uses -- cohesion checks run once per image, per round.
         self.image_llm_provider = image_llm_provider or LLMProvider(
-            provider=get_llm_settings().image_cohesion_llm_provider
+            provider=settings.image_cohesion_llm_provider, model=settings.image_cohesion_llm_model
         )
 
     async def review(

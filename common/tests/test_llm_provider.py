@@ -87,6 +87,43 @@ class TestLLMProviderInitialization:
         mock_groq_class.assert_called_once_with(api_key="test-groq-key")
 
     @patch('common.llm_provider.get_llm_settings')
+    @patch('openai.OpenAI')
+    def test_openrouter_provider_initialization(self, mock_openai_class, mock_get_settings):
+        """OpenRouter's API is OpenAI-compatible, so it reuses the openai SDK with a
+        different base_url -- see llm_provider.py's _initialize_client."""
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "openrouter"
+        mock_settings.openrouter_api_key = "test-openrouter-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        provider = LLMProvider()
+
+        assert provider.provider == "openrouter"
+        assert provider.model == "google/gemma-4-31b-it"
+        mock_openai_class.assert_called_once_with(
+            api_key="test-openrouter-key", base_url="https://openrouter.ai/api/v1"
+        )
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('openai.OpenAI')
+    def test_explicit_model_overrides_settings_llm_model(self, mock_openai_class, mock_get_settings):
+        """LLMProvider(model=...) is used to run one step (e.g. the critic) against a
+        different model on the same provider than the rest of the pipeline uses."""
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "openrouter"
+        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.llm_model = "generation-model"
+        mock_get_settings.return_value = mock_settings
+
+        provider = LLMProvider(model="critic-model")
+
+        assert provider.model == "critic-model"
+
+    @patch('common.llm_provider.get_llm_settings')
     def test_unsupported_provider_raises_error(self, mock_get_settings):
         """Test unsupported provider raises ValueError."""
         mock_settings = MagicMock()
@@ -323,6 +360,30 @@ class TestGenerateText:
 
         assert result == "Generated groq text"
 
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('openai.OpenAI')
+    async def test_openrouter_generate_text(self, mock_openai_class, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "openrouter"
+        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        mock_choice = MagicMock(message=MagicMock(content="Generated openrouter text"))
+        mock_client.chat.completions.create.return_value = MagicMock(choices=[mock_choice])
+        mock_openai_class.return_value = mock_client
+
+        provider = LLMProvider()
+        result = await provider.generate_text("prompt")
+
+        assert result == "Generated openrouter text"
+        mock_client.chat.completions.create.assert_called_once_with(
+            model="google/gemma-4-31b-it",
+            messages=[{"role": "user", "content": "prompt"}],
+            max_tokens=4000,
+        )
+
     async def test_unsupported_provider_raises_error(self):
         """The provider-branch else in generate_text is defensive/unreachable via normal
         construction (init already raises for unsupported providers) -- bypass __init__
@@ -413,6 +474,39 @@ class TestGenerateTextWithImage:
         await provider.generate_text_with_image("prompt", b"fake-bytes", "image/jpeg", effort="medium")
 
         assert mock_client.messages.create.call_args.kwargs["output_config"] == {"effort": "medium"}
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('openai.OpenAI')
+    async def test_openrouter_generate_text_with_image(self, mock_openai_class, mock_get_settings):
+        mock_settings = MagicMock()
+        mock_settings.llm_provider = "openrouter"
+        mock_settings.openrouter_api_key = "test-key"
+        mock_settings.llm_model = None
+        mock_get_settings.return_value = mock_settings
+
+        mock_client = MagicMock()
+        mock_choice = MagicMock(message=MagicMock(content='{"cohesive": true}'))
+        mock_client.chat.completions.create.return_value = MagicMock(choices=[mock_choice])
+        mock_openai_class.return_value = mock_client
+
+        provider = LLMProvider()
+        result = await provider.generate_text_with_image("prompt", b"fake-bytes", "image/jpeg", max_tokens=500)
+
+        assert result == '{"cohesive": true}'
+        mock_client.chat.completions.create.assert_called_once_with(
+            model="google/gemma-4-31b-it",
+            max_tokens=500,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "prompt"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "data:image/jpeg;base64,ZmFrZS1ieXRlcw=="},
+                    },
+                ],
+            }],
+        )
 
     @patch('common.llm_provider.get_llm_settings')
     @patch('openai.OpenAI')
