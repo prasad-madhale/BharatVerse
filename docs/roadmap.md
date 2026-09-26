@@ -63,10 +63,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   works on a real phone without a local server. The design system is "Vintage Broadsheet" (parchment, saffron and India
   green; Newsreader and Work Sans) in `lib/theme/` and `lib/widgets/`. The Android, iOS and web launcher icons are the
   same saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README).
-- **App redesign, in progress** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff):
-  Phase 1 (theme + navigation) and Phase 2 (onboarding + auth) are done. Phase 3 (Home/Article/Library/Search) is
-  in progress: the `era` field, a real save/bookmark feature, and the Home, Article and Library screens' visual
-  redesign are done; Search still renders in the old Vintage Broadsheet style. Phase 4 (Settings sheet) is done.
+- **App redesign, done** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff): all
+  four phases (theme + navigation, onboarding + auth, Home/Article/Library/Search, Settings sheet) are done.
   `lib/theme/app_colors.dart`/
   `app_typography.dart` are now a `ThemeExtension<AppColorTokens>` with full Light and Dark ("Night Edition")
   palettes, resolved via the `context.colors` shorthand; `ThemeModeState` (Provider + `SharedPreferences`, same
@@ -82,8 +80,11 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   fields/buttons). `era` (a short LLM-generated period label, e.g. "Gupta Empire") is a real field now: the
   generation/revision prompts ask for it, `common.models.Article`/`ArticleRecord`/the Flutter `Article` model all
   carry it (defaulting to `""`, so it needs no backfill to keep old rows and test fixtures working), and
-  `schema.sql`/`2026-09-era-field.sql` add the column -- not yet wired into full-text search (`search_vector`),
-  which is Search's own sub-phase. Save/bookmark is a full second vertical slice paralleling Likes exactly, not a
+  `schema.sql`/`2026-09-era-field.sql` add the column. It is also woven into full-text search now: `search_vector`
+  weights era the same as tags (`'B'`), so searching an era's exact label (e.g. from the "Browse by era" grid
+  below) ranks like any other tag match -- `2026-09-search-and-autocomplete.sql` (not yet run against the hosted
+  project; see "Needs a person") carries this directly, since it had not been run there either when this landed.
+  Save/bookmark is a full second vertical slice paralleling Likes exactly, not a
   reuse of it: `saved_articles` table, `SaveService`, `/articles/{id}/save` + `/users/me/saves` routes on the
   backend; `SavesClient`/`SaveState`/`PendingSaves` in the app, registered in `main.dart` right after the
   equivalent Likes classes. `HomeScreen` ("Today") is rebuilt: a masthead (date, an avatar button -- see the
@@ -100,8 +101,19 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   load) and a "Recently read" section backed by a new `ReadingHistory` (`SharedPreferences`-backed like
   `ArticleCache`, but device-local rather than per-user, since it is reading history, not an account record);
   `openArticle()` records into it for every screen that opens an article. The mockup's per-row "remove from saved"
-  button reuses `SaveButton`; recently-read rows have no action, matching the mockup. The continue-reading mini-bar
-  that also reads from `ReadingHistory` is not wired into `AppShell` yet. Tapping the masthead's `AccountAvatar`
+  button reuses `SaveButton`; recently-read rows have no action, matching the mockup. `ReadingHistory` is now a
+  `ChangeNotifier` (unusual for this app's local-only services, see its own doc comment) specifically so `AppShell`'s
+  continue-reading bar -- a floating glass pill above the tab bar, reopening the most recently read article --
+  updates the moment any screen opens a new one, without every one of them (Home, Library, Search, era cards) having
+  to signal `AppShell` itself. It shows the article's own reading time rather than the design's fabricated
+  "N min left": there is no reading-progress tracking to make a real *remaining* estimate. `SearchScreen` is
+  restyled to match (a borderless rounded search field with a leading icon and a clear button, replacing the old
+  bordered `AppInput`; the submit action is still a real, separate `AppButton` -- small and pill-shaped now -- since
+  the app's debounced-autocomplete-then-submit search is real and asynchronous, unlike the mockup's instant
+  client-side filter) and gains a "Browse by era" grid (`ApiClient.getEras`, a lightweight metadata-only fetch of
+  the distinct eras among recent articles, each with a representative real article image -- not the mockup's
+  bundled stock photos) shown whenever nothing has been searched for yet; tapping an era searches its exact label.
+  Tapping the masthead's `AccountAvatar`
   while signed in opens `SettingsSheet` (a modal bottom sheet, not a pushed screen) instead of signing out directly;
   signed out, it still opens `AuthScreen`. The sheet shows the real signed-in email under a generic "Your account"
   label rather than the mockup's fake "Reader" display name, since the app has no real name concept. Its Appearance
@@ -112,10 +124,10 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   care about text size don't need to wire one up, the same tradeoff as `ReadingHistory` above); three notification
   toggles (daily story, weekly digest, product news); and an offline-download toggle. Both are documented in "Not
   built" below, since neither does anything beyond persisting a preference.
-- **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags and summary (not
-  article bodies, which live in Storage), so a tag-only match is found too. PostgREST's `text_search` takes a column
-  name, not an expression, which is why the vector is a stored column with a GIN index. A tag like `covid-19` is
-  indexed as typed and with the hyphen read as a space, so both `covid-19` and `covid 19` find it.
+- **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags, era and summary
+  (not article bodies, which live in Storage), so a tag- or era-only match is found too. PostgREST's `text_search`
+  takes a column name, not an expression, which is why the vector is a stored column with a GIN index. A tag like
+  `covid-19` is indexed as typed and with the hyphen read as a space, so both `covid-19` and `covid 19` find it.
 - **Autocomplete**: `search_suggestions` holds every phrase a reader may type (the parts of each title split at a colon
   or dash, as they are and without a leading "the", "a" or "an", and the tags with hyphens read as spaces) with the
   number of articles that carry it. A phrase is kept only if searching for it finds the article it came from, so every
@@ -136,14 +148,14 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 
 ## Needs a person
 
-- **Hosted Supabase project.** Apply schema changes by hand, as a file in `backend/database/migrations/`. As last
-  checked it lacked the `search_vector` column and the `search_articles` function, and it has the earlier, unused
-  `search_suggestions` and `article_embeddings` tables. Run `2026-09-search-and-autocomplete.sql` in the SQL editor: it
-  adds search, replaces those tables with the new suggestions and its trigger, takes the write rights off `articles` from
-  the public key, and can be run twice. Until then search fails there and the app shows no suggestions. It also lacks the
-  `era` column (`2026-09-era-field.sql`) and the `saved_articles` table (`2026-09-saved-articles.sql`) the app redesign
-  added -- until the latter is run, the app's new Save button reaches the real project (the app talks to Supabase's REST
-  API directly, not through this backend) and gets a "relation does not exist" failure on every tap. Supabase
+- **Hosted Supabase project.** Apply schema changes by hand, as a file in `backend/database/migrations/`. The `era`
+  column (`2026-09-era-field.sql`) and the `saved_articles` table (`2026-09-saved-articles.sql`) the app redesign
+  added have been run there. Still needed: `2026-09-search-and-autocomplete.sql`, which lacked the `search_vector`
+  column and the `search_articles` function as last checked, and has the earlier, unused `search_suggestions` and
+  `article_embeddings` tables. Running it adds search (now including `era` in `search_vector`, so the app's
+  "Browse by era" grid returns real results there too), replaces those tables with the new suggestions and its
+  trigger, takes the write rights off `articles` from the public key, and can be run twice. Until then search fails
+  there and the app shows no suggestions. Supabase
   permanently deactivates free projects paused for over 90 days, which is how the first project was lost: restore a
   paused one promptly. Add the app's URL under Authentication > URL Configuration > Redirect URLs for password reset,
   and keep email confirmation off, or sign-up returns no session.

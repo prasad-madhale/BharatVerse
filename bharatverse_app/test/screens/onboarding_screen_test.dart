@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:bharatverse_app/screens/app_shell.dart';
 import 'package:bharatverse_app/screens/auth_screen.dart';
 import 'package:bharatverse_app/screens/onboarding_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
+import 'package:bharatverse_app/services/reading_history.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/state/onboarding_state.dart';
 
@@ -18,15 +20,21 @@ Future<OnboardingState> _openOnboardingState() async {
   return OnboardingState.open();
 }
 
-Widget _wrap(ApiClient apiClient, OnboardingState onboardingState) =>
-    withLikeProviders(
-      authState: AuthState(authClient: stubAuthClient()),
-      likesClient: stubLikesClient(),
-      savesClient: stubSavesClient(),
-      child: MaterialApp(
-        home: OnboardingScreen(
-          apiClient: apiClient,
-          onboardingState: onboardingState,
+// Onboarding can finish onto AppShell (see below), which needs a
+// ReadingHistory for its continue-reading bar.
+Future<Widget> _wrap(
+        ApiClient apiClient, OnboardingState onboardingState) async =>
+    ChangeNotifierProvider<ReadingHistory>.value(
+      value: ReadingHistory(await SharedPreferences.getInstance()),
+      child: withLikeProviders(
+        authState: AuthState(authClient: stubAuthClient()),
+        likesClient: stubLikesClient(),
+        savesClient: stubSavesClient(),
+        child: MaterialApp(
+          home: OnboardingScreen(
+            apiClient: apiClient,
+            onboardingState: onboardingState,
+          ),
         ),
       ),
     );
@@ -40,7 +48,8 @@ void main() {
   });
 
   testWidgets('starts on the splash, with no Skip button', (tester) async {
-    await tester.pumpWidget(_wrap(apiClient, await _openOnboardingState()));
+    await tester
+        .pumpWidget(await _wrap(apiClient, await _openOnboardingState()));
     await tester.pump();
 
     expect(find.text('BharatVerse'), findsOneWidget);
@@ -51,7 +60,8 @@ void main() {
 
   testWidgets('Get started advances through the feature slides',
       (tester) async {
-    await tester.pumpWidget(_wrap(apiClient, await _openOnboardingState()));
+    await tester
+        .pumpWidget(await _wrap(apiClient, await _openOnboardingState()));
     await tester.pump();
 
     await tester.tap(find.text('Get started'));
@@ -78,7 +88,7 @@ void main() {
       'finishing the last slide opens AuthScreen in sign-up mode and marks '
       'onboarding seen', (tester) async {
     final onboardingState = await _openOnboardingState();
-    await tester.pumpWidget(_wrap(apiClient, onboardingState));
+    await tester.pumpWidget(await _wrap(apiClient, onboardingState));
     await tester.pump();
 
     await tester.tap(find.text('Get started')); // splash -> slide 1
@@ -97,7 +107,8 @@ void main() {
 
   testWidgets('Skip on a feature slide jumps straight to sign-up',
       (tester) async {
-    await tester.pumpWidget(_wrap(apiClient, await _openOnboardingState()));
+    await tester
+        .pumpWidget(await _wrap(apiClient, await _openOnboardingState()));
     await tester.pump();
     await tester.tap(find.text('Get started'));
     await tester.pump();
@@ -111,7 +122,8 @@ void main() {
 
   testWidgets('"I already have an account" on the splash opens sign-in',
       (tester) async {
-    await tester.pumpWidget(_wrap(apiClient, await _openOnboardingState()));
+    await tester
+        .pumpWidget(await _wrap(apiClient, await _openOnboardingState()));
     await tester.pump();
 
     await tester.tap(find.text('I already have an account'));
@@ -124,7 +136,8 @@ void main() {
   testWidgets(
       'continuing from the resulting AuthScreen replaces the stack with '
       'AppShell', (tester) async {
-    await tester.pumpWidget(_wrap(apiClient, await _openOnboardingState()));
+    await tester
+        .pumpWidget(await _wrap(apiClient, await _openOnboardingState()));
     await tester.pump();
     await tester.tap(find.text('I already have an account'));
     await tester.pumpAndSettle();

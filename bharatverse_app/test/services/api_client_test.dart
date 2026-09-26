@@ -131,6 +131,67 @@ void main() {
     });
   });
 
+  group('ApiClient.getEras', () {
+    test('returns each distinct era once, newest article first', () async {
+      final mockClient = articlesMockClient(() => [
+            sampleArticleRow(
+                id: 'a1', era: 'Ancient India', imageUrl: 'https://a1.jpg'),
+            sampleArticleRow(
+                id: 'a2', era: 'Ancient India', imageUrl: 'https://a2.jpg'),
+            sampleArticleRow(
+                id: 'a3', era: 'Gupta Empire', imageUrl: 'https://a3.jpg'),
+          ]);
+      final client = ApiClient(client: mockClient);
+
+      final eras = await client.getEras();
+
+      expect(eras, [
+        (era: 'Ancient India', imageUrl: 'https://a1.jpg'),
+        (era: 'Gupta Empire', imageUrl: 'https://a3.jpg'),
+      ]);
+    });
+
+    test('skips articles with no era', () async {
+      final mockClient = articlesMockClient(() => [
+            sampleArticleRow(id: 'a1', era: ''),
+            sampleArticleRow(id: 'a2', era: 'Ancient India'),
+          ]);
+      final client = ApiClient(client: mockClient);
+
+      final eras = await client.getEras();
+
+      expect(eras.map((e) => e.era), ['Ancient India']);
+    });
+
+    test('does not fetch each article\'s content', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.url.path, isNot(contains('/storage/')));
+        return http.Response(jsonEncode([sampleArticleRow()]), 200);
+      });
+      final client = ApiClient(client: mockClient);
+
+      await client.getEras();
+    });
+
+    test('passes a custom limit through', () async {
+      final mockClient = MockClient((request) async {
+        expect(request.url.queryParameters['limit'], '10');
+        return http.Response('[]', 200);
+      });
+      final client = ApiClient(client: mockClient);
+
+      await client.getEras(limit: 10);
+    });
+
+    test('throws ApiException on server error', () async {
+      final mockClient =
+          MockClient((request) async => http.Response('error', 500));
+      final client = ApiClient(client: mockClient);
+
+      expect(() => client.getEras(), throwsA(isA<ApiException>()));
+    });
+  });
+
   group('ApiClient.getArticleById', () {
     test('filters by id and returns an Article', () async {
       final mockClient = MockClient((request) async {
@@ -502,6 +563,19 @@ void main() {
           throwsA(isA<ApiException>()));
       await expectLater(
           clientWith().getRecentArticles(), throwsA(isA<ApiException>()));
+    });
+
+    test(
+        'answers eras from the saved articles when the server cannot be reached',
+        () async {
+      rows = [sampleArticleRow(id: 'art_1', era: 'Ancient India')];
+      final client = clientWith(saved: cache);
+      await client.getRecentArticles();
+      online = false;
+
+      final eras = await client.getEras();
+
+      expect(eras.map((e) => e.era), ['Ancient India']);
     });
 
     test('does not answer a search from the saved articles', () async {

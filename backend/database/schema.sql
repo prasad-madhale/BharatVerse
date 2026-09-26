@@ -151,11 +151,13 @@ CREATE POLICY "Search suggestions are viewable by everyone"
     ON search_suggestions FOR SELECT
     USING (true);
 
--- Full-text search over title, tags and summary, weighted so a title term counts most (A), then a tag (B),
--- then a summary term (C). Tags are lowercase hyphenated slugs, which the parser splits, so a search for
--- "medieval" or "empire" finds "medieval-india" and "gupta-empire". A hyphen right before a digit tokenizes
--- with it instead ("covid-19" indexes as "covid" and "-19", not "19"), so the tag text is indexed a second
--- time with such hyphens turned to spaces, letting "covid 19" find it too. A generated, stored column (rather
+-- Full-text search over title, tags, era and summary, weighted so a title term counts most (A), then a tag
+-- or era (B), then a summary term (C) -- era shares tags' weight so "Browse by era" (which searches by an
+-- era's exact label) ranks like any other tag match, not above a title hit. Tags are lowercase hyphenated
+-- slugs, which the parser splits, so a search for "medieval" or "empire" finds "medieval-india" and
+-- "gupta-empire". A hyphen right before a digit tokenizes with it instead ("covid-19" indexes as "covid" and
+-- "-19", not "19"), so the tag text is indexed a second time with such hyphens turned to spaces, letting
+-- "covid 19" find it too. A generated, stored column (rather
 -- than an index on a bare to_tsvector(...) expression) is required here
 -- because PostgREST's text_search() filter -- what supabase-py's
 -- .text_search() ultimately sends -- takes a column name, not an
@@ -167,7 +169,8 @@ ALTER TABLE articles ADD COLUMN IF NOT EXISTS search_vector tsvector
         setweight(to_tsvector('english', title), 'A') ||
         setweight(
             to_tsvector('english', tags) ||
-            to_tsvector('english', regexp_replace(tags::text, '-(?=[0-9])', ' ', 'g')),
+            to_tsvector('english', regexp_replace(tags::text, '-(?=[0-9])', ' ', 'g')) ||
+            to_tsvector('english', era),
             'B'
         ) ||
         setweight(to_tsvector('english', summary), 'C')

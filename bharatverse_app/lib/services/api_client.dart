@@ -7,6 +7,9 @@ import '../config.dart';
 import '../models/article.dart';
 import 'article_cache.dart';
 
+/// One era with a thumbnail for Search's "Browse by era" grid.
+typedef EraSummary = ({String era, String? imageUrl});
+
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
@@ -96,6 +99,37 @@ class ApiClient {
                 '&offset=${page * limit}&limit=$limit')),
         () => _saved((all) => all.skip(page * limit).take(limit)),
       );
+
+  /// The distinct, non-empty eras among the most recent [limit] articles,
+  /// newest first, each paired with one representative image -- for
+  /// Search's "Browse by era" grid. A lightweight metadata-only fetch (no
+  /// content or image download), since a card only needs the era label and
+  /// a thumbnail URL.
+  Future<List<EraSummary>> getEras({int limit = 100}) => _liveOrSaved(
+        () async {
+          final rows = await _fetchRows(
+              'select=era,image_url&order=date.desc&limit=$limit');
+          return _distinctEras(rows.map((row) => (
+                era: row['era'] as String? ?? '',
+                imageUrl: row['image_url'] as String?,
+              )));
+        },
+        () async {
+          final all = await _cache?.getCachedArticles();
+          if (all == null) return null;
+          final eras =
+              _distinctEras(all.map((a) => (era: a.era, imageUrl: a.imageUrl)));
+          return eras.isEmpty ? null : eras;
+        },
+      );
+
+  List<EraSummary> _distinctEras(Iterable<EraSummary> candidates) {
+    final seen = <String>{};
+    return [
+      for (final c in candidates)
+        if (c.era.isNotEmpty && seen.add(c.era)) c,
+    ];
+  }
 
   /// Full-text search over title, tags and summary, most relevant first. Calls the
   /// same `search_articles` database function as the backend's

@@ -4,16 +4,19 @@
 -- It is schema.sql's search and suggestions sections, with the statements that fail on a table that already exists left out,
 -- so it must be kept in step with them (tools/local-stack/tests/test_migration.py checks that it is). Whole-file runs of
 -- schema.sql only suit a new project: the SQL editor runs a file as one transaction, and it stops at the first policy or
--- trigger that exists.
+-- trigger that exists. The search_vector expression below reads the `era` column, so run
+-- 2026-09-era-field.sql first if this project does not have it yet.
 
 -- Full-text search: drop the earlier title-and-summary version of the column, if any, then add the weighted one
 ALTER TABLE articles DROP COLUMN IF EXISTS search_vector;
 
--- Full-text search over title, tags and summary, weighted so a title term counts most (A), then a tag (B),
--- then a summary term (C). Tags are lowercase hyphenated slugs, which the parser splits, so a search for
--- "medieval" or "empire" finds "medieval-india" and "gupta-empire". A hyphen right before a digit tokenizes
--- with it instead ("covid-19" indexes as "covid" and "-19", not "19"), so the tag text is indexed a second
--- time with such hyphens turned to spaces, letting "covid 19" find it too. A generated, stored column (rather
+-- Full-text search over title, tags, era and summary, weighted so a title term counts most (A), then a tag
+-- or era (B), then a summary term (C) -- era shares tags' weight so "Browse by era" (which searches by an
+-- era's exact label) ranks like any other tag match, not above a title hit. Tags are lowercase hyphenated
+-- slugs, which the parser splits, so a search for "medieval" or "empire" finds "medieval-india" and
+-- "gupta-empire". A hyphen right before a digit tokenizes with it instead ("covid-19" indexes as "covid" and
+-- "-19", not "19"), so the tag text is indexed a second time with such hyphens turned to spaces, letting
+-- "covid 19" find it too. A generated, stored column (rather
 -- than an index on a bare to_tsvector(...) expression) is required here
 -- because PostgREST's text_search() filter -- what supabase-py's
 -- .text_search() ultimately sends -- takes a column name, not an
@@ -25,7 +28,8 @@ ALTER TABLE articles ADD COLUMN IF NOT EXISTS search_vector tsvector
         setweight(to_tsvector('english', title), 'A') ||
         setweight(
             to_tsvector('english', tags) ||
-            to_tsvector('english', regexp_replace(tags::text, '-(?=[0-9])', ' ', 'g')),
+            to_tsvector('english', regexp_replace(tags::text, '-(?=[0-9])', ' ', 'g')) ||
+            to_tsvector('english', era),
             'B'
         ) ||
         setweight(to_tsvector('english', summary), 'C')
