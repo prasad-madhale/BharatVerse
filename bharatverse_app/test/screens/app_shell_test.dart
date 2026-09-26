@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:bharatverse_app/screens/app_shell.dart';
+import 'package:bharatverse_app/screens/library_screen.dart';
 import 'package:bharatverse_app/screens/search_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
@@ -30,7 +31,7 @@ void main() {
     expect(find.text('Library'), findsOneWidget);
   });
 
-  testWidgets('switching to the Library tab shows LikedArticlesScreen',
+  testWidgets('switching to the Library tab shows LibraryScreen',
       (tester) async {
     final apiClient =
         ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
@@ -41,8 +42,7 @@ void main() {
     await tester.tap(find.text('Library'));
     await tester.pumpAndSettle();
 
-    // ScreenHeading renders its text uppercased.
-    expect(find.text('LIKED ARTICLES'), findsOneWidget);
+    expect(find.byType(LibraryScreen), findsOneWidget);
   });
 
   testWidgets('the search button opens SearchScreen', (tester) async {
@@ -52,9 +52,7 @@ void main() {
     await tester.pumpWidget(_wrap(apiClient));
     await tester.pumpAndSettle();
 
-    // HomeScreen's own header (replaced in Phase 3) also has a "Search"
-    // tooltip -- AppShell's floating button is the last one in the tree.
-    await tester.tap(find.byTooltip('Search').last);
+    await tester.tap(find.byTooltip('Search'));
     await tester.pumpAndSettle();
 
     expect(find.byType(SearchScreen), findsOneWidget);

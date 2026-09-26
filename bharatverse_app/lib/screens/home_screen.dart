@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../models/article.dart';
 import '../services/api_client.dart';
-import '../state/auth_state.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
+import '../widgets/account_avatar.dart';
 import '../widgets/article_card.dart';
 import '../widgets/content_column.dart';
 import '../widgets/empty_state.dart';
@@ -52,15 +51,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _openAuth(BuildContext context, AuthState authState) {
-    if (authState.isAuthenticated) {
-      authState.logout();
-    } else {
-      Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => const AuthScreen()));
-    }
-  }
-
   void _requireAuth(BuildContext context) => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const AuthScreen()),
       );
@@ -80,7 +70,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final authState = context.watch<AuthState>();
     return Scaffold(
       backgroundColor: colors.surfacePage,
       body: Column(
@@ -132,11 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: columnPadding(context, vertical: AppSpacing.space2)
                         .copyWith(bottom: 120),
                     children: [
-                      _Masthead(
-                        authenticated: authState.isAuthenticated,
-                        email: authState.currentUser?.email,
-                        onAvatarTap: () => _openAuth(context, authState),
-                      ),
+                      const _Masthead(),
                       const SizedBox(height: AppSpacing.space2),
                       _CategoryRow(
                         active: _activeCategory,
@@ -192,15 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Masthead extends StatelessWidget {
-  final bool authenticated;
-  final String? email;
-  final VoidCallback onAvatarTap;
-
-  const _Masthead({
-    required this.authenticated,
-    required this.email,
-    required this.onAvatarTap,
-  });
+  const _Masthead();
 
   String get _todayLabel {
     final now = DateTime.now();
@@ -210,8 +187,6 @@ class _Masthead extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final initial =
-        (email != null && email!.isNotEmpty) ? email![0].toUpperCase() : null;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -239,26 +214,7 @@ class _Masthead extends StatelessWidget {
             ],
           ),
         ),
-        Semantics(
-          button: true,
-          label: authenticated ? 'Account and sign out' : 'Sign in',
-          child: InkWell(
-            onTap: onAvatarTap,
-            customBorder: const CircleBorder(),
-            child: Container(
-              width: 44,
-              height: 44,
-              alignment: Alignment.center,
-              decoration:
-                  BoxDecoration(color: colors.ink950, shape: BoxShape.circle),
-              child: initial != null
-                  ? Text(initial,
-                      style: AppTypography.headline
-                          .copyWith(fontSize: 17, color: colors.paper0))
-                  : Icon(Icons.person_outline, color: colors.paper0, size: 22),
-            ),
-          ),
-        ),
+        const AccountAvatar(),
       ],
     );
   }
