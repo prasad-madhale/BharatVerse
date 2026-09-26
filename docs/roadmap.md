@@ -50,7 +50,18 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   Groq's free tier, and two local Ollama models tried for generation and review (`qwen3.5:9b`, `qwen2.5:7b-instruct`),
   were rejected for weak word-count adherence -- Groq and `qwen2.5:7b-instruct` undershot, `qwen3.5:9b` overshot by
   as much as 65% in a real run; local inference stays scoped to the free, per-image cohesion check
-  (`IMAGE_COHESION_LLM_PROVIDER`), not generation or the text critic. Claude Sonnet 5 runs adaptive thinking by
+  (`IMAGE_COHESION_LLM_PROVIDER`), not generation or the text critic. An `openrouter` provider (any model it routes
+  to; `common/llm_provider.py` reuses the `openai` SDK against OpenRouter's OpenAI-compatible API, including its
+  OpenAI-style vision message format) was added and wired to `google/gemma-4-31b-it` for generation -- confirmed
+  reachable with a live key and response (a trivial round-trip, not a full article), but not yet run through
+  generation to check word-count adherence the way Groq/Ollama were. `LLMProvider` also gained a `model` constructor
+  override (alongside the existing `provider` one), and `ArticleCritic` gained matching `CRITIC_LLM_PROVIDER`/
+  `CRITIC_LLM_MODEL` settings (mirroring `IMAGE_COHESION_LLM_PROVIDER`, which also gained an `_LLM_MODEL` pair) --
+  both the critic's text review and the image-cohesion check are wired to OpenRouter's `qwen/qwen2.5-vl-72b-instruct`
+  -- a different, larger vision model than generation's Gemma, chosen for those two review roles specifically --
+  each confirmed with a real call (a text round-trip, and a vision call that correctly named a test shape's color).
+  One OpenRouter API key authenticates the account and covers every model it routes to, not just one. Claude Sonnet 5 runs
+  adaptive thinking by
   default, which shares `max_tokens` with the response and had caused the critic and revision calls to occasionally
   return empty text on long prompts; both now pass `effort="medium"` to cap thinking depth, and their prompts use
   XML-tag structuring with source material placed first, per Anthropic's current prompt-engineering guidance.

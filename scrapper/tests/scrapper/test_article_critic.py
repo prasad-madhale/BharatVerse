@@ -7,7 +7,7 @@ provider (no real API calls).
 
 import json
 from datetime import date, datetime, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -186,8 +186,16 @@ class TestReview:
 
     @pytest.mark.asyncio
     async def test_defaults_to_shared_llm_provider_singleton(self, monkeypatch):
+        """Only used when neither CRITIC_LLM_PROVIDER nor CRITIC_LLM_MODEL is set -- settings is
+        mocked explicitly (not left to read the real .env) so this doesn't depend on whether
+        the developer's own .env happens to set either."""
         fake = FakeLLMProvider(APPROVED_RESPONSE)
         monkeypatch.setattr("scrapper.article_critic.get_llm_provider", lambda: fake)
+        settings = MagicMock(
+            critic_llm_provider=None, critic_llm_model=None,
+            image_cohesion_llm_provider="ollama", image_cohesion_llm_model=None,
+        )
+        monkeypatch.setattr("scrapper.article_critic.get_llm_settings", lambda: settings)
 
         critic = ArticleCritic()
 

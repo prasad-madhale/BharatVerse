@@ -82,6 +82,18 @@ class TestReprocess:
 
         assert services.run_critic_loop.await_args.kwargs["initial_images"] == [image]
 
+    async def test_an_article_with_no_images_sources_fresh_instead_of_staying_imageless(
+        self, services
+    ):
+        """A pre-image-era article, or one left imageless by a previous save that failed
+        partway through (ArticleService.save_article's content-then-row write isn't atomic),
+        must get a real sourcing attempt -- not be treated as "no images" being the answer."""
+        services.article.images = []
+
+        await reprocess_articles.reprocess()
+
+        assert services.run_critic_loop.await_args.kwargs["initial_images"] is None
+
     async def test_no_scraped_content_skips_the_article(self, services):
         services.scraper.search_and_scrape.return_value = []
 
@@ -102,6 +114,23 @@ class TestReprocess:
 
         assert services.service.save_article.await_count == 1
         services.service.save_article.assert_awaited_once_with(second_article)
+        assert updated == 1
+
+    async def test_a_save_failure_for_one_article_does_not_stop_the_batch(self, services):
+        """E.g. a hosted project whose PostgREST schema cache hasn't picked up a new column
+        yet -- must not abort articles after the one that failed to save."""
+        second_article = make_article("art_20260102_001", "Second")
+        services.service.list_recent_articles = AsyncMock(side_effect=[
+            [services.article, second_article], [],
+        ])
+        services.run_critic_loop.side_effect = [
+            _approved(services.article), _approved(second_article),
+        ]
+        services.service.save_article = AsyncMock(side_effect=[Exception("schema cache stale"), None])
+
+        updated = await reprocess_articles.reprocess()
+
+        assert services.service.save_article.await_count == 2
         assert updated == 1
 
     async def test_does_not_save_when_the_critic_does_not_approve_after_reprocessing(self, services):

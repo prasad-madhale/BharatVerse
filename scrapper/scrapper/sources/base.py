@@ -83,11 +83,18 @@ class ContentSource(ABC):
         Get browser configuration for this source.
         Override to customize browser behavior.
         """
-        return BrowserConfig(
+        config = BrowserConfig(
             headless=True,
             java_script_enabled=True,
             verbose=False
         )
+        # BrowserConfig.__init__ hardcodes chrome_channel="chrome" whenever browser_type is
+        # "chromium" (its default), ignoring any chrome_channel passed in -- which needs a
+        # separately installed Google Chrome binary, not just Playwright's own bundled
+        # Chromium (`playwright install chromium`). Clear it after construction so the
+        # launch omits `channel` entirely and falls back to that bundled Chromium.
+        config.chrome_channel = ""
+        return config
 
     def get_crawler_config(self) -> CrawlerRunConfig:
         """
