@@ -1,0 +1,55 @@
+name: Android APK Release
+
+# Builds a release APK and publishes it as a GitHub Release whenever bharatverse_app changes on
+# main (i.e. after a PR merges) -- not on every push to a feature branch, and not for
+# backend/scrapper/common-only commits, which have nothing to release.
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "bharatverse_app/**"
+      - ".github/workflows/android-release.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        working-directory: bharatverse_app
+        run: flutter pub get
+
+      - name: Build release APK
+        working-directory: bharatverse_app
+        run: flutter build apk --release
+
+      - name: Set release metadata
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "tag=apk-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: "Android build ${{ github.run_number }} (${{ steps.meta.outputs.sha_short }})"
+          body: |
+            Automatic build from ${{ github.sha }} on `main`.
+
+            Debug-signed (no release keystore configured yet -- see
+            `bharatverse_app/android/app/build.gradle`'s TODO): installs fine via "install from
+            unknown sources", but replacing a build made on a different machine (e.g. a local
+            `flutter run --release`) may need an uninstall first, since the signatures won't
+            match and Android refuses to update in place across different signing keys.
+          files: bharatverse_app/build/app/outputs/flutter-apk/app-release.apk
