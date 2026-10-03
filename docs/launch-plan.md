@@ -51,8 +51,10 @@ Not in 1.0: iOS, a hosted web app, push notifications, Google sign-in and semant
 3. Branch from an up-to-date `main`: `git switch -c <type>/<id>-<slug>`, for example `fix/l02-onboarding-safe-area`.
 4. Keep to the task's scope, and write the test first where the behavior can be tested. If this file turns out to be
    wrong (a file moved, a fact changed), correct it in the same branch.
-5. Run `./build.sh --check` before committing. Don't run the scraper, the daily pipeline or `integration` tests, and
-   don't call a paid API, unless the owner asks in that session.
+5. Before committing, run the checks AGENTS.md lists, one by one, in the existing venv (`.agent/venv`) with the Flutter
+   SDK at `~/flutter/flutter`. Not `./build.sh`: even with `--check` it reinstalls both requirements files, which breaks
+   that venv, and runs `playwright install --with-deps`, which needs sudo. Don't run the scraper, the daily pipeline or
+   `integration` tests, and don't call a paid API, unless the owner asks in that session.
 6. Schema changes go in `schema.sql` plus a dated file in `backend/database/migrations/`, tested in
    `tools/local-stack/tests/`. Never change the hosted project; the task's person step applies the file.
 7. Commit locally with a one-line conventional subject. In the same branch, set the task's status here to `done` (or
