@@ -107,7 +107,7 @@ Only the owner can do these. Longest lead time first.
 
 | ID | Task | Owner | Size | Needs | Status |
 |---|---|---|---|---|---|
-| L01 | Bring the roadmap up to this checkpoint | agent | S | | todo |
+| L01 | Bring the roadmap up to this checkpoint | agent | S | | done |
 | L02 | Onboarding respects safe areas (#30) | agent | S | | todo |
 | L03 | Delete account | agent, person | M | | todo |
 | L04 | Report a problem with an article | agent, person | M | | todo |

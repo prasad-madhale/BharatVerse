@@ -1,8 +1,8 @@
 # Roadmap
 
 Status and sequencing. [`design.md`](design.md) is the architectural reference and [`requirements.md`](requirements.md)
-the requirements; this file records what is built, where it differs from the design, and what is left. Status as of
-2026-09-25.
+the requirements; this file records what is built, where it differs from the design, and what is left.
+[`launch-plan.md`](launch-plan.md) orders the work left before launch. Status as of 2026-10-03.
 
 ## Phases
 
@@ -10,14 +10,15 @@ the requirements; this file records what is built, where it differs from the des
 |---|---|---|
 | 0 | Vertical slice: scrape, generate, store, serve, display | Done, verified live |
 | 1 | Auth: Supabase email and password, password reset | Done, verified live; OAuth not started |
-| 2 | Search: full-text, then autocomplete, then semantic | Full-text and autocomplete done; semantic undecided |
+| 2 | Search: full-text, then autocomplete, then semantic | Full-text and autocomplete done and live; semantic undecided |
 | 3 | Likes and offline reading | Done |
 | 4 | Validator, editorial critic, scheduler and daily automation | Done, verified live; the cron is off on purpose |
-| 5 | Remaining mobile screens and polish | Done except a profile screen |
-| 6 | Deployment | Backend Dockerfile done; hosting, scheduler and app store prep not started |
+| 5 | Remaining mobile screens and polish | Done: the Milestone 1 redesign, with a Settings sheet instead of a profile screen |
+| 6 | Deployment | Backend Dockerfile done; a debug-signed APK on every app change; store work in the launch plan |
 
-"Verified live" means run against the real project and a real browser; the later features were verified against a local
-Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
+"Verified live" means run against the real project and a real browser. The later features were verified against a local
+Postgres and PostgREST running `schema.sql`; since then the hosted project has taken the era, saves and search
+migrations, and the redesigned app has run against it on an Android phone.
 
 ## What is built
 
@@ -32,7 +33,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   when that page has too few, then `ArticleCritic` reviews the draft and its images as an editor would -- grounding
   in the source material (the check specific to an AI-from-scraped-sources pipeline), citation relevance,
   neutrality, contested claims stated as settled fact, structure, and whether every image (not only the featured
-  one) genuinely fits the piece, checked with a local model since it runs once per image, per round -- and
+  one) genuinely fits the piece, checked by its own vision model (`IMAGE_COHESION_LLM_PROVIDER`) since it runs once
+  per image, per round -- and
   `ArticleGenerator.revise_article` addresses a text issue while a full image re-source (excluding whatever was
   just rejected) addresses a cohesion one, both in the same round if needed, up to `CRITIC_MAX_ROUNDS` (4, i.e. up
   to 3 revisions) review/revise cycles before falling back to a fresh generation. Closes requirements 2.5, 5.5 and
@@ -46,34 +48,39 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   rejected reprocess just leaves the article as it was. The service-role client publishes the result. A generation
   failure retries with backoff, and one bad topic never stops the batch. The daily GitHub Actions workflow runs on
   demand only: its schedule stays commented out until the output is trusted over more unattended runs, so do not
-  enable it without deciding that first. The daily workflow uses Claude Sonnet 5; a local run defaults to Gemini.
+  enable it without deciding that first. The daily workflow still uses Claude Sonnet 5 until it moves to OpenRouter
+  (launch plan L05); a local run uses the provider `.env` names, Gemini if it names none.
   Groq's free tier, and two local Ollama models tried for generation and review (`qwen3.5:9b`, `qwen2.5:7b-instruct`),
   were rejected for weak word-count adherence -- Groq and `qwen2.5:7b-instruct` undershot, `qwen3.5:9b` overshot by
   as much as 65% in a real run; local inference stays scoped to the free, per-image cohesion check
   (`IMAGE_COHESION_LLM_PROVIDER`), not generation or the text critic. An `openrouter` provider (any model it routes
   to; `common/llm_provider.py` reuses the `openai` SDK against OpenRouter's OpenAI-compatible API, including its
-  OpenAI-style vision message format) was added and wired to `google/gemma-4-31b-it` for generation -- confirmed
-  reachable with a live key and response (a trivial round-trip, not a full article), but not yet run through
-  generation to check word-count adherence the way Groq/Ollama were. `LLMProvider` also gained a `model` constructor
-  override (alongside the existing `provider` one), and `ArticleCritic` gained matching `CRITIC_LLM_PROVIDER`/
-  `CRITIC_LLM_MODEL` settings (mirroring `IMAGE_COHESION_LLM_PROVIDER`, which also gained an `_LLM_MODEL` pair) --
-  both the critic's text review and the image-cohesion check are wired to OpenRouter's `qwen/qwen2.5-vl-72b-instruct`
+  OpenAI-style vision message format) was added and wired to `google/gemma-4-31b-it` for generation. It has since
+  rewritten three published articles that passed the validator and the critic (see "Needs a person"), but left `era`
+  empty on two of them, which the controlled era list (launch plan L13) fixes. `LLMProvider` also gained a `model`
+  constructor override (alongside the existing `provider` one), and `ArticleCritic` gained matching
+  `CRITIC_LLM_PROVIDER`/`CRITIC_LLM_MODEL` settings (mirroring `IMAGE_COHESION_LLM_PROVIDER`, which also gained an
+  `_LLM_MODEL` pair) -- both the critic's text review and the image-cohesion check are wired to OpenRouter's
+  `qwen/qwen2.5-vl-72b-instruct`
   -- a different, larger vision model than generation's Gemma, chosen for those two review roles specifically --
-  each confirmed with a real call (a text round-trip, and a vision call that correctly named a test shape's color).
-  One OpenRouter API key authenticates the account and covers every model it routes to, not just one. Claude Sonnet 5 runs
-  adaptive thinking by
-  default, which shares `max_tokens` with the response and had caused the critic and revision calls to occasionally
-  return empty text on long prompts; both now pass `effort="medium"` to cap thinking depth, and their prompts use
-  XML-tag structuring with source material placed first, per Anthropic's current prompt-engineering guidance.
-- **API** (`backend/`): articles (`daily`, by id, paged list), full-text search, sign-up, login and logout, likes,
-  rate limiting and JSON request logs.
+  each confirmed with a real call (a text round-trip, and a vision call that correctly named a test shape's color),
+  then used for those three articles. One OpenRouter API key authenticates the account and covers every model it
+  routes to, not just one. Claude Sonnet 5 runs adaptive thinking by default, which shares `max_tokens` with the
+  response and had caused the critic and revision calls to occasionally return empty text on long prompts; both now
+  pass `effort="medium"` to cap thinking depth, and their prompts use XML-tag structuring with source material placed
+  first, per Anthropic's current prompt-engineering guidance.
+- **API** (`backend/`): articles (`daily`, by id, paged list), full-text search and autocomplete, sign-up, login and
+  logout, likes and saves, rate limiting and JSON request logs.
 - **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms (matched by
   stem with `porter_2_stemmer`, the same algorithm Postgres's search uses, so "empires" marks "Empire" too), likes
   (queued in `PendingLikes` and sent once the server can be reached, so a tap while offline is not lost),
   sign-in and password reset, offline reading of the 50 most recently opened articles. It reads Supabase directly, so it
-  works on a real phone without a local server. The design system is "Vintage Broadsheet" (parchment, saffron and India
-  green; Newsreader and Work Sans) in `lib/theme/` and `lib/widgets/`. The Android, iOS and web launcher icons are the
-  same saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README).
+  works on a real phone without a local server. The palette (parchment, saffron and India green) and the fonts
+  (Newsreader and Work Sans) are in `lib/theme/`, the shared widgets in `lib/widgets/`; the redesign below replaced
+  the earlier "Vintage Broadsheet" styling. The Android, iOS and web launcher icons are the same saffron "B" mark
+  (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README). Every app change merged to `main` builds
+  a release APK and publishes it as a GitHub Release (`.github/workflows/android-release.yml`). It is still
+  debug-signed, so a CI build and a locally built one cannot update each other: uninstall to switch.
 - **App redesign, done** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff): all
   four phases (theme + navigation, onboarding + auth, Home/Article/Library/Search, Settings sheet) are done.
   `lib/theme/app_colors.dart`/
@@ -93,8 +100,8 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
   carry it (defaulting to `""`, so it needs no backfill to keep old rows and test fixtures working), and
   `schema.sql`/`2026-09-era-field.sql` add the column. It is also woven into full-text search now: `search_vector`
   weights era the same as tags (`'B'`), so searching an era's exact label (e.g. from the "Browse by era" grid
-  below) ranks like any other tag match -- `2026-09-search-and-autocomplete.sql` (not yet run against the hosted
-  project; see "Needs a person") carries this directly, since it had not been run there either when this landed.
+  below) ranks like any other tag match -- `2026-09-search-and-autocomplete.sql` carries this too (the hosted project
+  ran a version from before era was added; see "Needs a person").
   Save/bookmark is a full second vertical slice paralleling Likes exactly, not a
   reuse of it: `saved_articles` table, `SaveService`, `/articles/{id}/save` + `/users/me/saves` routes on the
   backend; `SavesClient`/`SaveState`/`PendingSaves` in the app, registered in `main.dart` right after the
@@ -151,40 +158,42 @@ Postgres and PostgREST running `schema.sql`, with the hosted project unchecked.
 
 ## Next
 
-1. **Semantic search**: the placeholder `article_embeddings` table was removed. It needs pgvector and an embeddings
-   provider, and is worth deferring past the rest of the MVP.
-2. **Deployment** (Phase 6): `backend/Dockerfile` is done (built from the repo root, since it copies `common/` too;
-   not tried on a real Docker daemon here). Left: a hosting choice, the scheduler on that host, and app store
-   preparation (icons, signing, review lead time, especially on iOS).
+1. **Launch**: [`launch-plan.md`](launch-plan.md) orders the work left before a Google Play release: the store's
+   requirements (a permanent app id, signing, legal pages, account deletion), content and the daily pipeline's
+   production config, and operations.
+2. **Semantic search**: the placeholder `article_embeddings` table was removed. It needs pgvector and an embeddings
+   provider, and is deferred past launch.
+3. **Backend hosting**: `backend/Dockerfile` is done (built from the repo root, since it copies `common/` too; not
+   tried on a real Docker daemon here), but nothing needs the backend hosted yet: the app reads Supabase directly, and
+   the daily pipeline runs in GitHub Actions.
 
 ## Needs a person
 
+The launch plan's [person checklist](launch-plan.md#person-checklist) lists what launch needs from the owner. This
+section records the state of the hosted project and of the content runs.
+
 - **Hosted Supabase project.** Apply schema changes by hand, as a file in `backend/database/migrations/`. The `era`
-  column (`2026-09-era-field.sql`) and the `saved_articles` table (`2026-09-saved-articles.sql`) the app redesign
-  added have been run there. Still needed: `2026-09-search-and-autocomplete.sql`, which lacked the `search_vector`
-  column and the `search_articles` function as last checked, and has the earlier, unused `search_suggestions` and
-  `article_embeddings` tables. Running it adds search (now including `era` in `search_vector`, so the app's
-  "Browse by era" grid returns real results there too), replaces those tables with the new suggestions and its
-  trigger, takes the write rights off `articles` from the public key, and can be run twice. Until then search fails
-  there and the app shows no suggestions. Supabase
-  permanently deactivates free projects paused for over 90 days, which is how the first project was lost: restore a
-  paused one promptly. Add the app's URL under Authentication > URL Configuration > Redirect URLs for password reset,
-  and keep email confirmation off, or sign-up returns no session.
+  column (`2026-09-era-field.sql`), the `saved_articles` table (`2026-09-saved-articles.sql`) and search with
+  autocomplete (`2026-09-search-and-autocomplete.sql`) have been run there. The search file ran in a version from
+  before era joined `search_vector`, so searching an era, and the app's "Browse by era" grid, find nothing there until
+  it is run again; it drops and re-adds the column, and can be run again safely. Supabase permanently deactivates
+  free projects paused for over 90 days, which is how the first project was lost: restore a paused one promptly. Add
+  the app's URL under Authentication > URL Configuration > Redirect URLs for password reset, and keep email
+  confirmation off, or sign-up returns no session.
 - **OAuth.** Google and Facebook app registration has days of review lead time and has not been started.
 - **Apple Sign-In.** The app redesign's "Continue with Apple" button calls `AuthState.signInWithApple`, which is
   wired to Supabase's real `signInWithOAuth(OAuthProvider.apple)` call path, but it cannot complete until the Apple
   provider is configured on the Supabase project (an Apple Developer account, a Services ID, and the matching
   entitlements) -- also days of lead time, and not started.
-- **Hosting**, the daily cron, and app store accounts.
-- **Backfill images on the hosted project.** Every article published before `image_sourcing.py` landed has no
-  `image_url`. Run `python scrapper/backfill_images.py` against the hosted project's credentials once.
-- **Reprocess the hosted project's existing articles.** They were written before this session's critic fixes
-  (image cohesion, the `effort`/prompt-reliability fix, `CRITIC_MAX_ROUNDS` raised to 4) landed. Run
-  `python scrapper/reprocess_articles.py` against the hosted project's credentials once there is Anthropic API
-  balance to spend -- a run against all 6 on 2026-09-24 exhausted the account's credit balance partway through
-  (`anthropic.BadRequestError: ... credit balance is too low`), so add credits before retrying. The one article
-  that did get reviewed before that (Mohenjo-daro) was correctly rejected for citing facts attributed to a source
-  not actually present in the scraped material -- expect genuine rejections, not just approvals, on a full run.
+- **Mohenjo-daro's images.** A save during its reprocess failed partway through (`ArticleService.save_article` is not
+  atomic yet; launch plan L06), and the article came out with none. `python scrapper/backfill_images.py` against the
+  hosted project re-sources images for every article without any, which is only this one today.
+- **Reprocess the rest of the hosted articles.** Mohenjo-daro, Nalanda and Chauri Chaura have been rewritten and
+  approved by the OpenRouter pipeline. Iron Pillar (`art_20260709_001`), Haldighati (`art_20260705_002`) and Rani of
+  Jhansi (`art_20260705_001`) are left: the OpenRouter credits ran out ("can only afford" errors), so top them up
+  first. `reprocess_articles.py` redoes every published article, so wait for its `--ids` option (launch plan L13)
+  unless paying for all six again is fine. Expect genuine rejections, not just approvals: an earlier run correctly
+  rejected Mohenjo-daro for citing facts attributed to a source not present in the scraped material.
 
 ## Deviations from the design
 
