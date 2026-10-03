@@ -1,6 +1,6 @@
 # AGENTS.md
 
-BharatVerse serves one AI-written story from Indian history a day. Monorepo: `scrapper/` (scrape, generate, validate), `backend/` (FastAPI over Supabase), `common/` (shared models and LLM provider), `bharatverse_app/` (Flutter). Build status: `docs/roadmap.md`. Contract for endpoints, services and Flutter classes: `docs/design.md`.
+BharatVerse serves one AI-written story from Indian history a day. Monorepo: `scrapper/` (scrape, generate, validate), `backend/` (FastAPI over Supabase), `common/` (shared models and LLM provider), `bharatverse_app/` (Flutter). Build status: `docs/roadmap.md`. Work left before launch, in order: `docs/launch-plan.md`. Contract for endpoints, services and Flutter classes: `docs/design.md`.
 
 ## Setup
 - Python 3.12 with one venv at the repo root: `pip install -r backend/requirements.txt -r scrapper/requirements.txt`, then `playwright install --with-deps chromium`. Leave `fastapi==0.109.0` and `supabase==2.9.0` pinned; newer releases rename `gotrue` and change the missing-bearer status, which breaks tests.
