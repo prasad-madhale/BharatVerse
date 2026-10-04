@@ -175,17 +175,14 @@ migrations, and the redesigned app has run against it on an Android phone.
 The launch plan's [person checklist](launch-plan.md#person-checklist) lists what launch needs from the owner. This
 section records the state of the hosted project and of the content runs.
 
-- **Hosted Supabase project.** Apply schema changes by hand, as a file in `backend/database/migrations/`. The `era`
-  column (`2026-09-era-field.sql`), the `saved_articles` table (`2026-09-saved-articles.sql`) and search with
-  autocomplete (`2026-09-search-and-autocomplete.sql`) have been run there. The search file ran in a version from
-  before era joined `search_vector`, so searching an era, and the app's "Browse by era" grid, find nothing there until
-  it is run again; it drops and re-adds the column, and can be run again safely. `2026-10-delete-account.sql` (account
-  deletion) has not been run there yet; until it is, "Delete account" fails with an error and deletes nothing. Nor has
-  `2026-10-article-reports.sql`: until it is, "Report a problem" says the report could not be sent. Read reports in the
-  table editor (`article_reports`), newest first. Supabase
-  permanently deactivates free projects paused for over 90 days, which is how the first project was lost: restore a
-  paused one promptly. Add the app's URL under Authentication > URL Configuration > Redirect URLs for password reset,
-  and keep email confirmation off, or sign-up returns no session.
+- **Hosted Supabase project.** Apply schema changes by hand, as a file in `backend/database/migrations/`. Every file
+  there has been run on it, as of 2026-10-04: the `era` column, `saved_articles`, search with autocomplete (era included
+  in `search_vector`), account deletion and `article_reports`. Read reports in the table editor (`article_reports`),
+  newest first. An era label with a dash, like Nalanda's "427 CE - 1400 CE", still finds nothing from "Browse by era":
+  search reads " - 1400" as "not 1400", which the controlled era list (launch plan L13) avoids. Supabase permanently
+  deactivates free projects paused for over 90 days, which is how the first project was lost: restore a paused one
+  promptly. Add the app's URL under Authentication > URL Configuration > Redirect URLs for password reset, and keep
+  email confirmation off, or sign-up returns no session.
 - **OAuth.** Google and Facebook app registration has days of review lead time and has not been started.
 - **Apple Sign-In.** The app redesign's "Continue with Apple" button calls `AuthState.signInWithApple`, which is
   wired to Supabase's real `signInWithOAuth(OAuthProvider.apple)` call path, but it cannot complete until the Apple
