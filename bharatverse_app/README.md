@@ -50,7 +50,8 @@ flutter analyze
 
 `integration_test/` runs the real app on a device or emulator (not in CI): `flutter test integration_test -d <device>`.
 `onboarding_test.dart` walks the first-run slides and checks none sits under the device's status or navigation bar.
-`delete_account_test.dart` signs up, saves a story and deletes the account, so it must run against a database it
+`delete_account_test.dart` (sign up, save, delete the account) and `report_article_test.dart` (a guest reports a story;
+pass `--dart-define=REPORT_NOTE=...` to find its row) write data, so they must run against a database they
 may write to: a `tools/local-stack` stack, which an emulator reaches at `10.0.2.2`, never the hosted project:
 `eval "$(BV_STACK_OFFSET=1000 ../tools/local-stack/stack.sh env)"`, then
 `flutter test integration_test/delete_account_test.dart -d emulator-5554 --dart-define=SUPABASE_URL=http://10.0.2.2:55321 --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"`.

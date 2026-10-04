@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:bharatverse_app/models/article.dart';
 import 'package:bharatverse_app/screens/article_detail_screen.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
+import 'package:bharatverse_app/widgets/report_sheet.dart';
 import 'package:bharatverse_app/theme/app_colors.dart';
 import 'package:bharatverse_app/widgets/article_image.dart';
 
@@ -74,6 +75,18 @@ void main() {
       expect(find.text('Ancient India'), findsOneWidget);
       expect(find.text('Save'), findsOneWidget);
       expect(find.text('Like'), findsOneWidget);
+    });
+
+    testWidgets('"Report a problem" at the end opens the report sheet',
+        (tester) async {
+      await pumpScreen(tester);
+
+      await tester.ensureVisible(find.text('Report a problem'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Report a problem'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ReportSheet), findsOneWidget);
     });
 
     testWidgets('shows a parchment placeholder when the article has no images',

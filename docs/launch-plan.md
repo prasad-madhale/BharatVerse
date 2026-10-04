@@ -115,7 +115,7 @@ Only the owner can do these. Longest lead time first.
 | L01 | Bring the roadmap up to this checkpoint | agent | S | | done |
 | L02 | Onboarding respects safe areas (#30) | agent | S | | done |
 | L03 | Delete account | agent, person | M | | done |
-| L04 | Report a problem with an article | agent, person | M | | todo |
+| L04 | Report a problem with an article | agent, person | M | | done |
 | L05 | Daily pipeline on the production config | agent, person | S | | todo |
 | L06 | Atomic article save | agent | S | | todo |
 | L07 | Permanent app identity and version | agent | S | D1 | todo |
@@ -264,7 +264,8 @@ Per D2.
 - `.github/workflows/pages.yml`: deploy `site/` when `site/**` changes (`actions/upload-pages-artifact`,
   `actions/deploy-pages`).
 - The privacy policy describes what the app actually does: the email and password Supabase Auth holds; likes and saves;
-  preferences and reading history kept on the device; crash reports once L17 lands; fonts fetched from Google until L19
+  preferences and reading history kept on the device; problem reports (L04: a reason, an optional note, and the user id
+  when signed in); crash reports once L17 lands; fonts fetched from Google until L19
   lands; no ads, no selling, no tracking; where Supabase hosts the data (the project's region); deletion in the app
   (L03) or by emailing support, which the owner carries out in the Supabase dashboard; not directed at children under
   13 (D9); the contact from D3.

@@ -237,6 +237,31 @@ class ApiClient {
     });
   }
 
+  /// Files a reader's report of a problem with [articleId]: [reason] is
+  /// `factual`, `image`, `offensive` or `other`. Signed in, it is filed under
+  /// [userId] with their [accessToken]; signed out, anonymously. Reports are
+  /// write-only: the owner reads them in the Supabase dashboard.
+  Future<void> reportArticle({
+    required String articleId,
+    required String reason,
+    String? note,
+    String? userId,
+    String? accessToken,
+  }) async {
+    final trimmed = note?.trim() ?? '';
+    await _post(
+      '$baseUrl/rest/v1/article_reports',
+      {
+        'article_id': articleId,
+        'reason': reason,
+        if (trimmed.isNotEmpty) 'note': trimmed,
+        if (userId != null) 'user_id': userId,
+      },
+      accessToken: accessToken,
+      headers: const {'Prefer': 'return=minimal'},
+    );
+  }
+
   Map<String, String> get _headers => {
         'apikey': supabaseAnonKey,
         'Authorization': 'Bearer $supabaseAnonKey',
@@ -245,10 +270,18 @@ class ApiClient {
   Future<http.Response> _get(String url) =>
       _send(() => _client.get(Uri.parse(url), headers: _headers));
 
-  Future<http.Response> _post(String url, Object body) =>
+  /// Signed in, [accessToken] replaces the public key, so row-level security
+  /// sees the reader.
+  Future<http.Response> _post(String url, Object body,
+          {String? accessToken, Map<String, String> headers = const {}}) =>
       _send(() => _client.post(
             Uri.parse(url),
-            headers: {..._headers, 'Content-Type': 'application/json'},
+            headers: {
+              ..._headers,
+              if (accessToken != null) 'Authorization': 'Bearer $accessToken',
+              'Content-Type': 'application/json',
+              ...headers,
+            },
             body: jsonEncode(body),
           ));
 
@@ -260,7 +293,7 @@ class ApiClient {
       throw ApiException(unreachableMessage);
     }
 
-    if (response.statusCode != 200) {
+    if (response.statusCode < 200 || response.statusCode >= 300) {
       throw ApiException(
         'Request failed (${response.statusCode})',
         statusCode: response.statusCode,

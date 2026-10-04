@@ -19,6 +19,7 @@ import '../widgets/article_image.dart';
 import '../widgets/citation_item.dart';
 import '../widgets/content_column.dart';
 import '../widgets/glass_surface.dart';
+import '../widgets/report_sheet.dart';
 import 'auth_screen.dart';
 
 /// Opens [article], first noting the view so it stays in the offline cache
@@ -184,6 +185,19 @@ class ArticleDetailScreen extends StatelessWidget {
                             for (final citation in article.citations)
                               CitationItem(citation: citation),
                           ],
+                          const SizedBox(height: AppSpacing.space6),
+                          Center(
+                            child: TextButton.icon(
+                              onPressed: () => ReportSheet.show(context,
+                                  articleId: article.id),
+                              icon: Icon(Icons.flag_outlined,
+                                  size: 18, color: colors.textSecondary),
+                              label: Text('Report a problem',
+                                  style: AppTypography.ui.copyWith(
+                                      fontSize: 14,
+                                      color: colors.textSecondary)),
+                            ),
+                          ),
                         ],
                       ),
                     ),
