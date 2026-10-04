@@ -48,6 +48,11 @@ dart format --output=none --set-exit-if-changed .
 flutter analyze
 ```
 
+`integration_test/` runs the real app on a device or emulator (not in CI): `flutter test integration_test -d <device>`.
+`onboarding_test.dart` walks the first-run slides and checks none sits under the device's status or navigation bar.
+On a 14 GB machine, build first and boot the emulator after, each in a memory-capped scope
+(`systemd-run --user --scope -p MemoryMax=5500M ...`): an emulator next to an uncapped Gradle build ran it out of memory.
+
 ## Layout
 
 - `lib/screens/`: `app_shell.dart` (the tab-bar root), `onboarding_screen.dart` (first-run only), home, article,

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
@@ -127,7 +129,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
           if (!isSplash)
             Positioned(
-              top: 50,
+              top: math.max(50, MediaQuery.paddingOf(context).top + 8),
               right: 14,
               child: GlassSurface(
                 height: 44,
@@ -300,64 +302,69 @@ class _FeatureSlide extends StatelessWidget {
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 26, 24, 40),
-          child: ContentColumn(
-            maxWidth: AppSpacing.formWidth,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(slide.kicker,
-                    style: AppTypography.ui.copyWith(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: colors.tint)),
-                const SizedBox(height: 6),
-                Text(
-                  slide.headline,
-                  style: AppTypography.display2.copyWith(
-                    fontSize: 29.6,
-                    height: 1.15,
-                    letterSpacing: -0.44,
-                    color: colors.textPrimary,
+        // The photo runs under the status bar; the text and button keep clear
+        // of the navigation bar, like _Splash's.
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 26, 24, 40),
+            child: ContentColumn(
+              maxWidth: AppSpacing.formWidth,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(slide.kicker,
+                      style: AppTypography.ui.copyWith(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: colors.tint)),
+                  const SizedBox(height: 6),
+                  Text(
+                    slide.headline,
+                    style: AppTypography.display2.copyWith(
+                      fontSize: 29.6,
+                      height: 1.15,
+                      letterSpacing: -0.44,
+                      color: colors.textPrimary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  slide.body,
-                  style:
-                      AppTypography.body.copyWith(color: colors.textSecondary),
-                ),
-                const SizedBox(height: 22),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (var i = 0; i < dotCount; i++) ...[
-                      if (i > 0) const SizedBox(width: 7),
-                      AnimatedContainer(
-                        duration: AppSpacing.durationBase,
-                        height: 7,
-                        width: i == activeDot ? 20 : 7,
-                        decoration: BoxDecoration(
-                          color: i == activeDot
-                              ? colors.textPrimary
-                              : colors.ink200,
-                          borderRadius:
-                              BorderRadius.circular(AppSpacing.radiusFull),
+                  const SizedBox(height: 10),
+                  Text(
+                    slide.body,
+                    style: AppTypography.body
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                  const SizedBox(height: 22),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      for (var i = 0; i < dotCount; i++) ...[
+                        if (i > 0) const SizedBox(width: 7),
+                        AnimatedContainer(
+                          duration: AppSpacing.durationBase,
+                          height: 7,
+                          width: i == activeDot ? 20 : 7,
+                          decoration: BoxDecoration(
+                            color: i == activeDot
+                                ? colors.textPrimary
+                                : colors.ink200,
+                            borderRadius:
+                                BorderRadius.circular(AppSpacing.radiusFull),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
-                const SizedBox(height: 20),
-                AppButton(
-                  label: ctaLabel,
-                  variant: AppButtonVariant.cta,
-                  pill: true,
-                  wide: true,
-                  onPressed: onNext,
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 20),
+                  AppButton(
+                    label: ctaLabel,
+                    variant: AppButtonVariant.cta,
+                    pill: true,
+                    wide: true,
+                    onPressed: onNext,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

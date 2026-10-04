@@ -1,6 +1,6 @@
 # AGENTS.md
 
-BharatVerse serves one AI-written story from Indian history a day. Monorepo: `scrapper/` (scrape, generate, validate), `backend/` (FastAPI over Supabase), `common/` (shared models and LLM provider), `bharatverse_app/` (Flutter). Build status: `docs/roadmap.md`. Contract for endpoints, services and Flutter classes: `docs/design.md`.
+BharatVerse serves one AI-written story from Indian history a day. Monorepo: `scrapper/` (scrape, generate, validate), `backend/` (FastAPI over Supabase), `common/` (shared models and LLM provider), `bharatverse_app/` (Flutter). Build status: `docs/roadmap.md`. Work left before launch, in order: `docs/launch-plan.md`. Contract for endpoints, services and Flutter classes: `docs/design.md`.
 
 ## Setup
 - Python 3.12 with one venv at the repo root: `pip install -r backend/requirements.txt -r scrapper/requirements.txt`, then `playwright install --with-deps chromium`. Leave `fastapi==0.109.0` and `supabase==2.9.0` pinned; newer releases rename `gotrue` and change the missing-bearer status, which breaks tests.
@@ -9,7 +9,7 @@ BharatVerse serves one AI-written story from Indian history a day. Monorepo: `sc
 - `./scripts/dev.sh` runs the backend (:8000) and the Flutter web app (:8765).
 
 ## Checks (what CI runs)
-`./build.sh --check` runs all of them without editing files. Individually:
+`./build.sh --check` runs all of them without editing files, but first installs dependencies (both requirements files, and Playwright with system packages), so in an existing environment run them individually:
 - `cd backend && pytest -m "not integration"`, and the same in `common/` and `scrapper/`. Each enforces 85% coverage.
 - From the root: `autopep8 --recursive --aggressive --aggressive --max-line-length=127 --exit-code --diff backend/ scrapper/ common/` and `flake8 . --select=E9,F63,F7,F82 --exclude=.venv,.git,.agent,bharatverse_app,scripts`.
 - In `bharatverse_app/`: `dart format --output=none --set-exit-if-changed .`, `flutter analyze`, `flutter test --coverage`, then `../scripts/check_lcov_coverage.sh coverage/lcov.info 85 lib/main.dart`.
