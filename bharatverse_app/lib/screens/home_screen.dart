@@ -72,105 +72,109 @@ class _HomeScreenState extends State<HomeScreen> {
     final colors = context.colors;
     return Scaffold(
       backgroundColor: colors.surfacePage,
-      body: Column(
-        children: [
-          OfflineBanner(offline: widget.apiClient.offline),
-          Expanded(
-            child: FutureBuilder<List<Article>>(
-              future: _recentArticles,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(
-                    child: EmptyState(
-                      icon: Icons.error_outline,
-                      title: 'Could not load articles',
-                      description: describeError(snapshot.error),
-                      actionLabel: 'Retry',
-                      onAction: _retry,
-                    ),
-                  );
-                }
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            OfflineBanner(offline: widget.apiClient.offline),
+            Expanded(
+              child: FutureBuilder<List<Article>>(
+                future: _recentArticles,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: EmptyState(
+                        icon: Icons.error_outline,
+                        title: 'Could not load articles',
+                        description: describeError(snapshot.error),
+                        actionLabel: 'Retry',
+                        onAction: _retry,
+                      ),
+                    );
+                  }
 
-                final all = snapshot.data!;
-                if (all.isEmpty) {
+                  final all = snapshot.data!;
+                  if (all.isEmpty) {
+                    return RefreshIndicator(
+                      onRefresh: () async => _retry(),
+                      child: ListView(
+                        children: const [
+                          EmptyState(
+                            title: 'No articles yet',
+                            description: 'Check back soon!',
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  final articles = _filtered(all);
+                  final featured = articles.isEmpty ? null : articles.first;
+                  final week = articles.length > 1
+                      ? articles.sublist(1)
+                      : const <Article>[];
+
                   return RefreshIndicator(
                     onRefresh: () async => _retry(),
                     child: ListView(
-                      children: const [
-                        EmptyState(
-                          title: 'No articles yet',
-                          description: 'Check back soon!',
+                      padding:
+                          columnPadding(context, vertical: AppSpacing.space2)
+                              .copyWith(bottom: 120),
+                      children: [
+                        const _Masthead(),
+                        const SizedBox(height: AppSpacing.space2),
+                        _CategoryRow(
+                          active: _activeCategory,
+                          onSelect: (c) => setState(() => _activeCategory = c),
                         ),
+                        const SizedBox(height: AppSpacing.space5),
+                        if (featured == null)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(
+                                vertical: AppSpacing.space8),
+                            child: EmptyState(
+                              title: 'No matches',
+                              description: 'Try a different category.',
+                            ),
+                          )
+                        else
+                          ArticleCard(
+                            article: featured,
+                            size: ArticleCardSize.featured,
+                            onTap: () => openArticle(
+                                context, widget.apiClient, featured),
+                            onRequireAuth: () => _requireAuth(context),
+                          ),
+                        if (week.isNotEmpty) ...[
+                          const SizedBox(height: AppSpacing.space6),
+                          _SectionHeading(
+                            title: 'Earlier this week',
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    ArchiveScreen(apiClient: widget.apiClient),
+                              ),
+                            ),
+                          ),
+                          for (final article in week)
+                            ArticleCard(
+                              article: article,
+                              onTap: () => openArticle(
+                                  context, widget.apiClient, article),
+                              onRequireAuth: () => _requireAuth(context),
+                            ),
+                        ],
                       ],
                     ),
                   );
-                }
-
-                final articles = _filtered(all);
-                final featured = articles.isEmpty ? null : articles.first;
-                final week = articles.length > 1
-                    ? articles.sublist(1)
-                    : const <Article>[];
-
-                return RefreshIndicator(
-                  onRefresh: () async => _retry(),
-                  child: ListView(
-                    padding: columnPadding(context, vertical: AppSpacing.space2)
-                        .copyWith(bottom: 120),
-                    children: [
-                      const _Masthead(),
-                      const SizedBox(height: AppSpacing.space2),
-                      _CategoryRow(
-                        active: _activeCategory,
-                        onSelect: (c) => setState(() => _activeCategory = c),
-                      ),
-                      const SizedBox(height: AppSpacing.space5),
-                      if (featured == null)
-                        const Padding(
-                          padding:
-                              EdgeInsets.symmetric(vertical: AppSpacing.space8),
-                          child: EmptyState(
-                            title: 'No matches',
-                            description: 'Try a different category.',
-                          ),
-                        )
-                      else
-                        ArticleCard(
-                          article: featured,
-                          size: ArticleCardSize.featured,
-                          onTap: () =>
-                              openArticle(context, widget.apiClient, featured),
-                          onRequireAuth: () => _requireAuth(context),
-                        ),
-                      if (week.isNotEmpty) ...[
-                        const SizedBox(height: AppSpacing.space6),
-                        _SectionHeading(
-                          title: 'Earlier this week',
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  ArchiveScreen(apiClient: widget.apiClient),
-                            ),
-                          ),
-                        ),
-                        for (final article in week)
-                          ArticleCard(
-                            article: article,
-                            onTap: () =>
-                                openArticle(context, widget.apiClient, article),
-                            onRequireAuth: () => _requireAuth(context),
-                          ),
-                      ],
-                    ],
-                  ),
-                );
-              },
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
