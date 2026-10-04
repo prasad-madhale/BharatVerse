@@ -60,5 +60,15 @@ void main() {
 
       expect(broken.forUser('alice'), isEmpty);
     });
+
+    test('forget drops only that user\'s queue', () async {
+      await pendingLikes.set('alice', 'art_1', true);
+      await pendingLikes.set('bob', 'art_2', true);
+
+      await pendingLikes.forget('alice');
+
+      expect(PendingLikes(prefs).forUser('alice'), isEmpty);
+      expect(PendingLikes(prefs).forUser('bob'), {'art_2': true});
+    });
   });
 }

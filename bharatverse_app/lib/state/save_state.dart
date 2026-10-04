@@ -169,6 +169,11 @@ class SaveState extends ChangeNotifier {
     }
   }
 
+  /// Drops [userId]'s queued saves, for an account that has been deleted.
+  Future<void> forgetUser(String userId) async {
+    await _pendingSaves?.forget(userId);
+  }
+
   @override
   void dispose() {
     _authState.removeListener(_onAuthChanged);

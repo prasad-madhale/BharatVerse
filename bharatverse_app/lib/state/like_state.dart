@@ -168,6 +168,11 @@ class LikeState extends ChangeNotifier {
     }
   }
 
+  /// Drops [userId]'s queued likes, for an account that has been deleted.
+  Future<void> forgetUser(String userId) async {
+    await _pendingLikes?.forget(userId);
+  }
+
   @override
   void dispose() {
     _authState.removeListener(_onAuthChanged);

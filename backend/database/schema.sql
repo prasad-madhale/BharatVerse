@@ -51,6 +51,18 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Account deletion from the app: removes the caller's own auth.users row, which cascades to their users, likes and
+-- saved_articles rows. SECURITY DEFINER because only the owner may delete from auth.users; auth.uid() keeps it to the
+-- caller, and only a signed-in user may call it.
+CREATE OR REPLACE FUNCTION delete_my_account()
+RETURNS void
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+    DELETE FROM auth.users WHERE id = auth.uid();
+$$;
+REVOKE EXECUTE ON FUNCTION delete_my_account() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION delete_my_account() TO authenticated;
+
 -- Likes
 CREATE TABLE IF NOT EXISTS likes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

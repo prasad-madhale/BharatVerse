@@ -114,7 +114,7 @@ Only the owner can do these. Longest lead time first.
 |---|---|---|---|---|---|
 | L01 | Bring the roadmap up to this checkpoint | agent | S | | done |
 | L02 | Onboarding respects safe areas (#30) | agent | S | | done |
-| L03 | Delete account | agent, person | M | | todo |
+| L03 | Delete account | agent, person | M | | done |
 | L04 | Report a problem with an article | agent, person | M | | todo |
 | L05 | Daily pipeline on the production config | agent, person | S | | todo |
 | L06 | Atomic article save | agent | S | | todo |

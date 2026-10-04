@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/auth_state.dart';
+import '../state/like_state.dart';
+import '../state/save_state.dart';
 import '../state/settings_state.dart';
 import '../state/theme_mode_state.dart';
 import '../theme/app_colors.dart';
@@ -12,7 +14,7 @@ const double _topGap = 56;
 const double _cellRadius = 12;
 
 /// The account avatar's Settings sheet: account info, notification toggles,
-/// text size, offline download, appearance, and sign out. Notification
+/// text size, offline download, appearance, sign out and account deletion. Notification
 /// toggles are local preference only -- there is no push integration (see
 /// roadmap.md), so a toggle here can never mean a notification actually
 /// arrives. Shows the real signed-in email rather than the mockup's fake
@@ -68,6 +70,8 @@ class SettingsSheet extends StatelessWidget {
                       _AboutCard(),
                       SizedBox(height: AppSpacing.space4),
                       _SignOutButton(),
+                      SizedBox(height: AppSpacing.space2),
+                      _DeleteAccountButton(),
                     ],
                   ),
                 ),
@@ -555,6 +559,68 @@ class _SignOutButton extends StatelessWidget {
                     color: colors.colorError)),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Deletes the account after a confirmation, as Google Play requires apps
+/// with accounts to offer. The deleted user's queued likes and saves go too.
+class _DeleteAccountButton extends StatelessWidget {
+  const _DeleteAccountButton();
+
+  Future<void> _delete(BuildContext context) async {
+    final colors = context.colors;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: const Text('This permanently deletes your account, your '
+            "likes and your saved stories. It can't be undone."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('Delete', style: TextStyle(color: colors.colorError)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) {
+      return;
+    }
+    final auth = context.read<AuthState>();
+    final likes = context.read<LikeState?>();
+    final saves = context.read<SaveState?>();
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final userId = auth.currentUser?.id;
+    try {
+      await auth.deleteAccount();
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(describeAuthError(e))));
+      return;
+    }
+    if (userId != null) {
+      await likes?.forgetUser(userId);
+      await saves?.forgetUser(userId);
+    }
+    navigator.pop();
+    messenger.showSnackBar(
+        const SnackBar(content: Text('Your account has been deleted.')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: TextButton(
+        onPressed: () => _delete(context),
+        child: Text('Delete account',
+            style: AppTypography.ui
+                .copyWith(fontSize: 14, color: context.colors.textSecondary)),
       ),
     );
   }

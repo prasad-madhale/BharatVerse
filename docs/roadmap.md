@@ -74,11 +74,13 @@ migrations, and the redesigned app has run against it on an Android phone.
 - **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms (matched by
   stem with `porter_2_stemmer`, the same algorithm Postgres's search uses, so "empires" marks "Empire" too), likes
   (queued in `PendingLikes` and sent once the server can be reached, so a tap while offline is not lost),
-  sign-in and password reset, offline reading of the 50 most recently opened articles. It reads Supabase directly, so it
-  works on a real phone without a local server. The palette (parchment, saffron and India green) and the fonts
-  (Newsreader and Work Sans) are in `lib/theme/`, the shared widgets in `lib/widgets/`; the redesign below replaced
-  the earlier "Vintage Broadsheet" styling. The Android, iOS and web launcher icons are the same saffron "B" mark
-  (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README). Every app change merged to `main` builds
+  sign-in and password reset, account deletion (Settings > Delete account, confirmed in a dialog, calls
+  `delete_my_account()`, which removes the user with their likes and saves), offline reading of the 50 most recently
+  opened articles. It reads Supabase directly, so it works on a real phone without a local server. The palette
+  (parchment, saffron and India green) and the fonts (Newsreader and Work Sans) are in `lib/theme/`, the shared
+  widgets in `lib/widgets/`; the redesign below replaced the earlier "Vintage Broadsheet" styling. The Android, iOS
+  and web launcher icons are the same saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see
+  its README). Every app change merged to `main` builds
   a release APK and publishes it as a GitHub Release (`.github/workflows/android-release.yml`). It is still
   debug-signed, so a CI build and a locally built one cannot update each other: uninstall to switch.
 - **App redesign, done** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff): all
@@ -176,10 +178,11 @@ section records the state of the hosted project and of the content runs.
   column (`2026-09-era-field.sql`), the `saved_articles` table (`2026-09-saved-articles.sql`) and search with
   autocomplete (`2026-09-search-and-autocomplete.sql`) have been run there. The search file ran in a version from
   before era joined `search_vector`, so searching an era, and the app's "Browse by era" grid, find nothing there until
-  it is run again; it drops and re-adds the column, and can be run again safely. Supabase permanently deactivates
-  free projects paused for over 90 days, which is how the first project was lost: restore a paused one promptly. Add
-  the app's URL under Authentication > URL Configuration > Redirect URLs for password reset, and keep email
-  confirmation off, or sign-up returns no session.
+  it is run again; it drops and re-adds the column, and can be run again safely. `2026-10-delete-account.sql` (account
+  deletion) has not been run there yet; until it is, "Delete account" fails with an error and deletes nothing. Supabase
+  permanently deactivates free projects paused for over 90 days, which is how the first project was lost: restore a
+  paused one promptly. Add the app's URL under Authentication > URL Configuration > Redirect URLs for password reset,
+  and keep email confirmation off, or sign-up returns no session.
 - **OAuth.** Google and Facebook app registration has days of review lead time and has not been started.
 - **Apple Sign-In.** The app redesign's "Continue with Apple" button calls `AuthState.signInWithApple`, which is
   wired to Supabase's real `signInWithOAuth(OAuthProvider.apple)` call path, but it cannot complete until the Apple

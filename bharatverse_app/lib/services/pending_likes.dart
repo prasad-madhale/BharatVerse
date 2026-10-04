@@ -37,6 +37,14 @@ class PendingLikes {
     await _write(all);
   }
 
+  /// Drops every queued request of [userId], whose account is gone.
+  Future<void> forget(String userId) async {
+    final all = _read();
+    if (all.remove(userId) != null) {
+      await _write(all);
+    }
+  }
+
   Future<void> _write(Map<String, Map<String, bool>> all) =>
       _prefs.setString(_key, jsonEncode(all));
 
