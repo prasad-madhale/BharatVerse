@@ -55,6 +55,9 @@ Not in 1.0: iOS, a hosted web app, push notifications, Google sign-in and semant
    SDK at `~/flutter/flutter`. Not `./build.sh`: even with `--check` it reinstalls both requirements files, which breaks
    that venv, and runs `playwright install --with-deps`, which needs sudo. Don't run the scraper, the daily pipeline or
    `integration` tests, and don't call a paid API, unless the owner asks in that session.
+   Then prove the change end to end: for the app, an `integration_test` on the Android emulator plus screenshots
+   (see `bharatverse_app/README.md`); for SQL, `tools/local-stack`. Never run the emulator and a build at once
+   outside memory-capped scopes: together they ran this 14 GB machine out of memory.
 6. Schema changes go in `schema.sql` plus a dated file in `backend/database/migrations/`, tested in
    `tools/local-stack/tests/`. Never change the hosted project; the task's person step applies the file.
 7. Commit locally with a one-line conventional subject. In the same branch, set the task's status here to `done` (or
@@ -110,7 +113,7 @@ Only the owner can do these. Longest lead time first.
 | ID | Task | Owner | Size | Needs | Status |
 |---|---|---|---|---|---|
 | L01 | Bring the roadmap up to this checkpoint | agent | S | | done |
-| L02 | Onboarding respects safe areas (#30) | agent | S | | todo |
+| L02 | Onboarding respects safe areas (#30) | agent | S | | done |
 | L03 | Delete account | agent, person | M | | todo |
 | L04 | Report a problem with an article | agent, person | M | | todo |
 | L05 | Daily pipeline on the production config | agent, person | S | | todo |

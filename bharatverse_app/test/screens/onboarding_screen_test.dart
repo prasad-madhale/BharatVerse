@@ -10,6 +10,7 @@ import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/services/reading_history.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 import 'package:bharatverse_app/state/onboarding_state.dart';
+import 'package:bharatverse_app/widgets/app_button.dart';
 
 import '../support/article_fixtures.dart';
 import '../support/like_fixtures.dart'
@@ -103,6 +104,32 @@ void main() {
     expect(find.byType(AuthScreen), findsOneWidget);
     expect(find.text('Create your account'), findsOneWidget);
     expect(onboardingState.seen, isTrue);
+  });
+
+  testWidgets(
+      'feature slides keep Skip below the status bar and the button above '
+      'the navigation bar', (tester) async {
+    // Physical pixels at the test view's 3x density: a 59 px status bar (as on
+    // recent iPhones) and a 48 px 3-button navigation bar (#30).
+    const bars = FakeViewPadding(top: 177, bottom: 144);
+    tester.view.padding = bars;
+    tester.view.viewPadding = bars;
+    addTearDown(tester.view.reset);
+    await tester
+        .pumpWidget(await _wrap(apiClient, await _openOnboardingState()));
+    await tester.pump();
+    await tester.tap(find.text('Get started'));
+    await tester.pump();
+
+    final height = tester.getSize(find.byType(OnboardingScreen)).height;
+    for (final label in ['Continue', 'Continue', 'Get started']) {
+      final button = find.widgetWithText(AppButton, label);
+      expect(tester.getRect(button).bottom, lessThanOrEqualTo(height - 48));
+      expect(tester.getRect(find.widgetWithText(TextButton, 'Skip')).top,
+          greaterThanOrEqualTo(59));
+      await tester.tap(button);
+      await tester.pump();
+    }
   });
 
   testWidgets('Skip on a feature slide jumps straight to sign-up',
