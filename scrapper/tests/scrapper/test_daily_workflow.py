@@ -1,6 +1,6 @@
 """
 The daily GitHub Actions pipeline's own settings: read from .github/workflows/daily-pipeline.yml and loaded the way the
-run would load them, every model role resolves to OpenRouter with the model meant for it. Guards against a role silently
+run would load them, every model role resolves to Google AI Studio (the `gemini` provider) with the model meant for it. Guards against a role silently
 falling back to a default the CI runner cannot serve (the image check's default is a local Ollama model).
 """
 
@@ -29,26 +29,25 @@ def pipeline_env():
 def run_settings(monkeypatch):
     """The settings the workflow's run would load: its env, a stand-in key, and no developer .env."""
     env = {name: value for name, value in pipeline_env().items() if not value.startswith("${{")}
-    settings = LLMSettings(_env_file=None, openrouter_api_key="test-key", **{k.lower(): v for k, v in env.items()})
+    settings = LLMSettings(_env_file=None, gemini_api_key="test-key", **{k.lower(): v for k, v in env.items()})
     monkeypatch.setattr(common.config, "_llm_settings", settings)
     return settings
 
 
-def test_every_model_role_runs_on_openrouter_with_its_own_model(run_settings):
+def test_writing_runs_on_gemma_and_both_reviews_on_a_different_vision_model(run_settings):
     critic = ArticleCritic()
     generator = ArticleGenerator()
 
-    assert (generator.llm_provider.provider, generator.llm_provider.model) == ("openrouter", "google/gemma-4-31b-it")
-    assert (critic.llm_provider.provider, critic.llm_provider.model) == ("openrouter", "qwen/qwen2.5-vl-72b-instruct")
-    assert (critic.image_llm_provider.provider, critic.image_llm_provider.model) == (
-        "openrouter", "qwen/qwen2.5-vl-72b-instruct")
+    assert (generator.llm_provider.provider, generator.llm_provider.model) == ("gemini", "gemma-4-31b-it")
+    assert (critic.llm_provider.provider, critic.llm_provider.model) == ("gemini", "gemini-3.8-flash")
+    assert (critic.image_llm_provider.provider, critic.image_llm_provider.model) == ("gemini", "gemini-3.8-flash")
 
 
 def test_the_key_comes_from_secrets_and_no_other_provider_is_configured():
     env = pipeline_env()
 
-    assert env["OPENROUTER_API_KEY"] == "${{ secrets.OPENROUTER_API_KEY }}"
-    assert not [name for name in env if name.endswith("_API_KEY") and name != "OPENROUTER_API_KEY"]
+    assert env["GEMINI_API_KEY"] == "${{ secrets.GEMINI_API_KEY }}"
+    assert not [name for name in env if name.endswith("_API_KEY") and name != "GEMINI_API_KEY"]
 
 
 def test_the_schedule_stays_off():

@@ -48,8 +48,9 @@ migrations, and the redesigned app has run against it on an Android phone.
   rejected reprocess just leaves the article as it was. The service-role client publishes the result. A generation
   failure retries with backoff, and one bad topic never stops the batch. The daily GitHub Actions workflow runs on
   demand only: its schedule stays commented out until the output is trusted over more unattended runs, so do not
-  enable it without deciding that first. The daily workflow runs on OpenRouter (Gemma writes; Qwen2.5-VL reviews the
-  text and every image), and a failed run opens or comments on a `pipeline-failure` issue; a local run uses the
+  enable it without deciding that first. The daily workflow runs on Google AI Studio's free tier with the owner's own
+  key (Gemma 4 writes; Gemini Flash, a different vision model, reviews the text and every image; OpenRouter's paid
+  models are the fallback), and a failed run opens or comments on a `pipeline-failure` issue; a local run uses the
   provider `.env` names, Gemini if it names none. `GENERATION_MAX_TOKENS`/`CRITIC_MAX_TOKENS` (16000 each) cap a
   call's output, since OpenRouter reserves credit for the whole ceiling up front.
   Groq's free tier, and two local Ollama models tried for generation and review (`qwen3.5:9b`, `qwen2.5:7b-instruct`),

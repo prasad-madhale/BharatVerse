@@ -35,15 +35,17 @@ jobs:
     - name: Run the daily content pipeline
       run: python scrapper/scrapper_main.py --count 1
       env:
-        # Every model role is named here: unset, the image check would fall back to a local
-        # Ollama model, which CI does not have, and images would go unchecked.
-        LLM_PROVIDER: openrouter
-        LLM_MODEL: google/gemma-4-31b-it
-        CRITIC_LLM_PROVIDER: openrouter
-        CRITIC_LLM_MODEL: qwen/qwen2.5-vl-72b-instruct
-        IMAGE_COHESION_LLM_PROVIDER: openrouter
-        IMAGE_COHESION_LLM_MODEL: qwen/qwen2.5-vl-72b-instruct
-        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        # Google AI Studio's free tier, on the owner's own key: Gemma 4 writes, Gemini Flash (a
+        # different, vision-capable model) reviews the text and every image. Every model role is
+        # named here: unset, the image check would fall back to a local Ollama model, which CI does
+        # not have, and images would go unchecked.
+        LLM_PROVIDER: gemini
+        LLM_MODEL: gemma-4-31b-it
+        CRITIC_LLM_PROVIDER: gemini
+        CRITIC_LLM_MODEL: gemini-3.8-flash
+        IMAGE_COHESION_LLM_PROVIDER: gemini
+        IMAGE_COHESION_LLM_MODEL: gemini-3.8-flash
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

@@ -19,6 +19,8 @@ import requests
 
 from common.config import get_llm_settings
 
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta"
+
 
 class LLMProvider:
     """
@@ -41,9 +43,7 @@ class LLMProvider:
         """Initialize the appropriate LLM client based on provider."""
         settings = get_llm_settings()
         if self.provider == "gemini":
-            import google.generativeai as genai
-            genai.configure(api_key=settings.gemini_api_key)
-            return genai
+            return settings.gemini_api_key  # the REST calls in _gemini_generate need only the key
 
         elif self.provider == "anthropic":
             from anthropic import Anthropic
@@ -119,9 +119,7 @@ class LLMProvider:
             Generated text
         """
         if self.provider == "gemini":
-            model = self.client.GenerativeModel(self.model)
-            response = model.generate_content(prompt)
-            return response.text
+            return await self._gemini_generate(prompt, max_tokens)
 
         elif self.provider == "anthropic":
             response = self.client.messages.create(
@@ -183,11 +181,7 @@ class LLMProvider:
         recommend for this exact failure mode.
         """
         if self.provider == "gemini":
-            model = self.client.GenerativeModel(self.model)
-            response = model.generate_content(
-                [prompt, {"mime_type": media_type, "data": image_bytes}]
-            )
-            return response.text
+            return await self._gemini_generate(prompt, max_tokens, image=(image_bytes, media_type))
 
         elif self.provider == "anthropic":
             response = self.client.messages.create(
@@ -249,6 +243,36 @@ class LLMProvider:
         if effort is not None:
             kwargs["output_config"] = {"effort": effort}
         return kwargs
+
+    async def _gemini_generate(
+        self, prompt: str, max_tokens: int, image: tuple[bytes, str] | None = None
+    ) -> str:
+        """Shared by generate_text and generate_text_with_image for the gemini provider (Gemini and Gemma models on
+        Google AI Studio), over Google's REST API rather than its deprecated SDK: a thinking model such as Gemma 4
+        returns its reasoning as parts marked `thought`, which that SDK cannot tell apart and glued onto the answer.
+        Those parts are dropped here."""
+        parts: list[dict] = [{"text": prompt}]
+        if image is not None:
+            image_bytes, media_type = image
+            parts.append({"inline_data": {"mime_type": media_type, "data": base64.b64encode(image_bytes).decode("ascii")}})
+
+        def _fetch():
+            response = requests.post(
+                f"{GEMINI_API_URL}/models/{self.model}:generateContent",
+                headers={"x-goog-api-key": self.client or ""},
+                json={"contents": [{"parts": parts}], "generationConfig": {"maxOutputTokens": max_tokens}},
+                timeout=300,
+            )
+            response.raise_for_status()
+            return response.json()
+
+        result = await asyncio.to_thread(_fetch)
+        candidate = (result.get("candidates") or [{}])[0]
+        answer = [part["text"] for part in candidate.get("content", {}).get("parts", [])
+                  if "text" in part and not part.get("thought")]
+        if not answer:
+            raise ValueError(f"{self.model} returned no answer (finishReason: {candidate.get('finishReason')})")
+        return "".join(answer)
 
     async def _ollama_chat(self, prompt: str, max_tokens: int, image_bytes: bytes | None = None) -> str:
         """Shared by generate_text and generate_text_with_image for the ollama provider -- a

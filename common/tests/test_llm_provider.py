@@ -13,8 +13,7 @@ class TestLLMProviderInitialization:
     """Test LLMProvider initialization and provider selection."""
 
     @patch('common.llm_provider.get_llm_settings')
-    @patch('google.generativeai.configure')
-    def test_gemini_provider_initialization(self, mock_genai_configure, mock_get_settings):
+    def test_gemini_provider_initialization(self, mock_get_settings):
         """Test Gemini provider initializes correctly."""
         mock_settings = MagicMock()
         mock_settings.llm_provider = "gemini"
@@ -26,7 +25,7 @@ class TestLLMProviderInitialization:
 
         assert provider.provider == "gemini"
         assert provider.model == "gemini-2.5-flash"
-        mock_genai_configure.assert_called_once_with(api_key="test-gemini-key")
+        assert provider.client == "test-gemini-key"
 
     @patch('common.llm_provider.get_llm_settings')
     @patch('anthropic.Anthropic')
@@ -134,8 +133,7 @@ class TestLLMProviderInitialization:
             LLMProvider()
 
     @patch('common.llm_provider.get_llm_settings')
-    @patch('google.generativeai.configure')
-    def test_custom_model_override(self, mock_genai_configure, mock_get_settings):
+    def test_custom_model_override(self, mock_get_settings):
         """Test custom model overrides default."""
         mock_settings = MagicMock()
         mock_settings.llm_provider = "gemini"
@@ -152,8 +150,7 @@ class TestLLMProviderModelDefaults:
     """Test default model selection for each provider."""
 
     @patch('common.llm_provider.get_llm_settings')
-    @patch('google.generativeai.configure')
-    def test_gemini_default_model(self, mock_configure, mock_get_settings):
+    def test_gemini_default_model(self, mock_get_settings):
         """Test Gemini uses correct default model."""
         mock_settings = MagicMock()
         mock_settings.llm_provider = "gemini"
@@ -182,8 +179,7 @@ class TestGetLLMProvider:
     """Test get_llm_provider() lazy-loading behavior."""
 
     @patch('common.llm_provider.get_llm_settings')
-    @patch('google.generativeai.configure')
-    def test_get_llm_provider_lazy_loads(self, mock_configure, mock_get_settings):
+    def test_get_llm_provider_lazy_loads(self, mock_get_settings):
         """Test get_llm_provider() creates instance on first call."""
         # Reset global state
         import common.llm_provider
@@ -206,26 +202,63 @@ class TestGetLLMProvider:
 class TestGenerateText:
     """Test generate_text() for each provider branch."""
 
-    @patch('common.llm_provider.get_llm_settings')
-    @patch('google.generativeai.GenerativeModel')
-    @patch('google.generativeai.configure')
-    async def test_gemini_generate_text(self, mock_configure, mock_model_class, mock_get_settings):
+    @staticmethod
+    def _gemini_reply(*parts, finish="STOP"):
+        response = MagicMock()
+        response.json.return_value = {"candidates": [{"content": {"parts": list(parts)}, "finishReason": finish}]}
+        return response
+
+    def _gemini_provider(self, mock_get_settings, model=None):
         mock_settings = MagicMock()
         mock_settings.llm_provider = "gemini"
         mock_settings.gemini_api_key = "test-key"
-        mock_settings.llm_model = None
+        mock_settings.llm_model = model
         mock_get_settings.return_value = mock_settings
+        return LLMProvider()
 
-        mock_model_instance = MagicMock()
-        mock_model_instance.generate_content.return_value = MagicMock(text="Generated gemini text")
-        mock_model_class.return_value = mock_model_instance
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('common.llm_provider.requests.post')
+    async def test_gemini_generate_text(self, mock_post, mock_get_settings):
+        mock_post.return_value = self._gemini_reply({"text": "Generated gemini text"})
+        provider = self._gemini_provider(mock_get_settings)
 
-        provider = LLMProvider()
-        result = await provider.generate_text("prompt")
+        result = await provider.generate_text("prompt", max_tokens=1234)
 
         assert result == "Generated gemini text"
-        mock_model_class.assert_called_once_with("gemini-2.5-flash")
-        mock_model_instance.generate_content.assert_called_once_with("prompt")
+        url = mock_post.call_args.args[0]
+        assert url == "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+        assert mock_post.call_args.kwargs["headers"] == {"x-goog-api-key": "test-key"}
+        assert mock_post.call_args.kwargs["json"] == {
+            "contents": [{"parts": [{"text": "prompt"}]}], "generationConfig": {"maxOutputTokens": 1234}}
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('common.llm_provider.requests.post')
+    async def test_gemini_drops_a_thinking_models_reasoning(self, mock_post, mock_get_settings):
+        """Gemma 4 on Google AI Studio returns its reasoning as a part marked thought, before the answer."""
+        mock_post.return_value = self._gemini_reply(
+            {"text": "The user wants JSON...", "thought": True}, {"text": '{"approved": true}'})
+        provider = self._gemini_provider(mock_get_settings, model="gemma-4-31b-it")
+
+        assert await provider.generate_text("prompt") == '{"approved": true}'
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('common.llm_provider.requests.post')
+    async def test_gemini_with_no_answer_raises_with_the_reason(self, mock_post, mock_get_settings):
+        mock_post.return_value = self._gemini_reply({"text": "thinking", "thought": True}, finish="MAX_TOKENS")
+        provider = self._gemini_provider(mock_get_settings)
+
+        with pytest.raises(ValueError, match="MAX_TOKENS"):
+            await provider.generate_text("prompt")
+
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('common.llm_provider.requests.post')
+    async def test_gemini_http_errors_propagate(self, mock_post, mock_get_settings):
+        """A 429 from the free tier's per-minute limit, say: the pipeline's own retries handle it."""
+        mock_post.return_value.raise_for_status.side_effect = Exception("429 Too Many Requests")
+        provider = self._gemini_provider(mock_get_settings)
+
+        with pytest.raises(Exception, match="429"):
+            await provider.generate_text("prompt")
 
     @patch('common.llm_provider.get_llm_settings')
     @patch('anthropic.Anthropic')
@@ -401,26 +434,22 @@ class TestGenerateTextWithImage:
     """Test generate_text_with_image() -- used by scrapper/image_sourcing.py's relevance check."""
 
     @patch('common.llm_provider.get_llm_settings')
-    @patch('google.generativeai.GenerativeModel')
-    @patch('google.generativeai.configure')
-    async def test_gemini_generate_text_with_image(self, mock_configure, mock_model_class, mock_get_settings):
+    @patch('common.llm_provider.requests.post')
+    async def test_gemini_generate_text_with_image(self, mock_post, mock_get_settings):
+        mock_post.return_value.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": '{"relevant": true}'}]}}]}
         mock_settings = MagicMock()
         mock_settings.llm_provider = "gemini"
         mock_settings.gemini_api_key = "test-key"
         mock_settings.llm_model = None
         mock_get_settings.return_value = mock_settings
 
-        mock_model_instance = MagicMock()
-        mock_model_instance.generate_content.return_value = MagicMock(text='{"relevant": true}')
-        mock_model_class.return_value = mock_model_instance
-
         provider = LLMProvider()
         result = await provider.generate_text_with_image("prompt", b"fake-bytes", "image/jpeg")
 
         assert result == '{"relevant": true}'
-        mock_model_instance.generate_content.assert_called_once_with(
-            ["prompt", {"mime_type": "image/jpeg", "data": b"fake-bytes"}]
-        )
+        assert mock_post.call_args.kwargs["json"]["contents"] == [{"parts": [
+            {"text": "prompt"}, {"inline_data": {"mime_type": "image/jpeg", "data": "ZmFrZS1ieXRlcw=="}}]}]
 
     @patch('common.llm_provider.get_llm_settings')
     @patch('anthropic.Anthropic')
@@ -587,9 +616,8 @@ class TestOllamaProvider:
         settings.gemini_api_key = "test-key"
         mock_get_settings.return_value = settings
 
-        with patch('google.generativeai.configure'):
-            default_provider = LLMProvider()
-            overridden_provider = LLMProvider(provider="ollama")
+        default_provider = LLMProvider()
+        overridden_provider = LLMProvider(provider="ollama")
 
         assert default_provider.provider == "gemini"
         assert overridden_provider.provider == "ollama"

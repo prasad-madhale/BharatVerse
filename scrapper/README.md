@@ -41,10 +41,11 @@ asks for a revision, so on a paid provider it costs money -- set `CRITIC_ENABLED
 JSON lines on stdout.
 
 [`daily-pipeline.yml`](../.github/workflows/daily-pipeline.yml) runs the same command on demand in GitHub Actions
-(`workflow_dispatch`) with the secrets `OPENROUTER_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
-`SUPABASE_SERVICE_ROLE_KEY`: Gemma writes, Qwen2.5-VL reviews the text and the images. A failed run opens an issue
-labelled `pipeline-failure`, or comments on the open one (`scripts/report_pipeline_failure.sh`). Its daily schedule is
-commented out until the output quality is trusted.
+(`workflow_dispatch`) with the secrets `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
+`SUPABASE_SERVICE_ROLE_KEY`, on Google AI Studio's free tier: Gemma 4 writes, Gemini Flash reviews the text and the
+images. The `gemini` provider calls Google's REST API directly and drops a thinking model's reasoning parts. A failed
+run opens an issue labelled `pipeline-failure`, or comments on the open one (`scripts/report_pipeline_failure.sh`). Its
+daily schedule is commented out until the output quality is trusted.
 
 ## How a run works
 

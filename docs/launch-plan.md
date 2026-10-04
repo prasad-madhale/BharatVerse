@@ -100,8 +100,9 @@ Only the owner can do these. Longest lead time first.
 - [ ] **P5 Supabase.** Set up custom SMTP: the built-in sender is for testing, tightly rate limited, and may only
   deliver to the project team's own addresses (check Authentication > Emails). Add L12's redirect URL. Apply each
   migration a task adds (L03, L04, L15) and re-run `2026-09-search-and-autocomplete.sql` for era search. Act on D7.
-- [ ] **P6 OpenRouter.** Top up the credits and set a monthly limit. Add `OPENROUTER_API_KEY` to the repository's
-  Actions secrets (L05).
+- [ ] **P6 Pipeline key.** Add `GEMINI_API_KEY` (Google AI Studio, free tier) to the repository's Actions secrets,
+  then run "Daily article pipeline" once by hand (L05). OpenRouter credits are only needed to fall back to its paid
+  models.
 - [ ] **P7 Play Console (L14).** Store listing, content rating, Data safety, target audience (D9), category, then the
   internal and closed test releases.
 - [ ] **P8 Housekeeping.** Close #30 once L02 merges; close the stale #2, #3 and #5; merge or close PR #12. Delete
@@ -181,7 +182,8 @@ forms, but the feedback is worth having either way.
 
 ### L05 Daily pipeline on the production config
 
-- `.github/workflows/daily-pipeline.yml`: `LLM_PROVIDER: openrouter`, `OPENROUTER_API_KEY` from secrets, and
+- Done 2026-10-04, on Google AI Studio's free tier instead (the owner's choice): `LLM_PROVIDER: gemini` with
+  `GEMINI_API_KEY` from secrets. As first planned: `LLM_PROVIDER: openrouter`, `OPENROUTER_API_KEY` from secrets, and
   `CRITIC_LLM_PROVIDER`, `CRITIC_LLM_MODEL`, `IMAGE_COHESION_LLM_PROVIDER` and `IMAGE_COHESION_LLM_MODEL` as in
   `.env.example`. Without them the cohesion check falls back to Ollama, which CI lacks, so no image is checked. Keep
   the schedule commented out (AGENTS.md). Move to `actions/setup-python@v5`.
