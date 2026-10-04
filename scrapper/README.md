@@ -17,14 +17,16 @@ Put these in the `.env` at the repo root (template: [`.env.example`](../.env.exa
 | Variable | Meaning |
 |---|---|
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | the project to publish to (the service-role key writes) |
-| `LLM_PROVIDER` | `gemini` (default; has a free tier), `anthropic`, `openai`, `groq` or `ollama` (a local, self-hosted model -- no API key) |
-| `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | the key for the chosen provider |
+| `LLM_PROVIDER` | `gemini` (default; has a free tier), `anthropic`, `openai`, `groq`, `openrouter` or `ollama` (a local, self-hosted model -- no API key) |
+| `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` | the key for the chosen provider |
 | `OLLAMA_BASE_URL` | default `http://localhost:11434`; only used by the `ollama` provider |
 | `LLM_MODEL` | optional; defaults per provider are listed in `.env.example` |
 | `CRITIC_ENABLED` | default `true`; `false` skips the editorial critic pass, for a cheap local run |
+| `CRITIC_LLM_PROVIDER`, `CRITIC_LLM_MODEL` | unset = the generation provider and model; set both to review with another model |
 | `IMAGE_SOURCING_ENABLED` | default `true`; `false` skips attaching images, for a cheap local run |
 | `IMAGE_COHESION_CHECK_ENABLED` | default `true`; `false` skips the critic's per-image cohesion pass |
-| `IMAGE_COHESION_LLM_PROVIDER` | default `ollama` -- a local, free model, since this check runs once per image, per critic round |
+| `IMAGE_COHESION_LLM_PROVIDER`, `IMAGE_COHESION_LLM_MODEL` | default `ollama` and its own default model -- a local, free model, since this check runs once per image, per critic round |
+| `GENERATION_MAX_TOKENS`, `CRITIC_MAX_TOKENS` | default `16000` each; OpenRouter reserves credit for the whole ceiling before each call, so lower them if a low balance fails |
 | `LOG_LEVEL` | default `INFO` |
 
 ## Run
@@ -39,8 +41,10 @@ asks for a revision, so on a paid provider it costs money -- set `CRITIC_ENABLED
 JSON lines on stdout.
 
 [`daily-pipeline.yml`](../.github/workflows/daily-pipeline.yml) runs the same command on demand in GitHub Actions
-(`workflow_dispatch`) with the secrets `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
-`SUPABASE_SERVICE_ROLE_KEY`. Its daily schedule is commented out until the output quality is trusted.
+(`workflow_dispatch`) with the secrets `OPENROUTER_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
+`SUPABASE_SERVICE_ROLE_KEY`: Gemma writes, Qwen2.5-VL reviews the text and the images. A failed run opens an issue
+labelled `pipeline-failure`, or comments on the open one (`scripts/report_pipeline_failure.sh`). Its daily schedule is
+commented out until the output quality is trusted.
 
 ## How a run works
 

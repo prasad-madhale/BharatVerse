@@ -116,7 +116,7 @@ Only the owner can do these. Longest lead time first.
 | L02 | Onboarding respects safe areas (#30) | agent | S | | done |
 | L03 | Delete account | agent, person | M | | done |
 | L04 | Report a problem with an article | agent, person | M | | done |
-| L05 | Daily pipeline on the production config | agent, person | S | | todo |
+| L05 | Daily pipeline on the production config | agent, person | S | | done |
 | L06 | Atomic article save | agent | S | | todo |
 | L07 | Permanent app identity and version | agent | S | D1 | todo |
 | L08 | Release signing, app bundles and version codes | agent, person | M | L07 | todo |

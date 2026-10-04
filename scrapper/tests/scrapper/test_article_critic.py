@@ -43,10 +43,12 @@ class FakeLLMProvider:
         self.response = response
         self.last_prompt = None
         self.last_effort = None
+        self.last_max_tokens = None
 
     async def generate_text(self, prompt: str, max_tokens: int = 4000, effort: str | None = None) -> str:
         self.last_prompt = prompt
         self.last_effort = effort
+        self.last_max_tokens = max_tokens
         return self.response
 
 
@@ -183,6 +185,18 @@ class TestReview:
         await critic.review(make_article(), [make_scraped_content()], topic="Mauryan Empire")
 
         assert llm.last_effort == "medium"
+
+    @pytest.mark.asyncio
+    async def test_review_uses_the_configured_ceiling(self, monkeypatch):
+        settings = MagicMock(critic_llm_provider=None, critic_llm_model=None, critic_max_tokens=3000,
+                             image_cohesion_llm_provider="ollama", image_cohesion_llm_model=None)
+        monkeypatch.setattr("scrapper.article_critic.get_llm_settings", lambda: settings)
+        llm = FakeLLMProvider(APPROVED_RESPONSE)
+        critic = ArticleCritic(llm_provider=llm, image_llm_provider=FakeVisionLLMProvider(COHESIVE))
+
+        await critic.review(make_article(), [make_scraped_content()], topic="Mauryan Empire")
+
+        assert llm.last_max_tokens == 3000
 
     @pytest.mark.asyncio
     async def test_defaults_to_shared_llm_provider_singleton(self, monkeypatch):

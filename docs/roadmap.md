@@ -48,8 +48,10 @@ migrations, and the redesigned app has run against it on an Android phone.
   rejected reprocess just leaves the article as it was. The service-role client publishes the result. A generation
   failure retries with backoff, and one bad topic never stops the batch. The daily GitHub Actions workflow runs on
   demand only: its schedule stays commented out until the output is trusted over more unattended runs, so do not
-  enable it without deciding that first. The daily workflow still uses Claude Sonnet 5 until it moves to OpenRouter
-  (launch plan L05); a local run uses the provider `.env` names, Gemini if it names none.
+  enable it without deciding that first. The daily workflow runs on OpenRouter (Gemma writes; Qwen2.5-VL reviews the
+  text and every image), and a failed run opens or comments on a `pipeline-failure` issue; a local run uses the
+  provider `.env` names, Gemini if it names none. `GENERATION_MAX_TOKENS`/`CRITIC_MAX_TOKENS` (16000 each) cap a
+  call's output, since OpenRouter reserves credit for the whole ceiling up front.
   Groq's free tier, and two local Ollama models tried for generation and review (`qwen3.5:9b`, `qwen2.5:7b-instruct`),
   were rejected for weak word-count adherence -- Groq and `qwen2.5:7b-instruct` undershot, `qwen3.5:9b` overshot by
   as much as 65% in a real run; local inference stays scoped to the free, per-image cohesion check
@@ -225,8 +227,8 @@ section records the state of the hosted project and of the content runs.
 
 - robots.txt is not checked before scraping: `WebScraper.check_robots_txt` exists, but `respect_robots` is accepted and
   ignored.
-- Alerting on critical errors (requirement 11.5) beyond a failed Actions run when nothing was published, and a rate
-  limit shared across backend workers (it would need something like Redis).
+- Alerting on critical errors (requirement 11.5) beyond a GitHub issue for a failed pipeline run (no email or chat
+  integration of its own), and a rate limit shared across backend workers (it would need something like Redis).
 - Native deep links for password reset: a phone app has to register a link scheme first. On the web, the link must be
   opened in the browser that asked for it (PKCE keeps the verifier there), and reloading while the new-password form is
   up leaves the reader signed in without one.

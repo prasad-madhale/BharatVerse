@@ -169,6 +169,7 @@ class ArticleCritic:
         self.image_llm_provider = image_llm_provider or LLMProvider(
             provider=settings.image_cohesion_llm_provider, model=settings.image_cohesion_llm_model
         )
+        self.max_tokens = settings.critic_max_tokens
 
     async def review(
         self, article: Article, scraped_content: list[ScrapedContent], topic: str
@@ -187,7 +188,7 @@ class ArticleCritic:
         # production. effort="medium" bounds thinking depth for this well-specified,
         # structured-verdict task (see llm_provider.py's generate_text docstring), and max_tokens
         # is raised well past the observed worst case for extra headroom.
-        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=16000, effort="medium")
+        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=self.max_tokens, effort="medium")
         return self._parse_llm_response(raw_response)
 
     async def review_image_cohesion(self, article: Article, images: list[ArticleImage]) -> list[CriticIssue]:
