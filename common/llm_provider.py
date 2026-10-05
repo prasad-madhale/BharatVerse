@@ -14,12 +14,19 @@ settings come from.
 
 import asyncio
 import base64
+import logging
 
 import requests
 
 from common.config import get_llm_settings
 
+logger = logging.getLogger(__name__)
+
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta"
+# Google's free tier answers a busy model with a 429, 500 or 503 now and then (a live run's first call got a 500): wait
+# and retry those, and a dropped connection, rather than lose the day's article to one hiccup.
+GEMINI_RETRY_DELAYS = (5, 15, 45)  # seconds before each retry
+GEMINI_TRANSIENT_STATUSES = {429, 500, 502, 503, 504}
 
 
 class LLMProvider:
@@ -257,16 +264,29 @@ class LLMProvider:
             parts.append({"inline_data": {"mime_type": media_type, "data": base64.b64encode(image_bytes).decode("ascii")}})
 
         def _fetch():
-            response = requests.post(
+            return requests.post(
                 f"{GEMINI_API_URL}/models/{self.model}:generateContent",
                 headers={"x-goog-api-key": self.client or ""},
                 json={"contents": [{"parts": parts}], "generationConfig": {"maxOutputTokens": max_tokens}},
                 timeout=300,
             )
-            response.raise_for_status()
-            return response.json()
 
-        result = await asyncio.to_thread(_fetch)
+        for retry_delay in (*GEMINI_RETRY_DELAYS, None):
+            try:
+                response = await asyncio.to_thread(_fetch)
+            except requests.ConnectionError:
+                if retry_delay is None:
+                    raise
+                problem = "a dropped connection"
+            else:
+                if response.status_code not in GEMINI_TRANSIENT_STATUSES or retry_delay is None:
+                    response.raise_for_status()
+                    break
+                problem = f"HTTP {response.status_code}"
+            logger.warning(f"{self.model}: {problem}; retrying in {retry_delay}s")
+            await asyncio.sleep(retry_delay)
+
+        result = response.json()
         candidate = (result.get("candidates") or [{}])[0]
         answer = [part["text"] for part in candidate.get("content", {}).get("parts", [])
                   if "text" in part and not part.get("thought")]
