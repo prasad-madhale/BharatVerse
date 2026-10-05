@@ -314,6 +314,7 @@ class TestScaledImages:
         admin = MagicMock()
         admin.storage.from_.return_value = bucket
         monkeypatch.setattr("scrapper.image_sourcing.get_supabase", lambda: MagicMock(get_admin_client=lambda: admin))
+        monkeypatch.setattr("scrapper.image_sourcing.get_settings", lambda: MagicMock(articles_storage_bucket="articles"))
         info = {**GOOD_JPEG_INFO, "width": 4000, "height": 3000, "thumbwidth": 1600, "thumbheight": 1200}
         sourcer = ImageSourcer(llm_provider=FakeVisionLLM())
 
