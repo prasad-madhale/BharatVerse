@@ -43,7 +43,7 @@ def _approved(article, rounds=1):
 def services():
     with patch("reprocess_articles.ArticleService") as service_cls, \
             patch("reprocess_articles.WebScraper") as scraper_cls, \
-            patch("reprocess_articles.ArticleGenerator"), \
+            patch("reprocess_articles.ArticleGenerator") as generator_cls, \
             patch("reprocess_articles.ContentValidator"), \
             patch("reprocess_articles.ArticleCritic"), \
             patch("reprocess_articles.ImageSourcer"), \
@@ -55,7 +55,10 @@ def services():
         scraper = scraper_cls.return_value
         scraper.search_and_scrape = AsyncMock(return_value=["scraped content"])
         run_critic_loop.return_value = _approved(article)
-        yield MagicMock(service=service, scraper=scraper, run_critic_loop=run_critic_loop, article=article)
+        generator = generator_cls.return_value
+        generator.choose_era = AsyncMock(return_value="Indus Valley")
+        yield MagicMock(service=service, scraper=scraper, run_critic_loop=run_critic_loop, article=article,
+                        generator=generator)
 
 
 class TestReprocess:
@@ -165,9 +168,91 @@ class TestReprocess:
         assert "image unchanged" in entry.getMessage()
 
 
+class TestIds:
+    async def test_reprocesses_only_the_named_articles(self, services):
+        services.service.get_article_by_id = AsyncMock(side_effect=lambda article_id: (
+            services.article if article_id == services.article.id else None))
+
+        updated = await reprocess_articles.reprocess(ids=[services.article.id, "art_missing"])
+
+        services.service.list_recent_articles.assert_not_awaited()
+        assert [c.args[0] for c in services.service.get_article_by_id.await_args_list] == [
+            services.article.id, "art_missing"]
+        services.service.save_article.assert_awaited_once_with(services.article)
+        assert updated == 1
+
+
+class TestAssignEras:
+    async def test_gives_an_era_to_each_article_without_a_listed_one(self, services):
+        services.article.era = "2600 BCE - 1900 BCE"
+
+        updated = await reprocess_articles.assign_eras()
+
+        services.generator.choose_era.assert_awaited_once_with(services.article)
+        services.service.save_article.assert_awaited_once_with(services.article)
+        assert services.article.era == "Indus Valley"
+        assert updated == 1
+
+    async def test_never_rescrapes_or_reviews(self, services):
+        await reprocess_articles.assign_eras()
+
+        services.scraper.search_and_scrape.assert_not_awaited()
+        services.run_critic_loop.assert_not_awaited()
+
+    async def test_leaves_an_article_with_a_listed_era_alone(self, services):
+        services.article.era = "Maurya Empire"
+
+        updated = await reprocess_articles.assign_eras()
+
+        services.generator.choose_era.assert_not_awaited()
+        services.service.save_article.assert_not_awaited()
+        assert updated == 0
+
+    async def test_a_failure_for_one_article_does_not_stop_the_batch(self, services):
+        second = make_article("art_20260102_001", "Second")
+        services.service.list_recent_articles = AsyncMock(side_effect=[[services.article, second], []])
+        services.generator.choose_era.side_effect = [Exception("not an era on the list"), "Gupta Empire"]
+
+        updated = await reprocess_articles.assign_eras()
+
+        services.service.save_article.assert_awaited_once_with(second)
+        assert services.article.era == ""
+        assert updated == 1
+
+    async def test_a_save_failure_is_not_counted(self, services):
+        services.service.save_article = AsyncMock(side_effect=Exception("network"))
+
+        assert await reprocess_articles.assign_eras() == 0
+
+    async def test_only_the_named_articles(self, services):
+        services.service.get_article_by_id = AsyncMock(return_value=services.article)
+
+        await reprocess_articles.assign_eras(ids=[services.article.id])
+
+        services.service.list_recent_articles.assert_not_awaited()
+        services.service.get_article_by_id.assert_awaited_once_with(services.article.id)
+
+
 class TestMain:
     def test_exits_zero(self):
         with patch("reprocess_articles.reprocess", new_callable=AsyncMock) as reprocess, \
                 patch("reprocess_articles.configure_logging"):
             reprocess.return_value = 0
-            assert reprocess_articles.main() == 0
+            assert reprocess_articles.main([]) == 0
+        reprocess.assert_awaited_once_with(None)
+
+    def test_ids_are_passed_through(self):
+        with patch("reprocess_articles.reprocess", new_callable=AsyncMock) as reprocess, \
+                patch("reprocess_articles.configure_logging"):
+            reprocess.return_value = 2
+            reprocess_articles.main(["--ids", "art_1", "art_2"])
+        reprocess.assert_awaited_once_with(["art_1", "art_2"])
+
+    def test_eras_only_assigns_eras_instead_of_reprocessing(self):
+        with patch("reprocess_articles.reprocess", new_callable=AsyncMock) as reprocess, \
+                patch("reprocess_articles.assign_eras", new_callable=AsyncMock) as assign_eras, \
+                patch("reprocess_articles.configure_logging"):
+            assign_eras.return_value = 1
+            assert reprocess_articles.main(["--eras-only", "--ids", "art_1"]) == 0
+        assign_eras.assert_awaited_once_with(["art_1"])
+        reprocess.assert_not_awaited()

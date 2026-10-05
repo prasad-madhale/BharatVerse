@@ -74,12 +74,12 @@ Write the answer in the last column. Agents skip tasks whose decision has none.
 
 | ID | Decision | Recommendation | Answer |
 |---|---|---|---|
-| D1 | Android application id and iOS bundle id. Play never lets it change after the first upload. | `io.github.prasadmadhale.bharatverse`, or `<reversed domain>.bharatverse` if you will own a domain | |
-| D2 | Hide controls with nothing behind them until they have it: "Continue with Apple" outside iOS, the notification toggles, Home's category chips ("Download for offline" works now, L18) | Yes | |
+| D1 | Android application id and iOS bundle id. Play never lets it change after the first upload. | `io.github.prasadmadhale.bharatverse`, or `<reversed domain>.bharatverse` if you will own a domain | A domain first (2026-10-05); L07 waits for it |
+| D2 | Hide controls with nothing behind them until they have it: "Continue with Apple" outside iOS, the notification toggles, Home's category chips ("Download for offline" works now, L18) | Yes | No, keep them visible (2026-10-05); L09 dropped |
 | D3 | Publisher name, support email and country for the legal pages and the store listing | A dedicated support address, not a personal one | |
-| D4 | The era list. One label per article, searched as typed, so no dates or dashes | Indus Valley, Vedic Age, Maurya Empire, Sangam Age, Gupta Empire, Early Medieval Kingdoms, Delhi Sultanate, Vijayanagara Empire, Mughal Empire, Maratha Empire, Colonial India, Freedom Struggle, Independent India | |
+| D4 | The era list. One label per article, searched as typed, so no dates or dashes | Indus Valley, Vedic Age, Maurya Empire, Sangam Age, Gupta Empire, Early Medieval Kingdoms, Delhi Sultanate, Vijayanagara Empire, Mughal Empire, Maratha Empire, Colonial India, Freedom Struggle, Independent India | As recommended (2026-10-05) |
 | D5 | When to turn on the daily cron | After 7 clean manual runs on the production config, with a scheduled backlog (L15) as a buffer; 03:30 UTC (09:00 IST) as drafted | |
-| D6 | Crash reporting and analytics | Sentry crash reports only. No product analytics for 1.0: database counts and Play Console statistics cover launch | |
+| D6 | Crash reporting and analytics | Sentry crash reports only. No product analytics for 1.0: database counts and Play Console statistics cover launch | As recommended (2026-10-05) |
 | D7 | Supabase plan | Free through the closed test, Pro before public launch (no pausing, daily backups) | |
 | D8 | Content bar for public launch | 30 critic-approved articles live or scheduled, each with an era and images | |
 | D9 | Audience age | 13 and over, which keeps the app out of Play's Families program | |
@@ -121,12 +121,12 @@ Only the owner can do these. Longest lead time first.
 | L06 | Atomic article save | agent | S | | done |
 | L07 | Permanent app identity and version | agent | S | D1 | todo |
 | L08 | Release signing, app bundles and version codes | agent, person | M | L07 | todo |
-| L09 | Hide controls with nothing behind them | agent | S | D2 | todo |
+| L09 | Hide controls with nothing behind them | agent | S | D2 | dropped |
 | L10 | About, how articles are made, licenses, help | agent | M | D3 | todo |
 | L11 | Legal and support pages on GitHub Pages | agent, person | M | D3 | todo |
 | L12 | Password reset opens the app | agent, person | M | L07 | todo |
-| L13 | Controlled era list | agent | M | D4 | todo |
-| L14 | Store listing assets | agent, person | M | L02, L09, L10 | todo |
+| L13 | Controlled era list | agent | M | D4 | done |
+| L14 | Store listing assets | agent, person | M | L02, L10 | todo |
 
 Size: S is under an hour of agent time, M a few hours, L a day or more.
 
@@ -237,7 +237,7 @@ disagree: that is how Mohenjo-daro lost its images during the reprocess.
 
 ### L09 Hide controls with nothing behind them
 
-Per D2.
+Dropped: the owner chose to keep these controls visible (D2). As planned, per D2:
 - `auth_screen.dart`: show "Continue with Apple" only on iOS, and only in a build made with
   `--dart-define=APPLE_SIGN_IN=true`.
 - `settings_sheet.dart`: hide the three notification toggles; keep their `SettingsState` fields for later.
@@ -299,7 +299,8 @@ poorly.
 - `scrapper/reprocess_articles.py`: `--ids` to redo only the named articles (today it redoes every one), and
   `--eras-only` to assign an era from the title and summary with one small LLM call each, so existing articles need no
   full reprocess. The owner runs it, since it costs money.
-- Person: re-run `2026-09-search-and-autocomplete.sql` on the hosted project (P5), so era is in `search_vector`.
+- Person: re-run `2026-09-search-and-autocomplete.sql` on the hosted project (P5), so era is in `search_vector`
+  (done 2026-10-04). The hosted backfill, `reprocess_articles.py --eras-only`, is part of L16.
 - Done: tests for the prompt, the validator and both flags; after the backfill and the migration, tapping an era card
   on a phone lists its articles.
 

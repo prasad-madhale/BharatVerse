@@ -14,6 +14,7 @@ from datetime import date, datetime, timezone
 import json_repair
 
 from common.config import get_llm_settings
+from common.eras import ERAS, canonical_era
 from common.llm_provider import LLMProvider, get_llm_provider
 from common.models import Article, Citation, Section
 from scrapper.article_critic import CriticReview
@@ -72,10 +73,8 @@ more concrete detail, examples, or context from the source material to each thin
 than stopping early -- do not treat concision as a virtue here. Count roughly as you go and keep
 expanding sections that are thin.
 3-6 relevant lowercase, hyphenated tags (e.g. "mauryan-empire", "ancient-india").
-One short "era" label (2-4 words, title case) naming the historical period this article covers --
-e.g. "Indus Valley Civilization", "Mauryan Empire", "Gupta Empire", "Medieval India",
-"Mughal Empire", "Colonial India", "Freedom Struggle", "Modern India". Pick the closest fit;
-invent a similarly short label only if none fits.
+One "era": the period this article is mostly about, copied exactly from this list (oldest first) --
+{eras}. Pick the closest one; never write a label that is not on the list.
 </structure_requirements>
 
 <task>
@@ -129,6 +128,8 @@ fix it by softening or removing the claim -- never by inventing new grounding fo
 Address every issue marked "major" in the editor's feedback above. Address a "minor" issue
 only if it doesn't require rewriting the section around it. Keep the 1500-2000 word total,
 the section structure, and the voice unless an issue specifically requires changing them.
+The "era" is the period the article is mostly about, copied exactly from this list (oldest
+first): {eras}.
 </task>
 
 <output_format>
@@ -144,6 +145,19 @@ or any text before or after the JSON.
   "era": "..."
 }}
 </output_format>"""
+
+
+ERA_PROMPT_TEMPLATE = """<article>
+## {title}
+{summary}
+</article>
+
+<task>
+Which one of these periods of Indian history is the article above mostly about? The list is oldest
+first: {eras}. Pick the closest one, and respond with only that era, copied exactly from the list.
+</task>"""
+
+_ERA_LIST = "; ".join(ERAS)
 
 
 class ArticleGenerationError(Exception):
@@ -209,7 +223,7 @@ class ArticleGenerator:
             publication_date=publication_date,
             reading_time_minutes=max(1, round(word_count / WORDS_PER_MINUTE)),
             tags=list(parsed.get("tags", [])),
-            era=parsed.get("era", ""),
+            era=canonical_era(parsed.get("era", "")),
         )
 
     async def revise_article(
@@ -250,11 +264,27 @@ class ArticleGenerator:
             publication_date=article.publication_date,
             reading_time_minutes=max(1, round(word_count / WORDS_PER_MINUTE)),
             tags=list(parsed.get("tags", [])),
-            era=parsed.get("era", article.era),
+            era=canonical_era(parsed.get("era", article.era)),
         )
 
+    async def choose_era(self, article: Article) -> str:
+        """
+        The listed era an existing article is about, judged from its title and summary alone: one short call, for
+        articles published before the era list.
+
+        Raises:
+            ArticleGenerationError: If the answer is not an era on the list.
+        """
+        prompt = ERA_PROMPT_TEMPLATE.format(title=article.title, summary=article.summary, eras=_ERA_LIST)
+        answer = await self.llm_provider.generate_text(prompt, max_tokens=self.max_tokens, effort="low")
+        era = canonical_era(answer)
+        if era not in ERAS:
+            raise ArticleGenerationError(f"'{answer[:100]}' is not an era on the list")
+        return era
+
     def _build_prompt(self, scraped_content: list[ScrapedContent], topic: str) -> str:
-        return PROMPT_TEMPLATE.format(topic=topic, source_text=build_source_text(scraped_content))
+        return PROMPT_TEMPLATE.format(
+            topic=topic, source_text=build_source_text(scraped_content), eras=_ERA_LIST)
 
     def _build_revision_prompt(
         self,
@@ -276,6 +306,7 @@ class ArticleGenerator:
             summary=article.summary,
             sections=sections,
             source_text=build_source_text(scraped_content),
+            eras=_ERA_LIST,
         )
 
     def _parse_llm_response(self, raw_response: str) -> dict:

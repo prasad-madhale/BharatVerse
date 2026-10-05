@@ -62,10 +62,18 @@ ARTICLES = [
 ]
 
 
+# Each from common.eras, as the pipeline would pick them.
+ERAS = {
+    "art_20260920_001": "Maurya Empire",
+    "art_20260919_001": "Indus Valley",
+    "art_20260918_001": "Early Medieval Kingdoms",
+}
+
+
 def build(article_id, published, title, summary, tags, sections, citations):
     body = "\n\n".join(f"## {heading}\n\n{text}" for heading, text in sections)
     return Article(id=article_id, title=title, summary=summary, content=body, publication_date=published,
-                   reading_time_minutes=12, tags=tags, citations=citations,
+                   reading_time_minutes=12, tags=tags, citations=citations, era=ERAS[article_id],
                    sections=[Section(heading=h, content=t, order=i + 1) for i, (h, t) in enumerate(sections)])
 
 

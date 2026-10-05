@@ -27,7 +27,7 @@ pip install -r backend/requirements.txt -r tools/local-stack/requirements.txt
 
 `setup` downloads Postgres and PostgREST into `.local-stack/bin` (about 80 MB, each checked against a checksum pinned in
 `fetch.sh`), creates the database in `.local-stack/0`, applies `bootstrap.sql` (the roles and `auth` schema Supabase
-provides) and `backend/database/schema.sql`, starts everything, seeds three sample articles through the backend's own
+provides) and `backend/database/schema.sql`, starts everything, seeds three sample articles (each with an era from `common/eras.py`) through the backend's own
 `ArticleService`, and builds the web app if Flutter is on your `PATH`. Then open http://127.0.0.1:8765.
 
 | Command | What it does |

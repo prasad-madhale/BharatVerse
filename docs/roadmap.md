@@ -108,8 +108,9 @@ migrations, and the redesigned app has run against it on an Android phone.
   below. `AuthScreen` is a bespoke rebuild (rounded pill fields and buttons, a "Continue with Apple" entry point, a
   guest "Not now -- just browse" path when reached from onboarding) rather than the shared `AuthFormPage`, which
   `ForgotPasswordScreen`/`ResetPasswordScreen` still use, lightly restyled (sentence-case titles, pill
-  fields/buttons). `era` (a short LLM-generated period label, e.g. "Gupta Empire") is a real field now: the
-  generation/revision prompts ask for it, `common.models.Article`/`ArticleRecord`/the Flutter `Article` model all
+  fields/buttons). `era` (one label from the controlled list in `common/eras.py`, launch plan D4: "Indus Valley"
+  to "Independent India", 13 in all, no dates or dashes) is a real field now: the generation/revision prompts pick
+  it from that list, `ContentValidator` rejects an empty or unlisted one (so the retry and revision paths fix it), `common.models.Article`/`ArticleRecord`/the Flutter `Article` model all
   carry it (defaulting to `""`, so it needs no backfill to keep old rows and test fixtures working), and
   `schema.sql`/`2026-09-era-field.sql` add the column. It is also woven into full-text search now: `search_vector`
   weights era the same as tags (`'B'`), so searching an era's exact label (e.g. from the "Browse by era" grid
@@ -203,7 +204,8 @@ section records the state of the hosted project and of the content runs.
   there has been run on it, as of 2026-10-04: the `era` column, `saved_articles`, search with autocomplete (era included
   in `search_vector`), account deletion and `article_reports`. Read reports in the table editor (`article_reports`),
   newest first. An era label with a dash, like Nalanda's "427 CE - 1400 CE", still finds nothing from "Browse by era":
-  search reads " - 1400" as "not 1400", which the controlled era list (launch plan L13) avoids. Supabase permanently
+  search reads " - 1400" as "not 1400". `python scrapper/reprocess_articles.py --eras-only` gives every article an
+  era from the controlled list (launch plan L16 runs it on the hosted project). Supabase permanently
   deactivates free projects paused for over 90 days, which is how the first project was lost: restore a paused one
   promptly. Add the app's URL under Authentication > URL Configuration > Redirect URLs for password reset, and keep
   email confirmation off, or sign-up returns no session.

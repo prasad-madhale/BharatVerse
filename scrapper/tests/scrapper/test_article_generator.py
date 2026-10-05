@@ -12,6 +12,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from common.eras import ERAS
+from common.models import Article
 from scrapper.article_critic import CriticIssue, CriticReview
 from scrapper.article_generator import ArticleGenerationError, ArticleGenerator
 from scrapper.models.article import ScrapedContent
@@ -184,6 +186,32 @@ class TestGenerateArticle:
         assert "geographically extensive empire" in llm.last_prompt
 
     @pytest.mark.asyncio
+    async def test_prompt_lists_every_era_oldest_first(self):
+        llm = FakeLLMProvider(VALID_LLM_RESPONSE)
+
+        await ArticleGenerator(llm_provider=llm).generate_article([make_scraped_content()], topic="Mauryan Empire")
+
+        assert "; ".join(ERAS) in llm.last_prompt
+
+    @pytest.mark.asyncio
+    async def test_era_is_stored_as_the_listed_label(self):
+        response = json.loads(VALID_LLM_RESPONSE) | {"era": " maurya  EMPIRE."}
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(json.dumps(response)))
+
+        article = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire")
+
+        assert article.era == "Maurya Empire"
+
+    @pytest.mark.asyncio
+    async def test_era_off_the_list_is_kept_for_the_validator_to_reject(self):
+        response = json.loads(VALID_LLM_RESPONSE) | {"era": "3rd Century BCE"}
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(json.dumps(response)))
+
+        article = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire")
+
+        assert article.era == "3rd Century BCE"
+
+    @pytest.mark.asyncio
     async def test_prompt_gives_each_source_a_fair_share_of_the_char_budget(self):
         # Regression test: a single oversized source used to be able to consume the
         # entire MAX_SOURCE_CHARS budget via naive concatenate-then-truncate,
@@ -313,6 +341,19 @@ class TestReviseArticle:
 
         assert "An invented statistic appears in Origins" in llm.last_prompt
         assert draft.title in llm.last_prompt
+        assert "; ".join(ERAS) in llm.last_prompt
+
+    @pytest.mark.asyncio
+    async def test_revision_picks_an_era_from_the_list(self):
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(VALID_LLM_RESPONSE))
+        draft = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire")
+        generator.llm_provider.response = json.dumps(json.loads(REVISED_LLM_RESPONSE) | {"era": "maurya empire"})
+
+        revised = await generator.revise_article(
+            draft, [make_scraped_content()], topic="Mauryan Empire", feedback=make_feedback()
+        )
+
+        assert revised.era == "Maurya Empire"
 
     @pytest.mark.asyncio
     async def test_caps_thinking_depth_for_this_bounded_fix_it_task(self):
@@ -339,3 +380,38 @@ class TestReviseArticle:
             await generator.revise_article(
                 draft, [make_scraped_content()], topic="Mauryan Empire", feedback=make_feedback()
             )
+
+
+def make_published_article(title="The King Who Quit War", summary="Ashoka turned from conquest to dhamma."):
+    return Article(
+        id="art_20261005_001", title=title, summary=summary, content="Body", sections=[],
+        publication_date=date(2026, 10, 5), reading_time_minutes=12, era="3rd Century BCE",
+    )
+
+
+class TestChooseEra:
+    @pytest.mark.asyncio
+    async def test_returns_the_listed_era_named_in_the_answer(self):
+        llm = FakeLLMProvider("Maurya Empire\n")
+
+        era = await ArticleGenerator(llm_provider=llm).choose_era(make_published_article())
+
+        assert era == "Maurya Empire"
+
+    @pytest.mark.asyncio
+    async def test_asks_with_the_title_summary_and_every_era(self):
+        llm = FakeLLMProvider("Maurya Empire")
+
+        await ArticleGenerator(llm_provider=llm).choose_era(make_published_article())
+
+        assert "The King Who Quit War" in llm.last_prompt
+        assert "Ashoka turned from conquest to dhamma." in llm.last_prompt
+        assert "; ".join(ERAS) in llm.last_prompt
+        assert llm.last_effort == "low"
+
+    @pytest.mark.asyncio
+    async def test_raises_when_the_answer_is_not_on_the_list(self):
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider("The Mauryan period, roughly 268-232 BCE"))
+
+        with pytest.raises(ArticleGenerationError, match="not an era on the list"):
+            await generator.choose_era(make_published_article())
