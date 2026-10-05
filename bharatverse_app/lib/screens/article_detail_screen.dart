@@ -206,14 +206,22 @@ class ArticleDetailScreen extends StatelessWidget {
               ),
             ],
           ),
+          // The story scrolls up under the status bar; keep the clock on page colour, not over text.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: MediaQuery.paddingOf(context).top,
+            child: ColoredBox(color: colors.surfacePage),
+          ),
           Positioned(
             top: 8,
             left: 8,
             child: SafeArea(
               bottom: false,
               child: GlassSurface(
-                height: 44,
-                width: 44,
+                height: 50,
+                width: 50,
                 child: IconButton(
                   icon: Icon(Icons.chevron_left, color: colors.textPrimary),
                   tooltip: 'Back',

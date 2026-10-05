@@ -95,7 +95,7 @@ class _Header extends StatelessWidget {
           horizontal: AppSpacing.space4, vertical: AppSpacing.space3),
       child: Row(
         children: [
-          const SizedBox(width: 44),
+          const SizedBox(width: 56),
           Expanded(
             child: Text(
               'Account',
@@ -107,13 +107,13 @@ class _Header extends StatelessWidget {
             ),
           ),
           SizedBox(
-            width: 44,
+            width: 56,
             child: TextButton(
               onPressed: () => Navigator.of(context).pop(),
               style: TextButton.styleFrom(
                 padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: const Size(
+                    56, 48), // a full tap target, though the text is small
                 alignment: Alignment.centerRight,
               ),
               child: Text(
@@ -241,29 +241,32 @@ class _ToggleRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: AppTypography.ui
-                      .copyWith(fontSize: 16, color: colors.textPrimary)),
-              const SizedBox(height: 2),
-              Text(description,
-                  style: AppTypography.caption
-                      .copyWith(fontSize: 13, color: colors.textSecondary)),
-            ],
+    // One node for the row, so a screen reader reads the switch with its label.
+    return MergeSemantics(
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: AppTypography.ui
+                        .copyWith(fontSize: 16, color: colors.textPrimary)),
+                const SizedBox(height: 2),
+                Text(description,
+                    style: AppTypography.caption
+                        .copyWith(fontSize: 13, color: colors.textSecondary)),
+              ],
+            ),
           ),
-        ),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeTrackColor: colors.accentSecondary,
-          inactiveTrackColor: colors.paper200,
-        ),
-      ],
+          Switch(
+            value: value,
+            onChanged: onChanged,
+            activeTrackColor: colors.accentSecondary,
+            inactiveTrackColor: colors.paper200,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -368,21 +371,27 @@ class _TextSizeSegment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Material(
-      color: selected ? colors.cell : Colors.transparent,
-      borderRadius: BorderRadius.circular(AppSpacing.radiusSm - 2),
-      child: InkWell(
-        onTap: onTap,
+    return Semantics(
+      label: '${const ['Small', 'Medium', 'Large'][size.index]} text',
+      button: true,
+      selected: selected,
+      excludeSemantics: true,
+      child: Material(
+        color: selected ? colors.cell : Colors.transparent,
         borderRadius: BorderRadius.circular(AppSpacing.radiusSm - 2),
-        child: Container(
-          width: 36,
-          height: 32,
-          alignment: Alignment.center,
-          child: Text('Aa',
-              style: AppTypography.ui.copyWith(
-                  fontSize: 10 + size.index * 3,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary)),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppSpacing.radiusSm - 2),
+          child: Container(
+            width: 36,
+            height: 32,
+            alignment: Alignment.center,
+            child: Text('Aa',
+                style: AppTypography.ui.copyWith(
+                    fontSize: 10 + size.index * 3,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary)),
+          ),
         ),
       ),
     );

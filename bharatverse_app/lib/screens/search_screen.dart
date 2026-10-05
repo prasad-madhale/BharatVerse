@@ -353,7 +353,7 @@ class _SearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Container(
-      height: 44,
+      height: 48,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.space3),
       decoration: BoxDecoration(
         color: colors.surfaceSunken,
@@ -373,12 +373,11 @@ class _SearchField extends StatelessWidget {
               style: AppTypography.ui
                   .copyWith(fontSize: 17, color: colors.textPrimary),
               decoration: InputDecoration(
-                isDense: true,
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 hintText: 'Rulers, places, eras',
                 hintStyle: AppTypography.ui
-                    .copyWith(fontSize: 17, color: colors.textPlaceholder),
+                    .copyWith(fontSize: 17, color: colors.textSecondary),
               ),
             ),
           ),
@@ -420,7 +419,7 @@ class _EraCard extends StatelessWidget {
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
-          color: imageUrl == null ? colors.ink800 : colors.paper100,
+          color: colors.ink800,
           borderRadius: BorderRadius.circular(14),
           boxShadow: colors.shadowArt,
         ),
@@ -437,8 +436,21 @@ class _EraCard extends StatelessWidget {
                       Container(color: colors.ink800),
                 ),
               ),
-              Container(color: const Color.fromRGBO(0, 0, 0, 0.35)),
             ],
+            // Dark enough under the label for white text on even a bright photo.
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: [0.25, 1],
+                  colors: [
+                    Color.fromRGBO(0, 0, 0, 0.05),
+                    Color.fromRGBO(0, 0, 0, 0.75)
+                  ],
+                ),
+              ),
+            ),
             Positioned(
               left: 12,
               right: 12,

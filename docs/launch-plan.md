@@ -324,7 +324,7 @@ poorly.
 | L19 | Bundle the fonts | agent | S | | done |
 | L20 | Scraper dependencies and politeness | agent | L | | todo |
 | L21 | Python test pins | agent | S | | todo |
-| L22 | Accessibility pass | agent | M | | todo |
+| L22 | Accessibility pass | agent | M | | done |
 | L23 | Release checklist and smoke test | agent | M | L08 | todo |
 
 ### L15 Scheduled publishing and takedown

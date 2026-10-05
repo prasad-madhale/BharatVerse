@@ -153,6 +153,13 @@ migrations, and the redesigned app has run against it on an Android phone.
   care about text size don't need to wire one up, the same tradeoff as `ReadingHistory` above); three notification
   toggles (daily story, weekly digest, product news); and an offline-download toggle. Both are documented in "Not
   built" below, since neither does anything beyond persisting a preference.
+- **Accessibility**: `test/accessibility_test.dart` holds Today, an article, Search, sign-up and Settings, in both
+  themes and at double the system text size, to Flutter's guidelines: 48dp tap targets, a label on everything tappable,
+  readable text contrast, and no overflow. Settings' switches merge with their label (a screen reader hears "Daily
+  story, switch, on"), the text-size buttons say "Small/Medium/Large text", the tab bar caps its own text scaling at
+  1.4x so its labels still fit, era cards keep a dark gradient under their label (readable on a bright photo or before
+  it loads), and an article keeps a page-coloured strip under the status bar so the story never scrolls beneath the
+  clock. TalkBack-level output was checked on an Android 15 emulator through its accessibility tree.
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags, era and summary
   (not article bodies, which live in Storage), so a tag- or era-only match is found too. PostgREST's `text_search`
   takes a column name, not an expression, which is why the vector is a stored column with a GIN index. A tag like
