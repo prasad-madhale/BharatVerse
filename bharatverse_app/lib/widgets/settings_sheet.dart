@@ -410,7 +410,7 @@ class _ReadingCard extends StatelessWidget {
                 horizontal: AppSpacing.space4, vertical: AppSpacing.space3),
             child: _ToggleRow(
               label: 'Download for offline',
-              description: "Save today's story automatically",
+              description: "Keep this week's pictures too, not just the text",
               value: settings.offlineOn,
               onChanged: (v) => context.read<SettingsState>().setOfflineOn(v),
             ),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:http/http.dart' as http;
 
 import '../config.dart';
@@ -54,13 +55,19 @@ class ApiClient {
   /// could not be reached. The next request that succeeds clears it.
   final offline = ValueNotifier<bool>(false);
 
+  /// Saves one image where the app's image widgets look for it first.
+  final Future<void> Function(String url) _downloadImage;
+
   ApiClient({
     String? baseUrl,
     http.Client? client,
     ArticleCache? cache,
+    Future<void> Function(String url)? downloadImage,
   })  : baseUrl = baseUrl ?? supabaseUrl,
         _client = client ?? http.Client(),
-        _cache = cache;
+        _cache = cache,
+        _downloadImage =
+            downloadImage ?? ((url) => DefaultCacheManager().downloadFile(url));
 
   Future<Article> getDailyArticle() => _liveOrSaved(
         () async {
@@ -99,6 +106,35 @@ class ApiClient {
                 '&offset=${page * limit}&limit=$limit')),
         () => _saved((all) => all.skip(page * limit).take(limit)),
       );
+
+  /// Saves the last [days] days of articles on the device, and at least the
+  /// [days] most recent when that week had fewer, so they read offline
+  /// (requirement 8.3). Run on every load, it also refreshes the saved copies
+  /// (8.5). With [withImages], their pictures are saved too. Returns what was
+  /// saved; throws [ApiException] when the server cannot be reached.
+  Future<List<Article>> saveRecentForOffline(
+      {int days = 7, bool withImages = false, DateTime? now}) async {
+    final today = now ?? DateTime.now();
+    final cutoff = DateTime(today.year, today.month, today.day)
+        .subtract(Duration(days: days - 1));
+    final rows = await _fetchRows('select=*&order=date.desc&limit=50');
+    final articles = await loadArticles([
+      for (final (index, row) in rows.indexed)
+        if (index < days ||
+            !DateTime.parse(row['date'] as String).isBefore(cutoff))
+          row,
+    ]);
+    if (withImages) {
+      for (final image in articles.expand((a) => a.images)) {
+        try {
+          await _downloadImage(image.url);
+        } catch (_) {
+          // One picture that will not download must not stop the rest.
+        }
+      }
+    }
+    return articles;
+  }
 
   /// The distinct, non-empty eras among the most recent [limit] articles,
   /// newest first, each paired with one representative image -- for

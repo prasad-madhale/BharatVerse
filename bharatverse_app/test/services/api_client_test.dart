@@ -682,6 +682,115 @@ void main() {
           throwsA(isA<ApiException>()));
     });
   });
+
+  group('ApiClient.saveRecentForOffline', () {
+    final today = DateTime(2026, 10, 5);
+    String day(int daysAgo) => today
+        .subtract(Duration(days: daysAgo))
+        .toIso8601String()
+        .substring(0, 10);
+
+    Future<ArticleCache> freshCache() async {
+      SharedPreferences.setMockInitialValues({});
+      return ArticleCache(await SharedPreferences.getInstance());
+    }
+
+    test('saves every article from the last 7 days, even more than 7',
+        () async {
+      final rows = [
+        for (var i = 0; i < 10; i++)
+          sampleArticleRow(id: 'art_$i', date: day(i ~/ 2)),
+      ];
+      final cache = await freshCache();
+      final client =
+          ApiClient(client: articlesMockClient(() => rows), cache: cache);
+
+      final saved = await client.saveRecentForOffline(now: today);
+
+      expect(saved.map((a) => a.id), [for (var i = 0; i < 10; i++) 'art_$i']);
+      expect(await cache.getCachedArticles(), hasLength(10));
+    });
+
+    test('in a quiet week, still saves the 7 most recent', () async {
+      final rows = [
+        for (var i = 0; i < 9; i++)
+          sampleArticleRow(id: 'art_$i', date: day(10 + i * 3)),
+      ];
+      final cache = await freshCache();
+      final client =
+          ApiClient(client: articlesMockClient(() => rows), cache: cache);
+
+      final saved = await client.saveRecentForOffline(now: today);
+
+      expect(saved.map((a) => a.id), [for (var i = 0; i < 7; i++) 'art_$i']);
+      expect(await cache.getCachedArticle('art_6'), isNotNull);
+      expect(await cache.getCachedArticle('art_7'), isNull);
+    });
+
+    test('reads the newest rows first', () async {
+      final queries = <String>[];
+      final client = ApiClient(
+        client: articlesMockClient(() => [sampleArticleRow(date: day(0))],
+            onRequest: (request) => queries.add(request.url.query)),
+      );
+
+      await client.saveRecentForOffline(now: today);
+
+      expect(queries.single, contains('order=date.desc'));
+      expect(queries.single, contains('limit=50'));
+    });
+
+    test('with pictures, saves every one, skipping one that will not download',
+        () async {
+      final downloaded = <String>[];
+      final client = ApiClient(
+        client:
+            MockClient((request) async => request.url.path.contains('/storage/')
+                ? jsonResponse(sampleArticleContent(images: [
+                    sampleImage(url: 'https://s/1.jpg'),
+                    sampleImage(url: 'https://s/2.jpg'),
+                  ]))
+                : jsonResponse([sampleArticleRow(date: day(0))])),
+        downloadImage: (url) async {
+          if (url.endsWith('1.jpg')) throw Exception('timed out');
+          downloaded.add(url);
+        },
+      );
+
+      await client.saveRecentForOffline(withImages: true, now: today);
+
+      expect(downloaded, ['https://s/2.jpg']);
+    });
+
+    test('without pictures, downloads none', () async {
+      final downloaded = <String>[];
+      final client = ApiClient(
+        client: MockClient((request) async =>
+            request.url.path.contains('/storage/')
+                ? jsonResponse(sampleArticleContent(
+                    images: [sampleImage(url: 'https://s/1.jpg')]))
+                : jsonResponse([sampleArticleRow(date: day(0))])),
+        downloadImage: (url) async => downloaded.add(url),
+      );
+
+      await client.saveRecentForOffline(now: today);
+
+      expect(downloaded, isEmpty);
+    });
+
+    test('offline, it fails without touching what is saved', () async {
+      final cache = await freshCache();
+      await cache.cacheArticle(sampleArticle());
+      final client = ApiClient(
+        client: MockClient((_) async => throw http.ClientException('offline')),
+        cache: cache,
+      );
+
+      await expectLater(client.saveRecentForOffline(now: today),
+          throwsA(isA<ApiException>()));
+      expect(await cache.getCachedArticles(), hasLength(1));
+    });
+  });
 }
 
 class _FailingCache extends ArticleCache {

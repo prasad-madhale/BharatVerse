@@ -78,17 +78,18 @@ migrations, and the redesigned app has run against it on an Android phone.
   logout, likes and saves, rate limiting and JSON request logs.
 - **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms (matched by
   stem with `porter_2_stemmer`, the same algorithm Postgres's search uses, so "empires" marks "Empire" too), likes
-  (queued in `PendingLikes` and sent once the server can be reached, so a tap while offline is not lost),
-  sign-in and password reset, account deletion (Settings > Delete account, confirmed in a dialog, calls
-  `delete_my_account()`, which removes the user with their likes and saves), "Report a problem" at the end of every
-  article (a reason and an optional note into `article_reports`, which anyone may write to and only the owner reads),
-  offline reading of the 50 most recently opened articles. It reads Supabase directly, so it works on a real phone
-  without a local server. The palette (parchment, saffron and India green) and the fonts (Newsreader and Work Sans) are
-  in `lib/theme/`, the shared widgets in `lib/widgets/`; the redesign below replaced the earlier "Vintage Broadsheet"
-  styling. The Android, iOS and web launcher icons are the same saffron "B" mark (`bharatverse_app/assets/icon/`,
-  `flutter_launcher_icons`; see its README). Every app change merged to `main` builds a release APK and publishes it as
-  a GitHub Release (`.github/workflows/android-release.yml`). It is still debug-signed, so a CI build and a locally
-  built one cannot update each other: uninstall to switch.
+  (queued in `PendingLikes` and sent once the server can be reached, so a tap while offline is not lost), sign-in and
+  password reset, account deletion (Settings > Delete account, confirmed in a dialog, calls `delete_my_account()`, which
+  removes the user with their likes and saves), "Report a problem" at the end of every article (a reason and an optional
+  note into `article_reports`, which anyone may write to and only the owner reads), offline reading (after Home loads,
+  `ApiClient.saveRecentForOffline` saves every article from the last 7 days, and at least the 7 most recent, refreshing
+  them on each load; Settings' "Download for offline" also saves their pictures; opened articles stay too, up to 50). It
+  reads Supabase directly, so it works on a real phone without a local server. The palette (parchment, saffron and India
+  green) and the fonts (Newsreader and Work Sans) are in `lib/theme/`, the shared widgets in `lib/widgets/`; the
+  redesign below replaced the earlier "Vintage Broadsheet" styling. The Android, iOS and web launcher icons are the same
+  saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README). Every app change merged
+  to `main` builds a release APK and publishes it as a GitHub Release (`.github/workflows/android-release.yml`). It is
+  still debug-signed, so a CI build and a locally built one cannot update each other: uninstall to switch.
 - **App redesign, done** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff): all
   four phases (theme + navigation, onboarding + auth, Home/Article/Library/Search, Settings sheet) are done.
   `lib/theme/app_colors.dart`/
@@ -244,10 +245,6 @@ section records the state of the hosted project and of the content runs.
   `SharedPreferences` only: no FCM/APNs integration, no backend table, and no code path that ever sends a
   notification. Toggling one can never mean a notification actually arrives -- push is out of scope for the
   product (`docs/requirements.md`), and neither design file for this redesign mentions it.
-- The Settings sheet's "Download for offline" toggle (`SettingsState.offlineOn`) persists but is not wired to
-  `ArticleCache`: every article opened is already cached regardless of this toggle's value, and turning it off does
-  not stop that. Wiring it to real behavior (e.g. always keeping today's article cached even if it would otherwise
-  be evicted) was judged more invasive than Milestone 1's scope warrants.
 
 ## Decisions
 
