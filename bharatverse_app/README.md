@@ -21,6 +21,11 @@ against another one with `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_
 [`tools/local-stack`](../tools/local-stack/README.md) builds the app for its local stand-in). The anon key is meant to be
 public, since row-level security is what protects the data.
 
+Crash reports go to Sentry only from a build made with `--dart-define=SENTRY_DSN=...` (`lib/services/crash_reports.dart`);
+the release workflow passes the `SENTRY_DSN` Actions secret, so tests, local runs and builds without the secret send
+nothing. A report holds the error and its stack trace, the device model, OS, memory, locale and timezone, and a random
+per-install id; no email, IP address, screenshot or session count. Its release is `<application id>@<version>+<build>`.
+
 ## Run
 
 Flutter stable (CI follows the stable channel; last verified on 3.47) with Android and/or iOS tooling for the platforms

@@ -17,3 +17,7 @@ const String supabaseAnonKey = String.fromEnvironment(
   defaultValue:
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImppY21xeGZxcGJ0amh3aHVpb2hxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNjM2MzAsImV4cCI6MjA5ODgzOTYzMH0.krhQHMzRxzD79mFKC1iIFUhQwiSBIeTeVoBm7gVfNR8',
 );
+
+/// Where crash reports go (launch plan D6). Empty unless the build passes
+/// `--dart-define=SENTRY_DSN=...`, so tests and local runs report nothing.
+const String sentryDsn = String.fromEnvironment('SENTRY_DSN');

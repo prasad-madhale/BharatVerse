@@ -9,6 +9,7 @@ import 'screens/app_shell.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/api_client.dart';
 import 'services/article_cache.dart';
+import 'services/crash_reports.dart';
 import 'services/likes_client.dart';
 import 'services/pending_likes.dart';
 import 'services/pending_saves.dart';
@@ -24,7 +25,9 @@ import 'theme/app_theme.dart';
 import 'theme/app_typography.dart';
 import 'widgets/recovery_gate.dart';
 
-Future<void> main() async {
+Future<void> main() => runWithCrashReports(_start);
+
+Future<void> _start() async {
   WidgetsFlutterBinding.ensureInitialized();
   bundleFonts();
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);

@@ -22,6 +22,7 @@ dependencies:
   url_launcher: ^6.3.2
   cached_network_image: ^4.0.2
   flutter_cache_manager: ^3.4.5
+  sentry_flutter: ^9.30.1
 
 dev_dependencies:
   flutter_test:

@@ -29,7 +29,10 @@ jobs:
 
       - name: Build release APK
         working-directory: bharatverse_app
-        run: flutter build apk --release
+        env:
+          # Crash reports go to Sentry only when this secret is set (launch plan L17).
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: flutter build apk --release --dart-define=SENTRY_DSN="$SENTRY_DSN"
 
       - name: Set release metadata
         id: meta
