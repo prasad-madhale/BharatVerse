@@ -51,6 +51,18 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Account deletion from the app: removes the caller's own auth.users row, which cascades to their users, likes and
+-- saved_articles rows. SECURITY DEFINER because only the owner may delete from auth.users; auth.uid() keeps it to the
+-- caller, and only a signed-in user may call it.
+CREATE OR REPLACE FUNCTION delete_my_account()
+RETURNS void
+LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp
+AS $$
+    DELETE FROM auth.users WHERE id = auth.uid();
+$$;
+REVOKE EXECUTE ON FUNCTION delete_my_account() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION delete_my_account() TO authenticated;
+
 -- Likes
 CREATE TABLE IF NOT EXISTS likes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -74,6 +86,28 @@ CREATE TABLE IF NOT EXISTS saved_articles (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_saved_articles_user_article ON saved_articles(user_id, article_id);
 CREATE INDEX IF NOT EXISTS idx_saved_articles_user ON saved_articles(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_articles_article ON saved_articles(article_id);
+
+-- Problem reports readers file from an article ("Report a problem"): a factual error, a wrong image, offensive text.
+-- Anyone may file one, signed in or not, under their own user id or none; nobody but the owner, in the dashboard, reads
+-- them. A report outlives its author's account, without the user id.
+CREATE TABLE IF NOT EXISTS article_reports (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    article_id TEXT NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    reason TEXT NOT NULL CHECK (reason IN ('factual', 'image', 'offensive', 'other')),
+    note TEXT CHECK (char_length(note) <= 1000),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_article_reports_article ON article_reports(article_id);
+
+ALTER TABLE article_reports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Anyone can file a report as themselves" ON article_reports;
+CREATE POLICY "Anyone can file a report as themselves"
+    ON article_reports FOR INSERT TO anon, authenticated
+    WITH CHECK (user_id IS NULL OR user_id = auth.uid());
+REVOKE ALL ON article_reports FROM anon, authenticated;
+GRANT INSERT (article_id, user_id, reason, note) ON article_reports TO anon, authenticated;
 
 -- Search suggestions for autocomplete: every phrase a reader may type to find an article, once, with how many articles
 -- carry it -- each part of a title (split at a colon or a dash, so "The Mauryan Empire: India's First Great Dynasty" gives

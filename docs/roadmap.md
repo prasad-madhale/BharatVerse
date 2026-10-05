@@ -25,62 +25,67 @@ migrations, and the redesigned app has run against it on an Android phone.
 - **Pipeline** (`scrapper/`): an LLM proposes topics that are not yet published; Wikipedia, archive.org, New World
   Encyclopedia and the Indian Culture Portal are scraped (the Portal's search sits behind bot-detection that blocks
   plain HTTP requests, so it goes through a real browser session, retried with backoff since that interaction is
-  measurably flaky; most of its catalog is archival-record metadata with no body text, so only results with real
-  content are kept); an LLM writes the article; `ContentValidator`'s structural checks (length, sections,
-  citations) gate it, `image_sourcing.py` attaches up to 3 images (1 featured, 2 inline) from the topic's own
-  Wikipedia page (already curated for relevance, since topics are chosen to match real Wikipedia titles), falling
-  back to a Wikimedia Commons keyword search -- vision-checked for relevance, unlike the Wikipedia-sourced images --
-  when that page has too few, then `ArticleCritic` reviews the draft and its images as an editor would -- grounding
-  in the source material (the check specific to an AI-from-scraped-sources pipeline), citation relevance,
-  neutrality, contested claims stated as settled fact, structure, and whether every image (not only the featured
-  one) genuinely fits the piece, checked by its own vision model (`IMAGE_COHESION_LLM_PROVIDER`) since it runs once
-  per image, per round -- and
-  `ArticleGenerator.revise_article` addresses a text issue while a full image re-source (excluding whatever was
-  just rejected) addresses a cohesion one, both in the same round if needed, up to `CRITIC_MAX_ROUNDS` (4, i.e. up
-  to 3 revisions) review/revise cycles before falling back to a fresh generation. Closes requirements 2.5, 5.5 and
-  10.3, which `ContentValidator` alone could not (it "cannot verify factual accuracy", by its own docstring). Only
-  Public Domain/CC0/CC-BY/CC-BY-SA images at least 500px wide are used, downloaded and re-hosted in Storage, never
-  hotlinked; a sourcing failure publishes with no images rather than losing an otherwise-good article. Set
-  `CRITIC_ENABLED=false` or `IMAGE_SOURCING_ENABLED=false` to skip either for a cheap local run. `backfill_images.py`
-  attaches images to already-published articles that predate `image_sourcing.py`; `reprocess_articles.py` re-runs
-  an already-published article through the current critic and generator (grounding and image cohesion both), for
-  ones published before a critic or prompt fix landed -- it only overwrites when the critic ends up approving, so a
-  rejected reprocess just leaves the article as it was. The service-role client publishes the result. A generation
-  failure retries with backoff, and one bad topic never stops the batch. The daily GitHub Actions workflow runs on
-  demand only: its schedule stays commented out until the output is trusted over more unattended runs, so do not
-  enable it without deciding that first. The daily workflow still uses Claude Sonnet 5 until it moves to OpenRouter
-  (launch plan L05); a local run uses the provider `.env` names, Gemini if it names none.
-  Groq's free tier, and two local Ollama models tried for generation and review (`qwen3.5:9b`, `qwen2.5:7b-instruct`),
-  were rejected for weak word-count adherence -- Groq and `qwen2.5:7b-instruct` undershot, `qwen3.5:9b` overshot by
-  as much as 65% in a real run; local inference stays scoped to the free, per-image cohesion check
-  (`IMAGE_COHESION_LLM_PROVIDER`), not generation or the text critic. An `openrouter` provider (any model it routes
-  to; `common/llm_provider.py` reuses the `openai` SDK against OpenRouter's OpenAI-compatible API, including its
+  measurably flaky; most of its catalog is archival-record metadata with no body text, so only results with real content
+  are kept); an LLM writes the article; `ContentValidator`'s structural checks (length, sections, citations) gate it,
+  `image_sourcing.py` attaches up to 3 images (1 featured, 2 inline) from the topic's own Wikipedia page (already
+  curated for relevance, since topics are chosen to match real Wikipedia titles), falling back to a Wikimedia Commons
+  keyword search -- vision-checked for relevance, unlike the Wikipedia-sourced images -- when that page has too few,
+  then `ArticleCritic` reviews the draft and its images as an editor would -- grounding in the source material (the
+  check specific to an AI-from-scraped-sources pipeline), citation relevance, neutrality, contested claims stated as
+  settled fact, structure, and whether every image (not only the featured one) genuinely fits the piece, checked by its
+  own vision model (`IMAGE_COHESION_LLM_PROVIDER`) since it runs once per image, per round -- and
+  `ArticleGenerator.revise_article` addresses a text issue while a full image re-source (excluding whatever was just
+  rejected) addresses a cohesion one, both in the same round if needed, up to `CRITIC_MAX_ROUNDS` (4, i.e. up to 3
+  revisions) review/revise cycles before falling back to a fresh generation. Closes requirements 2.5, 5.5 and 10.3,
+  which `ContentValidator` alone could not (it "cannot verify factual accuracy", by its own docstring). Only Public
+  Domain/CC0/CC-BY/CC-BY-SA images at least 500px wide are used, downloaded and re-hosted in Storage, never hotlinked,
+  as Wikimedia's own version at most 1600px wide (a tenth or less of an original photo's size) under a file name made
+  from its content, so a replaced image never has a stale CDN copy served in its place; a sourcing failure publishes
+  with no images rather than losing an otherwise-good article. Set `CRITIC_ENABLED=false` or
+  `IMAGE_SOURCING_ENABLED=false` to skip either for a cheap local run. `backfill_images.py` attaches images to
+  already-published articles that predate `image_sourcing.py`; `reprocess_articles.py` re-runs an already-published
+  article through the current critic and generator (grounding and image cohesion both), for ones published before a
+  critic or prompt fix landed -- it only overwrites when the critic ends up approving, so a rejected reprocess just
+  leaves the article as it was. The service-role client publishes the result. A generation failure retries with backoff,
+  and one bad topic never stops the batch. The daily GitHub Actions workflow runs on demand only: its schedule stays
+  commented out until the output is trusted over more unattended runs, so do not enable it without deciding that first.
+  The daily workflow runs on Google AI Studio's free tier with the owner's own key (Gemma 4 writes; Gemini Flash, a
+  different vision model, reviews the text and every image; OpenRouter's paid models are the fallback), and a failed run
+  opens or comments on a `pipeline-failure` issue; a local run uses the provider `.env` names, Gemini if it names none.
+  `GENERATION_MAX_TOKENS`/`CRITIC_MAX_TOKENS` (16000 each) cap a call's output, since OpenRouter reserves credit for the
+  whole ceiling up front. Groq's free tier, and two local Ollama models tried for generation and review (`qwen3.5:9b`,
+  `qwen2.5:7b-instruct`), were rejected for weak word-count adherence -- Groq and `qwen2.5:7b-instruct` undershot,
+  `qwen3.5:9b` overshot by as much as 65% in a real run; local inference stays scoped to the free, per-image cohesion
+  check (`IMAGE_COHESION_LLM_PROVIDER`), not generation or the text critic. An `openrouter` provider (any model it
+  routes to; `common/llm_provider.py` reuses the `openai` SDK against OpenRouter's OpenAI-compatible API, including its
   OpenAI-style vision message format) was added and wired to `google/gemma-4-31b-it` for generation. It has since
   rewritten three published articles that passed the validator and the critic (see "Needs a person"), but left `era`
   empty on two of them, which the controlled era list (launch plan L13) fixes. `LLMProvider` also gained a `model`
   constructor override (alongside the existing `provider` one), and `ArticleCritic` gained matching
   `CRITIC_LLM_PROVIDER`/`CRITIC_LLM_MODEL` settings (mirroring `IMAGE_COHESION_LLM_PROVIDER`, which also gained an
   `_LLM_MODEL` pair) -- both the critic's text review and the image-cohesion check are wired to OpenRouter's
-  `qwen/qwen2.5-vl-72b-instruct`
-  -- a different, larger vision model than generation's Gemma, chosen for those two review roles specifically --
-  each confirmed with a real call (a text round-trip, and a vision call that correctly named a test shape's color),
-  then used for those three articles. One OpenRouter API key authenticates the account and covers every model it
-  routes to, not just one. Claude Sonnet 5 runs adaptive thinking by default, which shares `max_tokens` with the
-  response and had caused the critic and revision calls to occasionally return empty text on long prompts; both now
-  pass `effort="medium"` to cap thinking depth, and their prompts use XML-tag structuring with source material placed
-  first, per Anthropic's current prompt-engineering guidance.
+  `qwen/qwen2.5-vl-72b-instruct` -- a different, larger vision model than generation's Gemma, chosen for those two
+  review roles specifically -- each confirmed with a real call (a text round-trip, and a vision call that correctly
+  named a test shape's color), then used for those three articles. One OpenRouter API key authenticates the account and
+  covers every model it routes to, not just one. Claude Sonnet 5 runs adaptive thinking by default, which shares
+  `max_tokens` with the response and had caused the critic and revision calls to occasionally return empty text on long
+  prompts; both now pass `effort="medium"` to cap thinking depth, and their prompts use XML-tag structuring with source
+  material placed first, per Anthropic's current prompt-engineering guidance.
 - **API** (`backend/`): articles (`daily`, by id, paged list), full-text search and autocomplete, sign-up, login and
   logout, likes and saves, rate limiting and JSON request logs.
 - **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms (matched by
   stem with `porter_2_stemmer`, the same algorithm Postgres's search uses, so "empires" marks "Empire" too), likes
   (queued in `PendingLikes` and sent once the server can be reached, so a tap while offline is not lost),
-  sign-in and password reset, offline reading of the 50 most recently opened articles. It reads Supabase directly, so it
-  works on a real phone without a local server. The palette (parchment, saffron and India green) and the fonts
-  (Newsreader and Work Sans) are in `lib/theme/`, the shared widgets in `lib/widgets/`; the redesign below replaced
-  the earlier "Vintage Broadsheet" styling. The Android, iOS and web launcher icons are the same saffron "B" mark
-  (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README). Every app change merged to `main` builds
-  a release APK and publishes it as a GitHub Release (`.github/workflows/android-release.yml`). It is still
-  debug-signed, so a CI build and a locally built one cannot update each other: uninstall to switch.
+  sign-in and password reset, account deletion (Settings > Delete account, confirmed in a dialog, calls
+  `delete_my_account()`, which removes the user with their likes and saves), "Report a problem" at the end of every
+  article (a reason and an optional note into `article_reports`, which anyone may write to and only the owner reads),
+  offline reading of the 50 most recently opened articles. It reads Supabase directly, so it works on a real phone
+  without a local server. The palette (parchment, saffron and India green) and the fonts (Newsreader and Work Sans) are
+  in `lib/theme/`, the shared widgets in `lib/widgets/`; the redesign below replaced the earlier "Vintage Broadsheet"
+  styling. The Android, iOS and web launcher icons are the same saffron "B" mark (`bharatverse_app/assets/icon/`,
+  `flutter_launcher_icons`; see its README). Every app change merged to `main` builds a release APK and publishes it as
+  a GitHub Release (`.github/workflows/android-release.yml`). It is still debug-signed, so a CI build and a locally
+  built one cannot update each other: uninstall to switch.
 - **App redesign, done** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff): all
   four phases (theme + navigation, onboarding + auth, Home/Article/Library/Search, Settings sheet) are done.
   `lib/theme/app_colors.dart`/
@@ -172,22 +177,23 @@ migrations, and the redesigned app has run against it on an Android phone.
 The launch plan's [person checklist](launch-plan.md#person-checklist) lists what launch needs from the owner. This
 section records the state of the hosted project and of the content runs.
 
-- **Hosted Supabase project.** Apply schema changes by hand, as a file in `backend/database/migrations/`. The `era`
-  column (`2026-09-era-field.sql`), the `saved_articles` table (`2026-09-saved-articles.sql`) and search with
-  autocomplete (`2026-09-search-and-autocomplete.sql`) have been run there. The search file ran in a version from
-  before era joined `search_vector`, so searching an era, and the app's "Browse by era" grid, find nothing there until
-  it is run again; it drops and re-adds the column, and can be run again safely. Supabase permanently deactivates
-  free projects paused for over 90 days, which is how the first project was lost: restore a paused one promptly. Add
-  the app's URL under Authentication > URL Configuration > Redirect URLs for password reset, and keep email
-  confirmation off, or sign-up returns no session.
+- **Hosted Supabase project.** Apply schema changes by hand, as a file in `backend/database/migrations/`. Every file
+  there has been run on it, as of 2026-10-04: the `era` column, `saved_articles`, search with autocomplete (era included
+  in `search_vector`), account deletion and `article_reports`. Read reports in the table editor (`article_reports`),
+  newest first. An era label with a dash, like Nalanda's "427 CE - 1400 CE", still finds nothing from "Browse by era":
+  search reads " - 1400" as "not 1400", which the controlled era list (launch plan L13) avoids. Supabase permanently
+  deactivates free projects paused for over 90 days, which is how the first project was lost: restore a paused one
+  promptly. Add the app's URL under Authentication > URL Configuration > Redirect URLs for password reset, and keep
+  email confirmation off, or sign-up returns no session.
 - **OAuth.** Google and Facebook app registration has days of review lead time and has not been started.
 - **Apple Sign-In.** The app redesign's "Continue with Apple" button calls `AuthState.signInWithApple`, which is
   wired to Supabase's real `signInWithOAuth(OAuthProvider.apple)` call path, but it cannot complete until the Apple
   provider is configured on the Supabase project (an Apple Developer account, a Services ID, and the matching
   entitlements) -- also days of lead time, and not started.
-- **Mohenjo-daro's images.** A save during its reprocess failed partway through (`ArticleService.save_article` is not
-  atomic yet; launch plan L06), and the article came out with none. `python scrapper/backfill_images.py` against the
-  hosted project re-sources images for every article without any, which is only this one today.
+- **Article images.** Mohenjo-daro lost its images when a save during its reprocess failed partway through
+  (`ArticleService.save_article` is not atomic yet; launch plan L06); `backfill_images.py` gave it three again on
+  2026-10-04. Articles published before images were scaled carry the full-size originals (up to about 14 MB an
+  article): `python scrapper/backfill_images.py --resize` re-hosts the same pictures at 1600px.
 - **Reprocess the rest of the hosted articles.** Mohenjo-daro, Nalanda and Chauri Chaura have been rewritten and
   approved by the OpenRouter pipeline. Iron Pillar (`art_20260709_001`), Haldighati (`art_20260705_002`) and Rani of
   Jhansi (`art_20260705_001`) are left: the OpenRouter credits ran out ("can only afford" errors), so top them up
@@ -222,8 +228,8 @@ section records the state of the hosted project and of the content runs.
 
 - robots.txt is not checked before scraping: `WebScraper.check_robots_txt` exists, but `respect_robots` is accepted and
   ignored.
-- Alerting on critical errors (requirement 11.5) beyond a failed Actions run when nothing was published, and a rate
-  limit shared across backend workers (it would need something like Redis).
+- Alerting on critical errors (requirement 11.5) beyond a GitHub issue for a failed pipeline run (no email or chat
+  integration of its own), and a rate limit shared across backend workers (it would need something like Redis).
 - Native deep links for password reset: a phone app has to register a link scheme first. On the web, the link must be
   opened in the browser that asked for it (PKCE keeps the verifier there), and reloading while the new-password form is
   up leaves the reader signed in without one.

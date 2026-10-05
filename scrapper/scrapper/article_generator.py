@@ -13,6 +13,7 @@ from datetime import date, datetime, timezone
 
 import json_repair
 
+from common.config import get_llm_settings
 from common.llm_provider import LLMProvider, get_llm_provider
 from common.models import Article, Citation, Section
 from scrapper.article_critic import CriticReview
@@ -154,6 +155,7 @@ class ArticleGenerator:
 
     def __init__(self, llm_provider: LLMProvider | None = None):
         self.llm_provider = llm_provider or get_llm_provider()
+        self.max_tokens = get_llm_settings().generation_max_tokens
 
     async def generate_article(
         self,
@@ -189,7 +191,7 @@ class ArticleGenerator:
         # and max_tokens caps thinking plus the response together (see llm_provider.py's
         # generate_text docstring). effort is left unset (implicit "high") since this is the
         # open-ended creative-writing step, not a structured, bounded task.
-        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=16000)
+        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=self.max_tokens)
         parsed = self._parse_llm_response(raw_response)
 
         sections = self._build_sections(parsed)
@@ -230,7 +232,7 @@ class ArticleGenerator:
         # budget and return empty text (this prompt is the longest of the three: source material
         # plus the full current draft plus feedback), per Anthropic's own guidance for this
         # failure mode.
-        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=16000, effort="medium")
+        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=self.max_tokens, effort="medium")
         parsed = self._parse_llm_response(raw_response)
 
         sections = self._build_sections(parsed)

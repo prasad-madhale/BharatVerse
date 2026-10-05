@@ -8,6 +8,8 @@ with a mocked LLM provider (no real API calls).
 import json
 from datetime import date, datetime, timezone
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from scrapper.article_critic import CriticIssue, CriticReview
@@ -43,10 +45,12 @@ class FakeLLMProvider:
         self.response = response
         self.last_prompt = None
         self.last_effort = None
+        self.last_max_tokens = None
 
     async def generate_text(self, prompt: str, max_tokens: int = 4000, effort: str | None = None) -> str:
         self.last_prompt = prompt
         self.last_effort = effort
+        self.last_max_tokens = max_tokens
         return self.response
 
 
@@ -238,6 +242,22 @@ def make_feedback(detail="An invented statistic appears in Origins"):
             )
         ],
     )
+
+
+class TestMaxTokens:
+    @pytest.mark.asyncio
+    async def test_generation_and_revision_use_the_configured_ceiling(self, monkeypatch):
+        monkeypatch.setattr("scrapper.article_generator.get_llm_settings",
+                            lambda: MagicMock(generation_max_tokens=6000))
+        llm = FakeLLMProvider(VALID_LLM_RESPONSE)
+        generator = ArticleGenerator(llm_provider=llm)
+
+        draft = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire")
+        assert llm.last_max_tokens == 6000
+        llm.response = REVISED_LLM_RESPONSE
+        await generator.revise_article(draft, [make_scraped_content()], topic="Mauryan Empire",
+                                       feedback=make_feedback())
+        assert llm.last_max_tokens == 6000
 
 
 class TestReviseArticle:

@@ -17,14 +17,16 @@ Put these in the `.env` at the repo root (template: [`.env.example`](../.env.exa
 | Variable | Meaning |
 |---|---|
 | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | the project to publish to (the service-role key writes) |
-| `LLM_PROVIDER` | `gemini` (default; has a free tier), `anthropic`, `openai`, `groq` or `ollama` (a local, self-hosted model -- no API key) |
-| `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY` | the key for the chosen provider |
+| `LLM_PROVIDER` | `gemini` (default; has a free tier), `anthropic`, `openai`, `groq`, `openrouter` or `ollama` (a local, self-hosted model -- no API key) |
+| `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` | the key for the chosen provider |
 | `OLLAMA_BASE_URL` | default `http://localhost:11434`; only used by the `ollama` provider |
 | `LLM_MODEL` | optional; defaults per provider are listed in `.env.example` |
 | `CRITIC_ENABLED` | default `true`; `false` skips the editorial critic pass, for a cheap local run |
+| `CRITIC_LLM_PROVIDER`, `CRITIC_LLM_MODEL` | unset = the generation provider and model; set both to review with another model |
 | `IMAGE_SOURCING_ENABLED` | default `true`; `false` skips attaching images, for a cheap local run |
 | `IMAGE_COHESION_CHECK_ENABLED` | default `true`; `false` skips the critic's per-image cohesion pass |
-| `IMAGE_COHESION_LLM_PROVIDER` | default `ollama` -- a local, free model, since this check runs once per image, per critic round |
+| `IMAGE_COHESION_LLM_PROVIDER`, `IMAGE_COHESION_LLM_MODEL` | default `ollama` and its own default model -- a local, free model, since this check runs once per image, per critic round |
+| `GENERATION_MAX_TOKENS`, `CRITIC_MAX_TOKENS` | default `16000` each; OpenRouter reserves credit for the whole ceiling before each call, so lower them if a low balance fails |
 | `LOG_LEVEL` | default `INFO` |
 
 ## Run
@@ -39,8 +41,11 @@ asks for a revision, so on a paid provider it costs money -- set `CRITIC_ENABLED
 JSON lines on stdout.
 
 [`daily-pipeline.yml`](../.github/workflows/daily-pipeline.yml) runs the same command on demand in GitHub Actions
-(`workflow_dispatch`) with the secrets `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
-`SUPABASE_SERVICE_ROLE_KEY`. Its daily schedule is commented out until the output quality is trusted.
+(`workflow_dispatch`) with the secrets `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
+`SUPABASE_SERVICE_ROLE_KEY`, on Google AI Studio's free tier: Gemma 4 writes, Gemini Flash reviews the text and the
+images. The `gemini` provider calls Google's REST API directly and drops a thinking model's reasoning parts. A failed
+run opens an issue labelled `pipeline-failure`, or comments on the open one (`scripts/report_pipeline_failure.sh`). Its
+daily schedule is commented out until the output quality is trusted.
 
 ## How a run works
 
@@ -75,9 +80,10 @@ JSON lines on stdout.
    Storage bucket and the metadata to the `articles` table, keyed by id, so publishing again overwrites.
 
 `backfill_images.py` attaches images to already-published articles that predate `image_sourcing.py`: `python
-scrapper/backfill_images.py` (imageless articles only) or `--all` to re-source every article.
-`reprocess_articles.py` re-runs every already-published article through the current critic and generator (grounding
-and image cohesion both), for ones published before a critic or prompt fix landed: `python
+scrapper/backfill_images.py` (imageless articles only) or `--all` to re-source every article. `--resize` instead
+re-hosts each article's own images at Wikimedia's 1600px version (`HOSTED_IMAGE_WIDTH`): the same pictures, a fraction
+of the size, no LLM call. `reprocess_articles.py` re-runs every already-published article through the current critic and
+generator (grounding and image cohesion both), for ones published before a critic or prompt fix landed: `python
 scrapper/reprocess_articles.py`. It only overwrites when the critic ends up approving, so a rejected reprocess just
 leaves the article as it was.
 

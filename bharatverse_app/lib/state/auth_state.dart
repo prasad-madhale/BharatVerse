@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 // type since it would otherwise collide with the AuthState class below.
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
+import '../services/account_client.dart';
 import '../services/api_client.dart';
 
 /// What to show a reader when an auth request fails: Supabase's own message
@@ -25,6 +26,7 @@ String describeAuthError(Object error) => switch (error) {
 /// Phase 1. OAuth (Google/Facebook) is deferred to a fast-follow.
 class AuthState extends ChangeNotifier {
   final GoTrueClient _authClient;
+  final AccountClient _accountClient;
 
   /// Where the emailed link brings the reader back to: this page on the web.
   /// A phone would need the app registered for a link scheme first.
@@ -32,8 +34,12 @@ class AuthState extends ChangeNotifier {
 
   bool _recovering = false;
 
-  AuthState({GoTrueClient? authClient, String? resetRedirectTo})
+  AuthState(
+      {GoTrueClient? authClient,
+      AccountClient? accountClient,
+      String? resetRedirectTo})
       : _authClient = authClient ?? Supabase.instance.client.auth,
+        _accountClient = accountClient ?? AccountClient(),
         _resetRedirectTo = resetRedirectTo ??
             (kIsWeb ? '${Uri.base.origin}${Uri.base.path}' : null) {
     _authClient.onAuthStateChange.listen((change) {
@@ -78,6 +84,17 @@ class AuthState extends ChangeNotifier {
 
   Future<void> logout() async {
     await _authClient.signOut();
+  }
+
+  /// Deletes the signed-in account with its likes and saves, then signs out
+  /// on this device (the server has no session left to end).
+  Future<void> deleteAccount() async {
+    final token = authToken;
+    if (token == null) {
+      throw AuthSessionMissingException();
+    }
+    await _accountClient.deleteAccount(accessToken: token);
+    await _authClient.signOut(scope: SignOutScope.local);
   }
 
   /// Has Supabase email [email] a link for choosing a new password. It

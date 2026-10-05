@@ -632,6 +632,56 @@ void main() {
       }
     });
   });
+  group('ApiClient.reportArticle', () {
+    test('files an anonymous report with the public key', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(client: MockClient((request) async {
+        seen.add(request);
+        return http.Response('', 201);
+      }));
+
+      await client.reportArticle(
+          articleId: 'art_1', reason: 'factual', note: '  Wrong date.  ');
+
+      final request = seen.single;
+      expect(request.method, 'POST');
+      expect(request.url.path, '/rest/v1/article_reports');
+      expect(request.headers['Authorization'], 'Bearer $supabaseAnonKey');
+      expect(request.headers['Prefer'], 'return=minimal');
+      expect(jsonDecode(request.body),
+          {'article_id': 'art_1', 'reason': 'factual', 'note': 'Wrong date.'});
+    });
+
+    test(
+        'a signed-in report carries the reader\'s id and token, and a blank '
+        'note is left out', () async {
+      final seen = <http.Request>[];
+      final client = ApiClient(client: MockClient((request) async {
+        seen.add(request);
+        return http.Response('', 201);
+      }));
+
+      await client.reportArticle(
+        articleId: 'art_1',
+        reason: 'image',
+        note: '   ',
+        userId: 'user-123',
+        accessToken: 'user-token',
+      );
+
+      expect(seen.single.headers['Authorization'], 'Bearer user-token');
+      expect(jsonDecode(seen.single.body),
+          {'article_id': 'art_1', 'reason': 'image', 'user_id': 'user-123'});
+    });
+
+    test('a refusal throws', () async {
+      final client = ApiClient(
+          client: MockClient((_) async => http.Response('denied', 401)));
+
+      expect(client.reportArticle(articleId: 'art_1', reason: 'other'),
+          throwsA(isA<ApiException>()));
+    });
+  });
 }
 
 class _FailingCache extends ArticleCache {

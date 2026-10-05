@@ -33,6 +33,11 @@ class LLMSettings(BaseSettings):
     critic_llm_provider: Optional[str] = None
     critic_llm_model: Optional[str] = None
 
+    # Output-token ceilings. OpenRouter reserves credit for the whole ceiling before each call, so a low balance fails
+    # at a high one; Claude's adaptive thinking counts against it too, which is why the defaults are generous.
+    generation_max_tokens: int = 16000  # writing and revising an article
+    critic_max_tokens: int = 16000  # the critic's text review
+
     image_sourcing_enabled: bool = True  # off skips attaching images, for cheap local runs
     target_image_count: int = 3  # 1 featured + up to 2 inline
     min_images_to_proceed: int = 1  # publish with fewer than target_image_count rather than block

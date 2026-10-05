@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  issues: write  # the failure alert below
 
 jobs:
   generate:
@@ -18,7 +19,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.12
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v5
       with:
         python-version: "3.12"
 
@@ -34,8 +35,26 @@ jobs:
     - name: Run the daily content pipeline
       run: python scrapper/scrapper_main.py --count 1
       env:
-        LLM_PROVIDER: anthropic
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        # Google AI Studio's free tier, on the owner's own key: Gemma 4 writes, Gemini Flash (a
+        # different, vision-capable model) reviews the text and every image. Every model role is
+        # named here: unset, the image check would fall back to a local Ollama model, which CI does
+        # not have, and images would go unchecked.
+        LLM_PROVIDER: gemini
+        LLM_MODEL: gemma-4-31b-it
+        CRITIC_LLM_PROVIDER: gemini
+        CRITIC_LLM_MODEL: gemini-3.8-flash
+        IMAGE_COHESION_LLM_PROVIDER: gemini
+        IMAGE_COHESION_LLM_MODEL: gemini-3.8-flash
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
         SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    # Requirement 11.5: a failed run (an error, or fewer articles published than asked) opens an
+    # issue, or comments on the one already open, so it reaches the owner.
+    - name: Report a failed run
+      if: failure()
+      run: scripts/report_pipeline_failure.sh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

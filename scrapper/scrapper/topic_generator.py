@@ -10,6 +10,7 @@ import logging
 
 import json_repair
 
+from common.config import get_llm_settings
 from common.llm_provider import LLMProvider, get_llm_provider
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,7 @@ class TopicGenerator:
 
     def __init__(self, llm_provider: LLMProvider | None = None):
         self.llm_provider = llm_provider or get_llm_provider()
+        self.max_tokens = get_llm_settings().generation_max_tokens
 
     async def generate_topics(self, count: int, exclude_titles: list[str]) -> list[str]:
         """
@@ -69,7 +71,9 @@ class TopicGenerator:
                 expected shape, or doesn't contain enough topics.
         """
         prompt = self._build_prompt(count, exclude_titles)
-        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=1000)
+        # The answer is a short JSON list, but a thinking model (Gemma 4 on Google AI Studio) spends its output budget on
+        # reasoning first: a fixed 1000 left it nothing to answer with, so this shares the writing ceiling.
+        raw_response = await self.llm_provider.generate_text(prompt, max_tokens=self.max_tokens)
         topics = self._parse_llm_response(raw_response)
 
         if len(topics) < count:

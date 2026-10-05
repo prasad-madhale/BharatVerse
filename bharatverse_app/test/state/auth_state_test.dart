@@ -6,9 +6,10 @@ import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:supabase_flutter/supabase_flutter.dart' as gotrue
     show AuthState;
 
+import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
 
-import '../support/like_fixtures.dart' show testUser;
+import '../support/like_fixtures.dart' show MockAccountClient, testUser;
 
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
@@ -22,6 +23,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(FakeAuthResponse());
     registerFallbackValue(UserAttributes());
+    registerFallbackValue(SignOutScope.local);
   });
 
   setUp(() {
@@ -93,6 +95,58 @@ void main() {
       await authState.logout();
 
       verify(() => mockAuthClient.signOut()).called(1);
+    });
+
+    group('deleteAccount', () {
+      late MockAccountClient accountClient;
+
+      setUp(() {
+        accountClient = MockAccountClient();
+        when(() => mockAuthClient.currentSession).thenReturn(Session(
+            accessToken: 'user-token', tokenType: 'bearer', user: testUser()));
+        when(() => mockAuthClient.signOut(scope: any(named: 'scope')))
+            .thenAnswer((_) async {});
+      });
+
+      test('deletes with the user\'s token, then signs out on this device',
+          () async {
+        when(() => accountClient.deleteAccount(
+            accessToken: any(named: 'accessToken'))).thenAnswer((_) async {});
+        final authState =
+            AuthState(authClient: mockAuthClient, accountClient: accountClient);
+
+        await authState.deleteAccount();
+
+        verifyInOrder([
+          () => accountClient.deleteAccount(accessToken: 'user-token'),
+          () => mockAuthClient.signOut(scope: SignOutScope.local),
+        ]);
+      });
+
+      test('keeps the session when the deletion fails', () async {
+        when(() => accountClient.deleteAccount(
+                accessToken: any(named: 'accessToken')))
+            .thenThrow(ApiException(unreachableMessage));
+        final authState =
+            AuthState(authClient: mockAuthClient, accountClient: accountClient);
+
+        await expectLater(
+            authState.deleteAccount(), throwsA(isA<ApiException>()));
+
+        verifyNever(() => mockAuthClient.signOut(scope: any(named: 'scope')));
+      });
+
+      test('asks nothing of the server without a session', () async {
+        when(() => mockAuthClient.currentSession).thenReturn(null);
+        final authState =
+            AuthState(authClient: mockAuthClient, accountClient: accountClient);
+
+        await expectLater(authState.deleteAccount(),
+            throwsA(isA<AuthSessionMissingException>()));
+
+        verifyNever(() => accountClient.deleteAccount(
+            accessToken: any(named: 'accessToken')));
+      });
     });
 
     test('register propagates AuthException on failure', () async {

@@ -11,7 +11,6 @@ pydantic-settings>=2.6.0
 email-validator==2.3.0      # Required for pydantic's EmailStr (used in auth request models)
 
 # LLM and AI
-google-generativeai==0.3.2  # Google Gemini (FREE - default)
 anthropic==0.116.0          # Anthropic Claude (optional) -- 0.18.1 predates current model IDs
 openai>=1.55.3              # OpenAI (optional) -- must match scrapper/requirements.txt's floor
                              # (crawl4ai's litellm dependency), since CI installs both into

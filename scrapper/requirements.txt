@@ -14,7 +14,6 @@ internetarchive  # Archive.org search and API wrapper
 requests>=2.32.0  # image_sourcing.py's direct MediaWiki API calls; already pulled in transitively
 
 # LLM providers (used via common/llm_provider.py)
-google-generativeai==0.3.2  # Google Gemini (FREE - default)
 anthropic==0.116.0          # Anthropic Claude (optional) -- 0.18.1 predates current model IDs
 openai>=1.55.3               # OpenAI (optional) -- floor set by crawl4ai's litellm dependency
 groq==0.4.1                  # Groq (optional)

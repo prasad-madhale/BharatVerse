@@ -23,6 +23,14 @@ class TestGenerateTopics:
 
         assert topics == ["Battle of Plassey", "Rani Lakshmibai"]
 
+    async def test_gives_a_thinking_model_the_writing_ceiling_to_reason_and_answer_in(self, monkeypatch):
+        monkeypatch.setattr("scrapper.topic_generator.get_llm_settings", lambda: MagicMock(generation_max_tokens=9000))
+        generator = _make_generator('["Battle of Plassey"]')
+
+        await generator.generate_topics(count=1, exclude_titles=[])
+
+        assert generator.llm_provider.generate_text.call_args.kwargs["max_tokens"] == 9000
+
     async def test_strips_markdown_code_fences(self):
         generator = _make_generator('```json\n["Battle of Plassey"]\n```')
 

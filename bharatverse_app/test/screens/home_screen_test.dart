@@ -10,6 +10,7 @@ import 'package:bharatverse_app/screens/archive_screen.dart';
 import 'package:bharatverse_app/screens/home_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
+import 'package:bharatverse_app/widgets/account_avatar.dart';
 import 'package:bharatverse_app/widgets/article_card.dart';
 import '../support/like_fixtures.dart'
     show MockLikesClient, MockSavesClient, testUser, withLikeProviders;
@@ -53,6 +54,22 @@ void main() {
     expect(find.text('The Mauryan Empire'), findsOneWidget);
     expect(find.text('A summary of the Mauryan Empire.'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('keeps the masthead and its account avatar below the status bar',
+      (tester) async {
+    // A 45 px status bar at the test view's 3x density, like a Pixel 7's.
+    tester.view.padding = const FakeViewPadding(top: 135);
+    tester.view.viewPadding = const FakeViewPadding(top: 135);
+    addTearDown(tester.view.reset);
+    final apiClient =
+        ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
+
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(tester.getRect(find.byType(AccountAvatar)).top,
+        greaterThanOrEqualTo(45));
   });
 
   testWidgets('shows up to 5 articles, the first one featured', (tester) async {

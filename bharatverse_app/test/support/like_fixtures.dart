@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
+import 'package:bharatverse_app/services/account_client.dart';
 import 'package:bharatverse_app/services/likes_client.dart';
 import 'package:bharatverse_app/services/saves_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
@@ -12,6 +13,8 @@ import 'package:bharatverse_app/state/save_state.dart';
 class MockGoTrueClient extends Mock implements GoTrueClient {}
 
 class MockLikesClient extends Mock implements LikesClient {}
+
+class MockAccountClient extends Mock implements AccountClient {}
 
 class MockSavesClient extends Mock implements SavesClient {}
 

@@ -88,6 +88,32 @@ class TestBackfill:
         assert updated == 0
 
 
+class TestResize:
+    async def test_rehosts_and_saves_each_article_whose_images_changed(self, services):
+        with_images = make_article("art_a")
+        with_images.images = [make_image(0)]
+        without = make_article("art_b")
+        services.service.list_recent_articles = AsyncMock(side_effect=[[with_images, without], []])
+        smaller = make_image(0).model_copy(update={"url": "https://storage.example/0-abc.jpeg", "width": 1600})
+        services.sourcer.rehost = AsyncMock(return_value=[smaller])
+
+        updated = await backfill_images.resize()
+
+        services.sourcer.rehost.assert_awaited_once_with(with_images)
+        saved = services.service.save_article.await_args.args[0]
+        assert saved.images == [smaller] and saved.image_url == smaller.url
+        assert updated == 1
+
+    async def test_an_article_whose_images_did_not_change_is_not_saved(self, services):
+        article = make_article("art_a")
+        article.images = [make_image(0)]
+        services.service.list_recent_articles = AsyncMock(side_effect=[[article], []])
+        services.sourcer.rehost = AsyncMock(return_value=[make_image(0)])
+
+        assert await backfill_images.resize() == 0
+        services.service.save_article.assert_not_awaited()
+
+
 class TestMain:
     def test_all_flag_is_passed_through(self):
         with patch("backfill_images.backfill", new_callable=AsyncMock) as backfill, \
@@ -96,6 +122,15 @@ class TestMain:
             backfill_images.main(["--all"])
 
         assert backfill.await_args.kwargs == {"all_articles": True}
+
+    def test_resize_flag_runs_the_resize_instead_of_a_backfill(self):
+        with patch("backfill_images.resize", new_callable=AsyncMock) as resize, \
+                patch("backfill_images.backfill", new_callable=AsyncMock) as backfill, \
+                patch("backfill_images.configure_logging"):
+            resize.return_value = 3
+            assert backfill_images.main(["--resize"]) == 0
+        resize.assert_awaited_once()
+        backfill.assert_not_awaited()
 
     def test_exits_zero_even_when_nothing_was_updated(self):
         with patch("backfill_images.backfill", new_callable=AsyncMock) as backfill, \
