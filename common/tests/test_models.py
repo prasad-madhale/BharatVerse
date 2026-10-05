@@ -78,6 +78,15 @@ class TestSection:
 
 
 class TestArticle:
+    @pytest.mark.parametrize("given, stored", [
+        (["Ashoka", "Mauryan Empire", "Ancient India"], ["ashoka", "mauryan-empire", "ancient-india"]),
+        (["mauryan-empire", "covid-19", "1857-rebellion"], ["mauryan-empire", "covid-19", "1857-rebellion"]),
+        (["Ashoka’s Edicts", "King's Peace"], ["ashokas-edicts", "kings-peace"]),
+        (["UNESCO World Heritage", "unesco-world-heritage", "  Buddhism  ", "!!"], ["unesco-world-heritage", "buddhism"]),
+    ])
+    def test_tags_are_stored_as_slugs_once_each(self, given, stored):
+        assert Article(**_article_kwargs(tags=given)).tags == stored
+
     def test_valid_article_minimal_fields(self):
         article = Article(**_article_kwargs())
         assert article.author == "BharatVerse AI"
