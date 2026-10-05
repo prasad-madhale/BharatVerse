@@ -130,6 +130,30 @@ void main() {
     expect(find.textContaining("Today's story"), findsOneWidget);
   });
 
+  testWidgets('one story whose content is missing does not hide the others',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 3200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final mockClient = MockClient((request) async {
+      if (request.url.path.endsWith('/art_1.json')) {
+        return http.Response('not found', 404);
+      }
+      if (request.url.path.contains('/storage/')) {
+        return jsonResponse(sampleArticleContent());
+      }
+      return jsonResponse(List.generate(
+          3, (i) => sampleArticleRow(id: 'art_$i', title: 'Article $i')));
+    });
+
+    await tester.pumpWidget(_wrapWithProviders(ApiClient(client: mockClient)));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Article 0'), findsOneWidget);
+    expect(find.text('Article 1'), findsNothing);
+    expect(find.text('Article 2'), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsNothing);
+  });
+
   testWidgets('shows an empty state when there are no articles',
       (tester) async {
     final mockClient = MockClient((request) async => http.Response('[]', 200));
