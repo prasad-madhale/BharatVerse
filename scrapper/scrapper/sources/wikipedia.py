@@ -9,6 +9,7 @@ import logging
 from typing import List, Dict, Optional
 from crawl4ai import CrawlerRunConfig, CacheMode
 from .base import ContentSource
+from scrapper.user_agent import USER_AGENT
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class WikipediaSource(ContentSource):
 
     def __init__(self):
         super().__init__()
-        wikipedia.set_user_agent('BharatVerse/1.0 (https://github.com/bharatverse)')
+        wikipedia.set_user_agent(USER_AGENT)
         wikipedia.set_lang('en')
 
     def get_crawler_config(self) -> CrawlerRunConfig:

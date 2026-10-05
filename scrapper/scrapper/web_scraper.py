@@ -11,10 +11,43 @@ from typing import List, Optional
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
 
+import requests
+
 from scrapper.models.article import ScrapedContent
 from scrapper.sources import registry
+from scrapper.user_agent import USER_AGENT
 
 logger = logging.getLogger(__name__)
+
+ROBOTS_TIMEOUT_SECONDS = 15
+
+
+class RobotsUnavailable(Exception):
+    """robots.txt could not be read right now (a server error or no answer)."""
+
+
+def _fetch_robots(robots_url: str) -> RobotFileParser:
+    """
+    RobotFileParser.read() with our User-Agent: read() sends Python's default one, which Wikipedia answers with 403,
+    and read() takes a 403 to mean "disallow everything".
+    """
+    try:
+        response = requests.get(robots_url, headers={"User-Agent": USER_AGENT}, timeout=ROBOTS_TIMEOUT_SECONDS)
+    except requests.RequestException as e:
+        raise RobotsUnavailable(str(e)) from e
+
+    rp = RobotFileParser(robots_url)
+    # The same reading of a status as read(), except a server error, which RFC 9309 says to treat as "disallow
+    # for now".
+    if response.status_code >= 500:
+        raise RobotsUnavailable(f"HTTP {response.status_code}")
+    if response.status_code in (401, 403):
+        rp.disallow_all = True
+    elif response.status_code >= 400:
+        rp.allow_all = True
+    else:
+        rp.parse(response.text.splitlines())
+    return rp
 
 
 class RateLimiter:
@@ -50,7 +83,7 @@ class WebScraper:
     Features:
     - Plugin-based source architecture (easy to add new sources)
     - Rate limiting (respects servers)
-    - A robots.txt checker, check_robots_txt(), that scraping does not use yet
+    - robots.txt: a source fetches only the pages it allows (requirement 1.5)
     - Concurrent scraping from multiple sources
 
     Usage:
@@ -86,9 +119,12 @@ class WebScraper:
         """
         return self.registry.list_sources()
 
-    async def check_robots_txt(self, url: str, user_agent: str = "*") -> bool:
+    async def check_robots_txt(self, url: str, user_agent: str = USER_AGENT) -> bool:
         """
         Check if URL is allowed by robots.txt.
+
+        Each site's robots.txt is fetched once per WebScraper, with our User-Agent. One that cannot be read right
+        now allows nothing and is asked for again next time.
 
         Args:
             url: URL to check
@@ -100,20 +136,14 @@ class WebScraper:
         parsed = urlparse(url)
         robots_url = f"{parsed.scheme}://{parsed.netloc}/robots.txt"
 
-        # Check cache
-        if robots_url in self._robots_cache:
-            rp = self._robots_cache[robots_url]
-        else:
-            # Fetch and parse robots.txt
-            rp = RobotFileParser()
-            rp.set_url(robots_url)
+        rp = self._robots_cache.get(robots_url)
+        if rp is None:
             try:
-                rp.read()
-                self._robots_cache[robots_url] = rp
-            except Exception as e:
-                logger.warning(f"Could not fetch robots.txt from {robots_url}: {e}")
-                # If we can't fetch robots.txt, assume allowed
-                return True
+                rp = await asyncio.to_thread(_fetch_robots, robots_url)
+            except RobotsUnavailable as e:
+                logger.warning(f"Could not read {robots_url} ({e}); not fetching {url}")
+                return False
+            self._robots_cache[robots_url] = rp
 
         return rp.can_fetch(user_agent, url)
 
@@ -122,7 +152,7 @@ class WebScraper:
         source_name: str,
         topic: str,
         max_pages: int = 1,
-        respect_robots: bool = False
+        respect_robots: bool = True
     ) -> List[ScrapedContent]:
         """
         Scrape content from a specific source.
@@ -131,7 +161,7 @@ class WebScraper:
             source_name: Name of the source (e.g., "wikipedia", "archive_org")
             topic: Topic to scrape
             max_pages: Maximum number of pages to extract (default: 1)
-            respect_robots: Accepted but not applied yet; nothing calls check_robots_txt
+            respect_robots: Skip the pages robots.txt does not allow (default: True)
 
         Returns:
             List of ScrapedContent from the source
@@ -153,7 +183,8 @@ class WebScraper:
         # Scrape
         logger.info(f"Scraping '{topic}' from {source_name} (max {max_pages} pages)")
         try:
-            contents = await source.extract(topic, max_pages=max_pages)
+            allowed = self.check_robots_txt if respect_robots else None
+            contents = await source.extract(topic, max_pages=max_pages, allowed=allowed)
             total_chars = sum(len(c.raw_text) for c in contents)
             logger.info(
                 f"Successfully scraped {len(contents)} page(s) "
@@ -168,7 +199,7 @@ class WebScraper:
         self,
         topic: str,
         max_pages: int = 1,
-        respect_robots: bool = False,
+        respect_robots: bool = True,
         fail_fast: bool = False,
         sources: Optional[List[str]] = None
     ) -> List[ScrapedContent]:
@@ -178,7 +209,7 @@ class WebScraper:
         Args:
             topic: Topic to scrape
             max_pages: Maximum number of pages per source (default: 1)
-            respect_robots: Accepted but not applied yet; nothing calls check_robots_txt
+            respect_robots: Skip the pages robots.txt does not allow (default: True)
             fail_fast: If True, raise on first error. If False, continue with other sources.
             sources: Optional list of source names to use. If None, uses all registered sources.
 
@@ -220,7 +251,7 @@ class WebScraper:
         topic: str,
         max_pages_per_source: int = 1,
         sources: Optional[List[str]] = None,
-        respect_robots: bool = False
+        respect_robots: bool = True
     ) -> List[ScrapedContent]:
         """
         High-level wrapper: Search for topic and scrape content from all sources.
@@ -235,7 +266,7 @@ class WebScraper:
             topic: Topic to search and scrape
             max_pages_per_source: Maximum pages to scrape per source (default: 1)
             sources: Optional list of source names. If None, uses all sources.
-            respect_robots: Accepted but not applied yet; nothing calls check_robots_txt
+            respect_robots: Skip the pages robots.txt does not allow (default: True)
 
         Returns:
             List of ScrapedContent from all sources

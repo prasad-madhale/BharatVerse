@@ -5,7 +5,9 @@ Tests scraper logic with mocked sources and rate limiter.
 """
 
 import pytest
+import requests
 from unittest.mock import MagicMock, AsyncMock, patch
+from scrapper.user_agent import USER_AGENT
 from scrapper.web_scraper import WebScraper
 from scrapper.models.article import ScrapedContent
 from datetime import datetime, timezone
@@ -39,71 +41,93 @@ class TestWebScraperInitialization:
         assert len(sources) >= 2
 
 
+def _robots_response(status_code=200, text=""):
+    response = MagicMock()
+    response.status_code = status_code
+    response.text = text
+    return response
+
+
 class TestWebScraperRobotsTxt:
-    """Test robots.txt checking."""
+    """robots.txt (requirement 1.5), against stubbed responses."""
 
     @pytest.mark.asyncio
-    async def test_check_robots_txt_allowed(self):
-        """Test check_robots_txt() returns True when allowed."""
+    async def test_allows_and_disallows_by_path(self):
         scraper = WebScraper()
+        robots = "User-agent: *\nDisallow: /admin\n"
 
-        with patch('scrapper.web_scraper.RobotFileParser') as mock_parser_class:
-            mock_parser = MagicMock()
-            mock_parser.can_fetch.return_value = True
-            mock_parser_class.return_value = mock_parser
-
-            result = await scraper.check_robots_txt("https://example.com/page")
-
-            assert result is True
-            mock_parser.can_fetch.assert_called_once()
+        with patch('scrapper.web_scraper.requests.get', return_value=_robots_response(text=robots)):
+            assert await scraper.check_robots_txt("https://example.com/page") is True
+            assert await scraper.check_robots_txt("https://example.com/admin/users") is False
 
     @pytest.mark.asyncio
-    async def test_check_robots_txt_disallowed(self):
-        """Test check_robots_txt() returns False when disallowed."""
+    async def test_fetches_robots_txt_with_our_user_agent(self):
+        """Wikipedia answers Python's default agent with 403, which reads as "disallow everything"."""
         scraper = WebScraper()
 
-        with patch('scrapper.web_scraper.RobotFileParser') as mock_parser_class:
-            mock_parser = MagicMock()
-            mock_parser.can_fetch.return_value = False
-            mock_parser_class.return_value = mock_parser
+        with patch('scrapper.web_scraper.requests.get', return_value=_robots_response()) as get:
+            await scraper.check_robots_txt("https://en.wikipedia.org/wiki/Ashoka")
 
-            result = await scraper.check_robots_txt("https://example.com/admin")
-
-            assert result is False
+        get.assert_called_once()
+        assert get.call_args.args == ("https://en.wikipedia.org/robots.txt",)
+        assert get.call_args.kwargs["headers"] == {"User-Agent": USER_AGENT}
 
     @pytest.mark.asyncio
-    async def test_check_robots_txt_caches_result(self):
-        """Test robots.txt results are cached."""
+    async def test_applies_the_rules_for_our_agent(self):
+        scraper = WebScraper()
+        robots = "User-agent: BharatVerse\nDisallow: /\n\nUser-agent: *\nAllow: /\n"
+
+        with patch('scrapper.web_scraper.requests.get', return_value=_robots_response(text=robots)):
+            assert await scraper.check_robots_txt("https://example.com/page") is False
+            assert await scraper.check_robots_txt("https://example.com/page", user_agent="OtherBot/1.0") is True
+
+    @pytest.mark.asyncio
+    async def test_fetches_each_sites_robots_txt_once(self):
         scraper = WebScraper()
 
-        with patch('scrapper.web_scraper.RobotFileParser') as mock_parser_class:
-            mock_parser = MagicMock()
-            mock_parser.can_fetch.return_value = True
-            mock_parser_class.return_value = mock_parser
-
-            # First call
+        with patch('scrapper.web_scraper.requests.get', return_value=_robots_response()) as get:
             await scraper.check_robots_txt("https://example.com/page1")
-
-            # Second call to same domain
             await scraper.check_robots_txt("https://example.com/page2")
+            await scraper.check_robots_txt("https://other.org/page")
 
-            # Should only create parser once (cached)
-            assert mock_parser_class.call_count == 1
+        assert [c.args[0] for c in get.call_args_list] == [
+            "https://example.com/robots.txt", "https://other.org/robots.txt"]
 
     @pytest.mark.asyncio
-    async def test_check_robots_txt_fetch_failure_allows(self):
-        """Test robots.txt fetch failure defaults to allowing."""
+    @pytest.mark.parametrize("status_code", [401, 403])
+    async def test_a_refused_robots_txt_allows_nothing(self, status_code):
         scraper = WebScraper()
 
-        with patch('scrapper.web_scraper.RobotFileParser') as mock_parser_class:
-            mock_parser = MagicMock()
-            mock_parser.read.side_effect = Exception("Network error")
-            mock_parser_class.return_value = mock_parser
+        with patch('scrapper.web_scraper.requests.get', return_value=_robots_response(status_code)):
+            assert await scraper.check_robots_txt("https://example.com/page") is False
 
-            result = await scraper.check_robots_txt("https://example.com/page")
+    @pytest.mark.asyncio
+    async def test_a_missing_robots_txt_allows_everything(self):
+        scraper = WebScraper()
 
-            # Should default to True when robots.txt can't be fetched
-            assert result is True
+        with patch('scrapper.web_scraper.requests.get', return_value=_robots_response(404, "<html>Not found")):
+            assert await scraper.check_robots_txt("https://example.com/page") is True
+
+    @pytest.mark.asyncio
+    async def test_a_server_error_allows_nothing_until_it_can_be_read(self):
+        """RFC 9309: a robots.txt that cannot be read for a server error means "disallow" for now."""
+        scraper = WebScraper()
+
+        with patch('scrapper.web_scraper.requests.get', return_value=_robots_response(503)):
+            assert await scraper.check_robots_txt("https://example.com/page") is False
+        with patch('scrapper.web_scraper.requests.get', return_value=_robots_response()) as get:
+            assert await scraper.check_robots_txt("https://example.com/page") is True
+
+        get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_an_unreachable_robots_txt_allows_nothing(self):
+        scraper = WebScraper()
+
+        with patch('scrapper.web_scraper.requests.get', side_effect=requests.ConnectionError("no route")):
+            assert await scraper.check_robots_txt("https://example.com/page") is False
+
+        assert scraper._robots_cache == {}
 
 
 class TestWebScraperScrape:
@@ -144,12 +168,25 @@ class TestWebScraperScrape:
 
         # Verify calls
         scraper.registry.get_source.assert_called_once_with("test_source")
-        mock_source.extract.assert_called_once_with("test topic", max_pages=2)
+        mock_source.extract.assert_called_once_with(
+            "test topic", max_pages=2, allowed=scraper.check_robots_txt)
         scraper.rate_limiter.wait.assert_called_once()
 
         # Verify result
         assert len(result) == 1
         assert result[0] == mock_content
+
+    @pytest.mark.asyncio
+    async def test_scrape_can_skip_robots_txt(self):
+        scraper = WebScraper()
+        mock_source = MagicMock()
+        mock_source.extract = AsyncMock(return_value=[])
+        scraper.registry.get_source = MagicMock(return_value=mock_source)
+        scraper.rate_limiter.wait = AsyncMock()
+
+        await scraper.scrape("test_source", "test topic", respect_robots=False)
+
+        mock_source.extract.assert_called_once_with("test topic", max_pages=1, allowed=None)
 
     @pytest.mark.asyncio
     async def test_scrape_propagates_source_errors(self):
@@ -198,7 +235,7 @@ class TestWebScraperScrapeAll:
 
         # Should only call scrape once
         assert scraper.scrape.call_count == 1
-        scraper.scrape.assert_called_with("source1", "test topic", 1, False)
+        scraper.scrape.assert_called_with("source1", "test topic", 1, True)
 
     @pytest.mark.asyncio
     async def test_scrape_all_continues_on_error_by_default(self):

@@ -100,8 +100,9 @@ its `name` to `SOURCES` in `scheduler.py`; the scheduler only uses the sources l
 browser for search too, not just for rendering a result page (`indian_culture.py`'s docstring has why), override
 `extract` as well rather than relying on the base class's `search_topic`-then-Crawl4AI default.
 
-`WebScraper` has a `check_robots_txt` method, but the `respect_robots` argument is accepted and not applied: nothing
-checks robots.txt before a page is fetched yet (see the [roadmap](../docs/roadmap.md)).
+Every page a source fetches must be one robots.txt allows: the default `extract` checks each result URL, and an
+override calls `ensure_allowed` (from `sources/base.py`) for each page it loads. Any HTTP client it uses sends
+`USER_AGENT` from `user_agent.py`.
 
 ## Tests
 
