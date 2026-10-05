@@ -160,10 +160,12 @@ migrations, and the redesigned app has run against it on an Android phone.
   1.4x so its labels still fit, era cards keep a dark gradient under their label (readable on a bright photo or before
   it loads), and an article keeps a page-coloured strip under the status bar so the story never scrolls beneath the
   clock. TalkBack-level output was checked on an Android 15 emulator through its accessibility tree.
-- **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags, era and summary
-  (not article bodies, which live in Storage), so a tag- or era-only match is found too. PostgREST's `text_search`
-  takes a column name, not an expression, which is why the vector is a stored column with a GIN index. A tag like
-  `covid-19` is indexed as typed and with the hyphen read as a space, so both `covid-19` and `covid 19` find it.
+- **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags, era and summary (not
+  article bodies, which live in Storage), so a tag- or era-only match is found too. PostgREST's `text_search` takes a
+  column name, not an expression, which is why the vector is a stored column with a GIN index. Tags are stored as
+  lowercase, hyphenated slugs whatever the model writes (`common.models.Article` normalises them on every load and save,
+  so one topic is one tag and one suggestion). A tag like `covid-19` is indexed as typed and with the hyphen read as a
+  space, so both `covid-19` and `covid 19` find it.
 - **Autocomplete**: `search_suggestions` holds every phrase a reader may type (the parts of each title split at a colon
   or dash, as they are and without a leading "the", "a" or "an", and the tags with hyphens read as spaces) with the
   number of articles that carry it. A phrase is kept only if searching for it finds the article it came from, so every

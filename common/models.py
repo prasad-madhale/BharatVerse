@@ -6,7 +6,9 @@ apart on what an "Article" looks like.
 
 from datetime import datetime, date
 from typing import Optional, List
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class Citation(BaseModel):
@@ -88,6 +90,11 @@ class Section(BaseModel):
     )
 
 
+def tag_slug(tag: str) -> str:
+    """A tag as it is stored: lowercase words joined by hyphens ("Mauryan Empire" -> "mauryan-empire")."""
+    return "-".join(re.findall(r"[a-z0-9]+", tag.lower().replace("'", "").replace("’", "")))
+
+
 class Article(BaseModel):
     """
     Represents a complete historical article with all metadata.
@@ -154,3 +161,9 @@ class Article(BaseModel):
         default_factory=datetime.now,
         description="When the article was last updated",
     )
+
+    @field_validator("tags")
+    @classmethod
+    def _tags_as_slugs(cls, tags: List[str]) -> List[str]:
+        """Stores every tag as a slug, whatever case or spacing the model wrote, once each."""
+        return list(dict.fromkeys(slug for slug in map(tag_slug, tags) if slug))
