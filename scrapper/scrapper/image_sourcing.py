@@ -27,12 +27,12 @@ from backend.database import get_supabase
 from common.config import get_llm_settings
 from common.llm_provider import LLMProvider, get_llm_provider
 from common.models import Article, ArticleImage
+from scrapper.user_agent import USER_AGENT
 
 logger = logging.getLogger(__name__)
 
 WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
-USER_AGENT = "BharatVerse/1.0 (https://github.com/prasad-madhale/BharatVerse; content pipeline)"
 HTTP_TIMEOUT_SECONDS = 15
 MIN_COMMONS_CANDIDATES_BEFORE_FALLBACK = 2
 COMMONS_SEARCH_LIMIT = 8

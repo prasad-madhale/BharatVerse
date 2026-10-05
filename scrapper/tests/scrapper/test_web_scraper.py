@@ -65,12 +65,10 @@ class TestWebScraper:
             await scraper.scrape("nonexistent", "test topic")
 
     @pytest.mark.asyncio
-    async def test_check_robots_txt(self):
-        """Test robots.txt checking."""
+    @pytest.mark.integration
+    async def test_wikipedia_allows_our_agent_to_read_articles(self):
+        """Regression test: fetched with Python's default agent, Wikipedia's robots.txt was a 403 that read as
+        "disallow everything"."""
         scraper = WebScraper()
 
-        # Test with a known URL
-        allowed = await scraper.check_robots_txt("https://en.wikipedia.org/wiki/Python")
-
-        # Should return a boolean
-        assert isinstance(allowed, bool)
+        assert await scraper.check_robots_txt("https://en.wikipedia.org/wiki/Ashoka") is True

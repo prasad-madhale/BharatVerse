@@ -2,12 +2,16 @@
 Unit tests for content sources.
 """
 
+from unittest.mock import patch
+
 import pytest
 
+from scrapper.sources.base import RobotsDisallowed
 from scrapper.sources.wikipedia import WikipediaSource
 from scrapper.sources.archive_org import ArchiveOrgSource
 from scrapper.sources.new_world_encyclopedia import NewWorldEncyclopediaSource
 from scrapper.sources.indian_culture import IndianCultureSource, SEARCH_ATTEMPTS
+from scrapper.user_agent import USER_AGENT
 
 
 class TestWikipediaSource:
@@ -19,6 +23,12 @@ class TestWikipediaSource:
         assert source.name == "wikipedia"
         assert source.browser_config is not None
         assert source.crawler_config is not None
+
+    def test_wikipedia_client_uses_our_user_agent(self):
+        with patch("scrapper.sources.wikipedia.wikipedia.set_user_agent") as set_user_agent:
+            WikipediaSource()
+
+        set_user_agent.assert_called_once_with(USER_AGENT)
 
     def test_crawler_config_scopes_to_main_content_area(self):
         """Regression test: extraction must be scoped to #mw-content-text, not the
@@ -107,6 +117,12 @@ class TestArchiveOrgSource:
                 assert 'identifier' in result
                 assert result['url'].startswith('https://archive.org/')
 
+    def test_search_adds_our_user_agent(self):
+        with patch("scrapper.sources.archive_org.search_items", return_value=[]) as search_items:
+            ArchiveOrgSource().search_topic("Ashoka")
+
+        assert search_items.call_args.kwargs["config"] == {"general": {"user_agent_suffix": USER_AGENT}}
+
     def test_search_topic_respects_max_results(self):
         """Test that search_topic respects max_results parameter."""
         source = ArchiveOrgSource()
@@ -167,9 +183,11 @@ class _FailingAsyncBrowser:
 
     def __init__(self):
         self.new_page_calls = 0
+        self.new_page_kwargs = None
 
-    async def new_page(self):
+    async def new_page(self, **kwargs):
         self.new_page_calls += 1
+        self.new_page_kwargs = kwargs
         raise RuntimeError("boom")
 
 
@@ -178,9 +196,11 @@ class _FailingSyncBrowser:
 
     def __init__(self):
         self.new_page_calls = 0
+        self.new_page_kwargs = None
 
-    def new_page(self):
+    def new_page(self, **kwargs):
         self.new_page_calls += 1
+        self.new_page_kwargs = kwargs
         raise RuntimeError("boom")
 
 
@@ -295,6 +315,7 @@ class TestIndianCultureSource:
             await source._search_async(browser, "Ashoka")
 
         assert browser.new_page_calls == SEARCH_ATTEMPTS
+        assert browser.new_page_kwargs == {"user_agent": USER_AGENT}
 
     def test_search_sync_retries_then_raises_the_last_error(self, monkeypatch):
         monkeypatch.setattr("scrapper.sources.indian_culture.time.sleep", lambda seconds: None)
@@ -305,6 +326,23 @@ class TestIndianCultureSource:
             source._search_sync(browser, "Ashoka")
 
         assert browser.new_page_calls == SEARCH_ATTEMPTS
+        assert browser.new_page_kwargs == {"user_agent": USER_AGENT}
+
+    async def test_extract_checks_robots_txt_before_opening_a_browser(self, monkeypatch):
+        def no_browser():
+            raise AssertionError("opened a browser")
+        monkeypatch.setattr("scrapper.sources.indian_culture.async_playwright", no_browser)
+        checked = []
+
+        async def allowed(url):
+            checked.append(url)
+            return not url.endswith("/api/global-search-api-new")
+
+        with pytest.raises(RobotsDisallowed):
+            await IndianCultureSource().extract("Ashoka", allowed=allowed)
+
+        assert checked == ["https://www.indianculture.gov.in",
+                           "https://www.indianculture.gov.in/api/global-search-api-new"]
 
 
 class TestSourceRegistry:

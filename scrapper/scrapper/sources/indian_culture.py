@@ -21,19 +21,21 @@ import asyncio
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Optional
 from urllib.parse import quote
 
 from crawl4ai import DefaultMarkdownGenerator
 from playwright.async_api import async_playwright
 from playwright.sync_api import sync_playwright
 
-from .base import ContentSource
+from .base import ContentSource, UrlCheck, ensure_allowed
 from scrapper.models.article import ScrapedContent
+from scrapper.user_agent import USER_AGENT
 
 logger = logging.getLogger(__name__)
 
 PORTAL_URL = "https://www.indianculture.gov.in"
+SEARCH_API_URL = f"{PORTAL_URL}/api/global-search-api-new"
 MIN_BODY_CHARS = 500  # below this, a result is an archival record with no real content
 SEARCH_ATTEMPTS = 3
 SEARCH_BACKOFF_SECONDS = 3
@@ -72,7 +74,12 @@ class IndianCultureSource(ContentSource):
             for r in _good_results(payload, max_results)
         ]
 
-    async def extract(self, topic: str, max_pages: int = 1) -> List[ScrapedContent]:
+    async def extract(
+        self, topic: str, max_pages: int = 1, allowed: Optional[UrlCheck] = None
+    ) -> List[ScrapedContent]:
+        # The page it loads, and the search API that page calls.
+        await ensure_allowed(PORTAL_URL, allowed)
+        await ensure_allowed(SEARCH_API_URL, allowed)
         async with async_playwright() as p:
             browser = await p.chromium.launch()
             try:
@@ -103,7 +110,7 @@ class IndianCultureSource(ContentSource):
         for attempt in range(1, SEARCH_ATTEMPTS + 1):
             page = None
             try:
-                page = await browser.new_page()
+                page = await browser.new_page(user_agent=USER_AGENT)
                 await page.goto(PORTAL_URL, wait_until="load", timeout=30000)
                 box = page.locator('input[type="search"]').first
                 await box.wait_for(state="visible", timeout=15000)
@@ -130,7 +137,7 @@ class IndianCultureSource(ContentSource):
         for attempt in range(1, SEARCH_ATTEMPTS + 1):
             page = None
             try:
-                page = browser.new_page()
+                page = browser.new_page(user_agent=USER_AGENT)
                 page.goto(PORTAL_URL, wait_until="load", timeout=30000)
                 box = page.locator('input[type="search"]').first
                 box.wait_for(state="visible", timeout=15000)
