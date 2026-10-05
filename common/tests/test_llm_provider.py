@@ -5,7 +5,7 @@ Tests provider selection, model defaults, and initialization logic with mocked c
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import AsyncMock, patch, MagicMock
 from common.llm_provider import LLMProvider, get_llm_provider
 
 
@@ -259,6 +259,61 @@ class TestGenerateText:
 
         with pytest.raises(Exception, match="429"):
             await provider.generate_text("prompt")
+
+    @staticmethod
+    def _status(code):
+        response = MagicMock(status_code=code)
+        response.raise_for_status.side_effect = Exception(f"{code} error")
+        return response
+
+    @patch('common.llm_provider.asyncio.sleep', new_callable=AsyncMock)
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('common.llm_provider.requests.post')
+    async def test_gemini_retries_a_transient_error_then_answers(self, mock_post, mock_get_settings, mock_sleep):
+        ok = self._gemini_reply({"text": "answer"})
+        ok.status_code = 200
+        mock_post.side_effect = [self._status(500), self._status(503), ok]
+        provider = self._gemini_provider(mock_get_settings)
+
+        assert await provider.generate_text("prompt") == "answer"
+        assert [c.args[0] for c in mock_sleep.await_args_list] == [5, 15]
+
+    @patch('common.llm_provider.asyncio.sleep', new_callable=AsyncMock)
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('common.llm_provider.requests.post')
+    async def test_gemini_gives_up_after_the_last_retry(self, mock_post, mock_get_settings, mock_sleep):
+        mock_post.side_effect = [self._status(429)] * 4
+        provider = self._gemini_provider(mock_get_settings)
+
+        with pytest.raises(Exception, match="429"):
+            await provider.generate_text("prompt")
+        assert mock_post.call_count == 4
+        assert [c.args[0] for c in mock_sleep.await_args_list] == [5, 15, 45]
+
+    @patch('common.llm_provider.asyncio.sleep', new_callable=AsyncMock)
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('common.llm_provider.requests.post')
+    async def test_gemini_does_not_retry_a_bad_request(self, mock_post, mock_get_settings, mock_sleep):
+        mock_post.return_value = self._status(400)
+        provider = self._gemini_provider(mock_get_settings)
+
+        with pytest.raises(Exception, match="400"):
+            await provider.generate_text("prompt")
+        assert mock_post.call_count == 1
+        mock_sleep.assert_not_awaited()
+
+    @patch('common.llm_provider.asyncio.sleep', new_callable=AsyncMock)
+    @patch('common.llm_provider.get_llm_settings')
+    @patch('common.llm_provider.requests.post')
+    async def test_gemini_retries_a_dropped_connection(self, mock_post, mock_get_settings, mock_sleep):
+        import requests
+        ok = self._gemini_reply({"text": "answer"})
+        ok.status_code = 200
+        mock_post.side_effect = [requests.ConnectionError("reset"), ok]
+        provider = self._gemini_provider(mock_get_settings)
+
+        assert await provider.generate_text("prompt") == "answer"
+        mock_sleep.assert_awaited_once_with(5)
 
     @patch('common.llm_provider.get_llm_settings')
     @patch('anthropic.Anthropic')
