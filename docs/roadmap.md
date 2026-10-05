@@ -46,23 +46,25 @@ migrations, and the redesigned app has run against it on an Android phone.
   already-published articles that predate `image_sourcing.py`; `reprocess_articles.py` re-runs an already-published
   article through the current critic and generator (grounding and image cohesion both), for ones published before a
   critic or prompt fix landed -- it only overwrites when the critic ends up approving, so a rejected reprocess just
-  leaves the article as it was. The service-role client publishes the result. A generation failure retries with backoff,
-  and one bad topic never stops the batch. The daily GitHub Actions workflow runs on demand only: its schedule stays
-  commented out until the output is trusted over more unattended runs, so do not enable it without deciding that first.
-  The daily workflow runs on Google AI Studio's free tier with the owner's own key (Gemma 4 writes; Gemini Flash, a
-  different model, reviews the text; Flash-Lite checks every image, since one call per image ran into Flash's free rate
-  limit; OpenRouter's paid models are the fallback), and a failed run opens or comments on a `pipeline-failure` issue; a
-  local run uses the provider `.env` names, Gemini if it names none. `GENERATION_MAX_TOKENS`/`CRITIC_MAX_TOKENS` (16000
-  each) cap a call's output, since OpenRouter reserves credit for the whole ceiling up front. Groq's free tier, and two
-  local Ollama models tried for generation and review (`qwen3.5:9b`, `qwen2.5:7b-instruct`), were rejected for weak
-  word-count adherence -- Groq and `qwen2.5:7b-instruct` undershot, `qwen3.5:9b` overshot by as much as 65% in a real
-  run; local inference stays scoped to the free, per-image cohesion check (`IMAGE_COHESION_LLM_PROVIDER`), not
-  generation or the text critic. An `openrouter` provider (any model it routes to; `common/llm_provider.py` reuses the
-  `openai` SDK against OpenRouter's OpenAI-compatible API, including its OpenAI-style vision message format) was added
-  and wired to `google/gemma-4-31b-it` for generation. It has since rewritten three published articles that passed the
-  validator and the critic (see "Needs a person"), but left `era` empty on two of them, which the controlled era list
-  (launch plan L13) fixes. `LLMProvider` also gained a `model` constructor override (alongside the existing `provider`
-  one), and `ArticleCritic` gained matching `CRITIC_LLM_PROVIDER`/`CRITIC_LLM_MODEL` settings (mirroring
+  leaves the article as it was. The service-role client publishes the result: the content to a new file named by its
+  hash, then the row, then the old file is deleted, so a save that fails part way leaves the article as it was and no
+  CDN serves a stale copy. A generation failure retries with backoff, and one bad topic never stops the batch. The daily
+  GitHub Actions workflow runs on demand only: its schedule stays commented out until the output is trusted over more
+  unattended runs, so do not enable it without deciding that first. The daily workflow runs on Google AI Studio's free
+  tier with the owner's own key (Gemma 4 writes; Gemini Flash, a different model, reviews the text; Flash-Lite checks
+  every image, since one call per image ran into Flash's free rate limit; OpenRouter's paid models are the fallback),
+  and a failed run opens or comments on a `pipeline-failure` issue; a local run uses the provider `.env` names, Gemini
+  if it names none. `GENERATION_MAX_TOKENS`/`CRITIC_MAX_TOKENS` (16000 each) cap a call's output, since OpenRouter
+  reserves credit for the whole ceiling up front. Groq's free tier, and two local Ollama models tried for generation and
+  review (`qwen3.5:9b`, `qwen2.5:7b-instruct`), were rejected for weak word-count adherence -- Groq and
+  `qwen2.5:7b-instruct` undershot, `qwen3.5:9b` overshot by as much as 65% in a real run; local inference stays scoped
+  to the free, per-image cohesion check (`IMAGE_COHESION_LLM_PROVIDER`), not generation or the text critic. An
+  `openrouter` provider (any model it routes to; `common/llm_provider.py` reuses the `openai` SDK against OpenRouter's
+  OpenAI-compatible API, including its OpenAI-style vision message format) was added and wired to
+  `google/gemma-4-31b-it` for generation. It has since rewritten three published articles that passed the validator and
+  the critic (see "Needs a person"), but left `era` empty on two of them, which the controlled era list (launch plan
+  L13) fixes. `LLMProvider` also gained a `model` constructor override (alongside the existing `provider` one), and
+  `ArticleCritic` gained matching `CRITIC_LLM_PROVIDER`/`CRITIC_LLM_MODEL` settings (mirroring
   `IMAGE_COHESION_LLM_PROVIDER`, which also gained an `_LLM_MODEL` pair) -- both the critic's text review and the
   image-cohesion check are wired to OpenRouter's `qwen/qwen2.5-vl-72b-instruct` -- a different, larger vision model than
   generation's Gemma, chosen for those two review roles specifically -- each confirmed with a real call (a text
@@ -191,10 +193,10 @@ section records the state of the hosted project and of the content runs.
   wired to Supabase's real `signInWithOAuth(OAuthProvider.apple)` call path, but it cannot complete until the Apple
   provider is configured on the Supabase project (an Apple Developer account, a Services ID, and the matching
   entitlements) -- also days of lead time, and not started.
-- **Article images.** Mohenjo-daro lost its images when a save during its reprocess failed partway through
-  (`ArticleService.save_article` is not atomic yet; launch plan L06); `backfill_images.py` gave it three again on
-  2026-10-04. Articles published before images were scaled carry the full-size originals (up to about 14 MB an
-  article): `python scrapper/backfill_images.py --resize` re-hosts the same pictures at 1600px.
+- **Article images.** Mohenjo-daro lost its images when a save during its reprocess failed partway through (fixed: saves
+  are crash-safe now, launch plan L06); `backfill_images.py` gave it three again on 2026-10-04. Articles published
+  before images were scaled carry the full-size originals (up to about 14 MB an article): `python
+  scrapper/backfill_images.py --resize` re-hosts the same pictures at 1600px.
 - **Reprocess the rest of the hosted articles.** Mohenjo-daro, Nalanda and Chauri Chaura have been rewritten and
   approved by the OpenRouter pipeline. Iron Pillar (`art_20260709_001`), Haldighati (`art_20260705_002`) and Rani of
   Jhansi (`art_20260705_001`) are left: the OpenRouter credits ran out ("can only afford" errors), so top them up

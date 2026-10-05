@@ -77,7 +77,9 @@ reasoning parts. A failed run opens an issue labelled `pipeline-failure`, or com
    to `CRITIC_MAX_ROUNDS` (4, i.e. up to 3 revisions) times in `scheduler.py`; a revision that fails the structural
    check ends the round early. There is still no human review.
 7. **Publish** (`backend/services/article_service.py`): the content JSON (and `images`) goes to the `articles`
-   Storage bucket and the metadata to the `articles` table, keyed by id, so publishing again overwrites.
+   Storage bucket and the metadata to the `articles` table, keyed by id, so publishing again replaces both. Each
+   version of the content is a new file named by its hash; the row moves to it, then the old file is deleted, so a
+   save that fails part way leaves the article as it was.
 
 `backfill_images.py` attaches images to already-published articles that predate `image_sourcing.py`: `python
 scrapper/backfill_images.py` (imageless articles only) or `--all` to re-source every article. `--resize` instead
