@@ -187,44 +187,48 @@ class _TabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Row(
-      children: [
-        Expanded(
-          child: GlassSurface(
-            height: 62,
-            child: Row(
-              children: [
-                Expanded(
-                  child: _TabButton(
-                    icon: Icons.article_outlined,
-                    label: 'Today',
-                    active: tab == _AppTab.today,
-                    onTap: () => onSelectTab(_AppTab.today),
+    // A fixed-height bar: let its labels grow with the reader's text size, but not past where they fit.
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.4,
+      child: Row(
+        children: [
+          Expanded(
+            child: GlassSurface(
+              height: 62,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _TabButton(
+                      icon: Icons.article_outlined,
+                      label: 'Today',
+                      active: tab == _AppTab.today,
+                      onTap: () => onSelectTab(_AppTab.today),
+                    ),
                   ),
-                ),
-                Expanded(
-                  child: _TabButton(
-                    icon: Icons.bookmark_border,
-                    label: 'Library',
-                    active: tab == _AppTab.library,
-                    onTap: () => onSelectTab(_AppTab.library),
+                  Expanded(
+                    child: _TabButton(
+                      icon: Icons.bookmark_border,
+                      label: 'Library',
+                      active: tab == _AppTab.library,
+                      onTap: () => onSelectTab(_AppTab.library),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: AppSpacing.space2),
-        GlassSurface(
-          height: 62,
-          width: 62,
-          child: IconButton(
-            icon: Icon(Icons.search, color: colors.textPrimary),
-            onPressed: onSearch,
-            tooltip: 'Search',
+          const SizedBox(width: AppSpacing.space2),
+          GlassSurface(
+            height: 62,
+            width: 62,
+            child: IconButton(
+              icon: Icon(Icons.search, color: colors.textPrimary),
+              onPressed: onSearch,
+              tooltip: 'Search',
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -245,7 +249,8 @@ class _TabButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final color = active ? colors.tint : colors.textPrimary;
+    // The saffron tint is too light for 11px text on glass (4.0:1), so only the icon takes it.
+    final iconColor = active ? colors.tint : colors.textPrimary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppSpacing.radiusFull),
@@ -258,11 +263,12 @@ class _TabButton extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 22, color: color),
+            Icon(icon, size: 22, color: iconColor),
             const SizedBox(height: 2),
             Text(
               label,
-              style: AppTypography.label.copyWith(fontSize: 11, color: color),
+              style: AppTypography.label
+                  .copyWith(fontSize: 11, color: colors.textPrimary),
             ),
           ],
         ),
