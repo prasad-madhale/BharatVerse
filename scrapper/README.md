@@ -80,9 +80,10 @@ daily schedule is commented out until the output quality is trusted.
    Storage bucket and the metadata to the `articles` table, keyed by id, so publishing again overwrites.
 
 `backfill_images.py` attaches images to already-published articles that predate `image_sourcing.py`: `python
-scrapper/backfill_images.py` (imageless articles only) or `--all` to re-source every article.
-`reprocess_articles.py` re-runs every already-published article through the current critic and generator (grounding
-and image cohesion both), for ones published before a critic or prompt fix landed: `python
+scrapper/backfill_images.py` (imageless articles only) or `--all` to re-source every article. `--resize` instead
+re-hosts each article's own images at Wikimedia's 1600px version (`HOSTED_IMAGE_WIDTH`): the same pictures, a fraction
+of the size, no LLM call. `reprocess_articles.py` re-runs every already-published article through the current critic and
+generator (grounding and image cohesion both), for ones published before a critic or prompt fix landed: `python
 scrapper/reprocess_articles.py`. It only overwrites when the critic ends up approving, so a rejected reprocess just
 leaves the article as it was.
 

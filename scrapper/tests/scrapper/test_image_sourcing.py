@@ -7,8 +7,10 @@ from datetime import date
 
 import pytest
 
-from common.models import Article
-from scrapper.image_sourcing import ImageSourcer
+from unittest.mock import MagicMock
+
+from common.models import Article, ArticleImage
+from scrapper.image_sourcing import HOSTED_IMAGE_WIDTH, ImageSourcer
 
 
 class FakeVisionLLM:
@@ -273,3 +275,113 @@ async def fake_host(self, article_id, index, filename, info, image_bytes):
         width=info["width"],
         height=info["height"],
     )
+
+
+class TestScaledImages:
+    """Wikimedia scales larger originals to HOSTED_IMAGE_WIDTH; we host that, under a name made from its content."""
+
+    async def test_asks_wikimedia_for_a_scaled_version_and_downloads_it(self, monkeypatch):
+        seen_params, downloaded = [], []
+        scaled = {**GOOD_JPEG_INFO, "width": 4000, "height": 3000,
+                  "thumburl": "https://upload.wikimedia.org/thumb/1600px-Mohenjodaro_Sindh.jpeg",
+                  "thumbwidth": 1600, "thumbheight": 1200}
+        stub = stub_get_json({"page": WIKIPEDIA_PAGE_RESPONSE,
+                              "imageinfo": imageinfo_response({"File:Mohenjodaro_Sindh.jpeg": scaled})})
+
+        async def recording_get_json(self, url, params):
+            seen_params.append(params)
+            return await stub(self, url, params)
+
+        async def recording_download(self, url):
+            downloaded.append(url)
+            return b"scaled-bytes"
+
+        monkeypatch.setattr(ImageSourcer, "_get_json", recording_get_json)
+        monkeypatch.setattr(ImageSourcer, "_download", recording_download)
+        monkeypatch.setattr(ImageSourcer, "_host", fake_host)
+
+        await ImageSourcer(llm_provider=FakeVisionLLM()).source_images(make_article(), topic="Mohenjo-daro")
+
+        assert downloaded == ["https://upload.wikimedia.org/thumb/1600px-Mohenjodaro_Sindh.jpeg"]
+        imageinfo_calls = [p for p in seen_params if p.get("prop") == "imageinfo"]
+        assert imageinfo_calls and all(p["iiurlwidth"] == HOSTED_IMAGE_WIDTH for p in imageinfo_calls)
+
+    async def test_hosts_under_a_content_named_path_with_the_scaled_size(self, monkeypatch):
+        uploads = []
+        bucket = MagicMock()
+        bucket.upload.side_effect = lambda path, data, file_options: uploads.append(path)
+        bucket.get_public_url.side_effect = lambda path: f"https://storage.example/{path}"
+        admin = MagicMock()
+        admin.storage.from_.return_value = bucket
+        monkeypatch.setattr("scrapper.image_sourcing.get_supabase", lambda: MagicMock(get_admin_client=lambda: admin))
+        info = {**GOOD_JPEG_INFO, "width": 4000, "height": 3000, "thumbwidth": 1600, "thumbheight": 1200}
+        sourcer = ImageSourcer(llm_provider=FakeVisionLLM())
+
+        first = await sourcer._host("art_1", 0, "File:A.jpeg", info, b"one")
+        second = await sourcer._host("art_1", 0, "File:A.jpeg", info, b"two")
+
+        assert uploads[0].startswith("images/art_1/0-") and uploads[0].endswith(".jpeg")
+        assert uploads[0] != uploads[1]  # a replacement never reuses a path a CDN may have cached
+        assert (first.width, first.height) == (1600, 1200)
+        assert second.url.endswith(uploads[1])
+
+    async def test_rehost_keeps_each_picture_and_its_credits_but_hosts_it_scaled(self, monkeypatch):
+        article = make_article()
+        article.images = [ArticleImage(
+            url="https://storage.example/old.jpeg", alt_text="Ruins", caption="The ruins", credit="Jane via Wikimedia Commons",
+            source_url="https://commons.wikimedia.org/wiki/File:Mohenjodaro_Sindh.jpeg", license="CC BY-SA 4.0",
+            width=4000, height=3000)]
+        scaled = {**GOOD_JPEG_INFO, "width": 4000, "height": 3000,
+                  "thumburl": "https://upload.wikimedia.org/thumb/1600px.jpeg", "thumbwidth": 1600, "thumbheight": 1200}
+        looked_up = []
+
+        async def imageinfo(self, filenames):
+            looked_up.extend(filenames)
+            return {"File:Mohenjodaro Sindh.jpeg": scaled}
+
+        async def host(self, article_id, index, filename, info, image_bytes):
+            return ArticleImage(url="https://storage.example/new.jpeg", alt_text="x", credit="x", source_url="x",
+                                license="x", width=info["thumbwidth"], height=info["thumbheight"])
+
+        monkeypatch.setattr(ImageSourcer, "_imageinfo", imageinfo)
+        monkeypatch.setattr(ImageSourcer, "_download", lambda self, url: _bytes())
+        monkeypatch.setattr(ImageSourcer, "_host", host)
+
+        [image] = await ImageSourcer(llm_provider=FakeVisionLLM()).rehost(article)
+
+        assert looked_up == ["File:Mohenjodaro_Sindh.jpeg"]
+        assert (image.url, image.width, image.height) == ("https://storage.example/new.jpeg", 1600, 1200)
+        assert (image.alt_text, image.caption, image.credit, image.license) == (
+            "Ruins", "The ruins", "Jane via Wikimedia Commons", "CC BY-SA 4.0")
+
+    async def test_rehost_keeps_an_image_it_cannot_look_up(self, monkeypatch):
+        article = make_article()
+        original = ArticleImage(url="https://storage.example/old.jpeg", alt_text="a", credit="c",
+                                source_url="https://commons.wikimedia.org/wiki/File:Gone.jpg", license="PD",
+                                width=900, height=600)
+        article.images = [original]
+
+        async def nothing(self, filenames):
+            return {}
+
+        monkeypatch.setattr(ImageSourcer, "_imageinfo", nothing)
+
+        assert await ImageSourcer(llm_provider=FakeVisionLLM()).rehost(article) == [original]
+
+    async def test_rehost_leaves_an_image_already_within_the_hosted_width(self, monkeypatch):
+        article = make_article()
+        small = ArticleImage(url="https://storage.example/old.jpeg", alt_text="a", credit="c",
+                             source_url="https://commons.wikimedia.org/wiki/File:Small.jpg", license="PD",
+                             width=1200, height=800)
+        article.images = [small]
+
+        async def imageinfo(self, filenames):
+            return {"File:Small.jpg": {**GOOD_JPEG_INFO, "width": 1200, "height": 800}}
+
+        async def must_not_host(*args):
+            raise AssertionError("re-hosted an image that was already small")
+
+        monkeypatch.setattr(ImageSourcer, "_imageinfo", imageinfo)
+        monkeypatch.setattr(ImageSourcer, "_host", must_not_host)
+
+        assert await ImageSourcer(llm_provider=FakeVisionLLM()).rehost(article) == [small]

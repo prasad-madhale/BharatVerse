@@ -14,8 +14,10 @@ See docs/roadmap.md and requirements.md 5.5.
 """
 
 import asyncio
+import hashlib
 import logging
 import re
+from urllib.parse import unquote
 
 import json_repair
 import requests
@@ -34,6 +36,9 @@ USER_AGENT = "BharatVerse/1.0 (https://github.com/prasad-madhale/BharatVerse; co
 HTTP_TIMEOUT_SECONDS = 15
 MIN_COMMONS_CANDIDATES_BEFORE_FALLBACK = 2
 COMMONS_SEARCH_LIMIT = 8
+# Wikimedia scales a larger original down to this width for us (iiurlwidth): plenty for a phone, at a tenth or less of
+# the original's size (a 6 MB photo became a few hundred KB).
+HOSTED_IMAGE_WIDTH = 1600
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 # A stable set of Wikipedia/Commons UI-chrome filenames (icons, logos, edit pencils, flags used as
@@ -103,7 +108,7 @@ class ImageSourcer:
             if not self._passes_quality_gate(filename, info):
                 continue
             try:
-                image_bytes = await self._download(info["url"])
+                image_bytes = await self._download(_scaled_url(info))
             except Exception:
                 logger.warning(f"Failed to download {filename}, skipping", exc_info=True)
                 continue
@@ -151,7 +156,7 @@ class ImageSourcer:
         response = await self._get_json(COMMONS_API, {
             "action": "query", "generator": "search", "gsrsearch": topic,
             "gsrnamespace": 6, "gsrlimit": COMMONS_SEARCH_LIMIT,
-            "prop": "imageinfo", "iiprop": "url|size|mime|extmetadata", "format": "json",
+            "prop": "imageinfo", "iiprop": "url|size|mime|extmetadata", "iiurlwidth": HOSTED_IMAGE_WIDTH, "format": "json",
         })
         pages = response.get("query", {}).get("pages", {})
         result = {}
@@ -170,7 +175,7 @@ class ImageSourcer:
             batch = filenames[batch_start:batch_start + 50]
             response = await self._get_json(COMMONS_API, {
                 "action": "query", "titles": "|".join(batch),
-                "prop": "imageinfo", "iiprop": "url|size|mime|extmetadata", "format": "json",
+                "prop": "imageinfo", "iiprop": "url|size|mime|extmetadata", "iiurlwidth": HOSTED_IMAGE_WIDTH, "format": "json",
             })
             for page_data in response.get("query", {}).get("pages", {}).values():
                 infos = page_data.get("imageinfo")
@@ -214,7 +219,9 @@ class ImageSourcer:
         self, article_id: str, index: int, filename: str, info: dict, image_bytes: bytes
     ) -> ArticleImage:
         extension = info["mime"].split("/")[-1]
-        storage_path = f"images/{article_id}/{index}.{extension}"
+        # Named by content, so a replaced image never has a stale CDN copy served in its place.
+        digest = hashlib.sha256(image_bytes).hexdigest()[:12]
+        storage_path = f"images/{article_id}/{index}-{digest}.{extension}"
         client = get_supabase().get_admin_client()
         bucket = get_settings().articles_storage_bucket
         await asyncio.to_thread(
@@ -234,9 +241,30 @@ class ImageSourcer:
             credit=f"{artist} via Wikimedia Commons",
             source_url=f"https://commons.wikimedia.org/wiki/{filename.replace(' ', '_')}",
             license=extmetadata.get("LicenseShortName", {}).get("value", "Public domain"),
-            width=info["width"],
-            height=info["height"],
+            width=info.get("thumbwidth") or info["width"],
+            height=info.get("thumbheight") or info["height"],
         )
+
+    async def rehost(self, article: Article) -> list[ArticleImage]:
+        """The article's own images again, re-hosted at most HOSTED_IMAGE_WIDTH wide: the same pictures, smaller
+        files. An image already no wider, or whose Commons file can no longer be looked up, is kept as it is."""
+        images: list[ArticleImage] = []
+        for index, image in enumerate(article.images):
+            filename = unquote(image.source_url.rsplit("/", 1)[-1])
+            try:
+                info = next(iter((await self._imageinfo([filename])).values()), None)
+                if info is None:
+                    raise LookupError(f"{filename} not found on Commons")
+                if info["width"] <= HOSTED_IMAGE_WIDTH:
+                    images.append(image)  # already no wider than we host: nothing to gain
+                    continue
+                hosted = await self._host(article.id, index, filename, info, await self._download(_scaled_url(info)))
+            except Exception:
+                logger.warning(f"Could not re-host {filename} for {article.id}; keeping it", exc_info=True)
+                images.append(image)
+                continue
+            images.append(image.model_copy(update={"url": hosted.url, "width": hosted.width, "height": hosted.height}))
+        return images
 
     async def _get_json(self, url: str, params: dict) -> dict:
         def _fetch():
@@ -251,6 +279,11 @@ class ImageSourcer:
             response.raise_for_status()
             return response.content
         return await asyncio.to_thread(_fetch)
+
+
+def _scaled_url(info: dict) -> str:
+    """The HOSTED_IMAGE_WIDTH-wide version Wikimedia made for us, or the original when it is no wider."""
+    return info.get("thumburl") or info["url"]
 
 
 def _strip_code_fence(text: str) -> str:

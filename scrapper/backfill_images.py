@@ -5,6 +5,7 @@ image_sourcing.py landed, since only articles generated after that point get ima
 Usage (from the repo root or from scrapper/):
     python scrapper/backfill_images.py
     python scrapper/backfill_images.py --all       # re-source every article, not just imageless ones
+    python scrapper/backfill_images.py --resize    # re-host every article's own images at the hosted width
     python backfill_images.py                      # if already inside scrapper/
 
 Re-sources using the article's own Wikipedia citation as the topic -- the article's title is an
@@ -36,6 +37,29 @@ from scrapper.image_sourcing import ImageSourcer  # noqa: E402
 from scrapper.topic_recovery import recover_topic  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+
+async def resize() -> int:
+    """Re-hosts every article's own images at image_sourcing.HOSTED_IMAGE_WIDTH -- the same pictures, so no new choice
+    to review and no LLM call. Returns how many articles changed."""
+    article_service = ArticleService()
+    image_sourcer = ImageSourcer()
+    updated = 0
+    offset = 0
+    while batch := await article_service.list_recent_articles(limit=100, offset=offset):
+        offset += 100
+        for article in batch:
+            if not article.images:
+                continue
+            images = await image_sourcer.rehost(article)
+            if images == article.images:
+                continue
+            article.images = images
+            article.image_url = images[0].url
+            await article_service.save_article(article)
+            logger.info(f"Re-hosted {len(images)} image(s) for {article.id}: {article.title}")
+            updated += 1
+    return updated
 
 
 async def backfill(all_articles: bool = False) -> int:
@@ -83,12 +107,19 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--all", action="store_true", dest="all_articles",
         help="Re-source every article, not just ones with no image_url.",
     )
+    parser.add_argument(
+        "--resize", action="store_true",
+        help="Instead, re-host every article's own images at the hosted width (smaller files, same pictures).",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     configure_logging(os.environ.get("LOG_LEVEL", "INFO").upper(), "scrapper", "backend", "common")
+    if args.resize:
+        logger.info(f"Re-hosted images for {asyncio.run(resize())} article(s)")
+        return 0
     updated = asyncio.run(backfill(all_articles=args.all_articles))
     logger.info(f"Backfilled {updated} article(s)")
     return 0
