@@ -48,15 +48,40 @@ dart format --output=none --set-exit-if-changed .
 flutter analyze
 ```
 
-`integration_test/` runs the real app on a device or emulator (not in CI): `flutter test integration_test -d <device>`.
-`onboarding_test.dart` walks the first-run slides and checks none sits under the device's status or navigation bar.
-`delete_account_test.dart` (sign up, save, delete the account) and `report_article_test.dart` (a guest reports a story;
-pass `--dart-define=REPORT_NOTE=...` to find its row) write data, so they must run against a database they
-may write to: a `tools/local-stack` stack, which an emulator reaches at `10.0.2.2`, never the hosted project:
-`eval "$(BV_STACK_OFFSET=1000 ../tools/local-stack/stack.sh env)"`, then
-`flutter test integration_test/delete_account_test.dart -d emulator-5554 --dart-define=SUPABASE_URL=http://10.0.2.2:55321 --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"`.
-On a 14 GB machine, build first and boot the emulator after, each in a memory-capped scope
-(`systemd-run --user --scope -p MemoryMax=5500M ...`): an emulator next to an uncapped Gradle build ran it out of memory.
+### End-to-end tests
+
+`integration_test/` runs the real app on an Android emulator (not in CI). Several of its tests sign up, save and delete,
+so they run against the local Supabase stand-in (`tools/local-stack`, which the emulator reaches at `10.0.2.2`), never
+the hosted project. One command does it all:
+
+```bash
+../scripts/e2e.sh                                    # every integration_test/*_test.dart
+../scripts/e2e.sh integration_test/smoke_test.dart   # or just some
+```
+
+It starts the stand-in, boots the emulator if none is running (AVD `bv_api35`), switches it to 3-button navigation,
+runs each test with the stand-in's URL and key, prints what passed and failed, and stops the emulator it started. The
+emulator and each build run in their own memory-capped scope: uncapped, an emulator beside a Gradle build ran a 14 GB
+machine out of memory.
+
+| Test | Covers |
+|---|---|
+| `smoke_test.dart` | sign up, read today's story, save it and find it in Library, search for it, sign out and back in, delete the account |
+| `onboarding_test.dart` | no slide puts Skip under the status bar or the button under the navigation bar (#30) |
+| `delete_account_test.dart` | deleting an account, and that it can no longer sign in |
+| `report_article_test.dart` | a guest reports a story (`--dart-define=REPORT_NOTE=...` names the row to look for) |
+
+### Before each release
+
+On a phone, with the build that goes to Play:
+
+- [ ] A fresh install, and an upgrade over the previous build (saved stories, reading history and settings survive).
+- [ ] Light and dark, and the largest system text size.
+- [ ] Offline: airplane mode after one launch online; the week's stories open.
+- [ ] Sign up, sign out, sign in, a password reset email, and delete account.
+- [ ] Report a problem on a story, and find the row in `article_reports`.
+- [ ] `../scripts/e2e.sh` passes.
+- [ ] The Play "What's new" text, written from the PRs merged since the last release.
 
 ## Layout
 

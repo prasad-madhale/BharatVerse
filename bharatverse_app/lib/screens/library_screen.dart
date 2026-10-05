@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 
 import '../models/article.dart';
@@ -7,6 +8,7 @@ import '../services/api_client.dart';
 import '../services/reading_history.dart';
 import '../services/saves_client.dart';
 import '../state/auth_state.dart';
+import '../state/save_state.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
@@ -33,29 +35,62 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   late Future<List<Article>> _saved;
   late Future<List<Article>> _history;
+  String? _savedFor;
+  List<String>? _historyFor;
 
+  // Library stays built behind the Today tab, so it reloads whenever the
+  // reader, their saves or their reading history change -- from any screen,
+  // not only from here. The FutureBuilders show the error; ignore() keeps a
+  // fast failure from also being reported as unhandled before the next frame
+  // subscribes.
   @override
-  void initState() {
-    super.initState();
-    _start();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final userId = Provider.of<AuthState>(context).currentUser?.id;
+    final saves = Provider.of<SaveState>(context);
+    final savedFor =
+        '$userId|${saves.loaded}|${(saves.savedIds.toList()..sort()).join(',')}';
+    if (savedFor != _savedFor) {
+      _savedFor = savedFor;
+      _saved = _loadSaved()..ignore();
+    }
+    final historyFor = Provider.of<ReadingHistory>(context).articleIds;
+    if (!listEquals(historyFor, _historyFor)) {
+      _historyFor = historyFor;
+      _history = _loadHistory()..ignore();
+    }
   }
 
-  // The FutureBuilders show the error; ignore() keeps a fast failure from
-  // also being reported as unhandled before the next frame subscribes.
-  void _start() {
-    _saved = _loadSaved()..ignore();
-    _history = _loadHistory()..ignore();
-  }
-
+  /// The server's list, newest first -- but once this device knows the
+  /// reader's saves, those decide what is listed, since the server may not
+  /// have caught up with a save or unsave made a moment ago.
   Future<List<Article>> _loadSaved() async {
     final token = context.read<AuthState>().authToken;
+    final saves = context.read<SaveState>();
     if (token == null) {
       return [];
     }
     final rows = await context
         .read<SavesClient>()
         .getSavedArticleRows(accessToken: token);
-    return widget.apiClient.loadArticles(rows);
+    if (!saves.loaded) {
+      return widget.apiClient.loadArticles(rows);
+    }
+    final listed = await widget.apiClient.loadArticles([
+      for (final row in rows)
+        if (saves.isSaved(row['id'] as String)) row,
+    ]);
+    final known = {for (final article in listed) article.id};
+    final justSaved = <Article>[];
+    for (final id in saves.savedIds.toList().reversed) {
+      if (known.contains(id)) continue;
+      try {
+        justSaved.add(await widget.apiClient.getArticleById(id));
+      } catch (_) {
+        // Not loadable right now (offline and never opened): left out.
+      }
+    }
+    return [...justSaved, ...listed];
   }
 
   Future<List<Article>> _loadHistory() async {
@@ -72,12 +107,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     return articles;
   }
 
-  Future<void> _open(Article article) async {
-    await openArticle(context, widget.apiClient, article);
-    // Reading history and, if unsaved while reading, saved both may have
-    // changed.
-    if (mounted) setState(_start);
-  }
+  Future<void> _open(Article article) =>
+      openArticle(context, widget.apiClient, article);
 
   void _requireAuth() => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const AuthScreen()),
@@ -127,7 +158,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     title: 'Could not load your saved articles',
                     description: describeError(snapshot.error),
                     actionLabel: 'Retry',
-                    onAction: () => setState(_start),
+                    onAction: () =>
+                        setState(() => _saved = _loadSaved()..ignore()),
                   );
                 }
                 final saved = snapshot.data!;

@@ -32,6 +32,14 @@ class SaveState extends ChangeNotifier {
 
   bool isSaved(String articleId) => _savedIds.contains(articleId);
 
+  /// The reader's saved article ids as this device sees them, including a save
+  /// still on its way to the server.
+  Set<String> get savedIds => Set.unmodifiable(_savedIds);
+
+  /// True once [savedIds] has loaded from the server for the signed-in reader.
+  bool get loaded => _loaded;
+  bool _loaded = false;
+
   /// Flips the save at once. If the server cannot be reached at all, the change is kept and
   /// queued to send once it can be (see [_flushPending]); any other failure rolls back and
   /// rethrows. Ignored while a change to the same article is in flight; throws a [StateError]
@@ -141,6 +149,7 @@ class SaveState extends ChangeNotifier {
     _loadedForUserId = userId;
     _savedIds.clear();
     _pending.clear();
+    _loaded = false;
     notifyListeners();
     if (userId != null) {
       _load(userId);
@@ -161,6 +170,7 @@ class SaveState extends ChangeNotifier {
         return;
       }
       _savedIds.addAll(ids);
+      _loaded = true;
       notifyListeners();
       unawaited(_flushPending(userId));
     } catch (e) {

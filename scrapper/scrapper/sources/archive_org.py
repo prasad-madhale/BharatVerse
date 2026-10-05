@@ -8,6 +8,7 @@ import logging
 from typing import List, Dict
 from .base import ContentSource
 from internetarchive import search_items
+from scrapper.user_agent import USER_AGENT
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,9 @@ class ArchiveOrgSource(ContentSource):
             search = search_items(
                 f"{topic} AND mediatype:texts",
                 fields=['identifier', 'title', 'description', 'date', 'mediatype'],
-                params={'rows': max_results}
+                params={'rows': max_results},
+                # The client always sends its own agent; this appends ours.
+                config={'general': {'user_agent_suffix': USER_AGENT}},
             )
 
             results = []

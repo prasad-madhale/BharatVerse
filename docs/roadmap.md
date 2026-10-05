@@ -26,7 +26,9 @@ migrations, and the redesigned app has run against it on an Android phone.
   Encyclopedia and the Indian Culture Portal are scraped (the Portal's search sits behind bot-detection that blocks
   plain HTTP requests, so it goes through a real browser session, retried with backoff since that interaction is
   measurably flaky; most of its catalog is archival-record metadata with no body text, so only results with real content
-  are kept); an LLM writes the article; `ContentValidator`'s structural checks (length, sections, citations) gate it,
+  are kept). Every request carries one descriptive User-Agent (`scrapper/user_agent.py`), and a page is fetched only if
+  its site's robots.txt allows that agent (requirement 1.5); a robots.txt that answers with a server error or not at all
+  allows nothing for that run, as RFC 9309 says. Then an LLM writes the article; `ContentValidator`'s structural checks (length, sections, citations) gate it,
   `image_sourcing.py` attaches up to 3 images (1 featured, 2 inline) from the topic's own Wikipedia page (already
   curated for relevance, since topics are chosen to match real Wikipedia titles), falling back to a Wikimedia Commons
   keyword search -- vision-checked for relevance, unlike the Wikipedia-sourced images -- when that page has too few,
@@ -160,6 +162,11 @@ migrations, and the redesigned app has run against it on an Android phone.
   1.4x so its labels still fit, era cards keep a dark gradient under their label (readable on a bright photo or before
   it loads), and an article keeps a page-coloured strip under the status bar so the story never scrolls beneath the
   clock. TalkBack-level output was checked on an Android 15 emulator through its accessibility tree.
+- **End-to-end tests**: `scripts/e2e.sh` runs every `integration_test/` on the Android emulator against
+  `tools/local-stack`, each build in a memory-capped scope. `smoke_test.dart` walks the reader's journey: sign up,
+  read and save today's story, find it in Library and in Search, sign out and back in, delete the account. It found
+  that Library, kept built behind Today, never saw a save or a read made elsewhere; it now rebuilds from `SaveState`
+  and `ReadingHistory` as they change, showing a just-saved story before the server lists it.
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags, era and summary (not
   article bodies, which live in Storage), so a tag- or era-only match is found too. PostgREST's `text_search` takes a
   column name, not an expression, which is why the vector is a stored column with a GIN index. Tags are stored as
@@ -241,8 +248,6 @@ section records the state of the hosted project and of the content runs.
 
 ## Not built
 
-- robots.txt is not checked before scraping: `WebScraper.check_robots_txt` exists, but `respect_robots` is accepted and
-  ignored.
 - Alerting on critical errors (requirement 11.5) beyond a GitHub issue for a failed pipeline run (no email or chat
   integration of its own), and a rate limit shared across backend workers (it would need something like Redis).
 - Native deep links for password reset: a phone app has to register a link scheme first. On the web, the link must be

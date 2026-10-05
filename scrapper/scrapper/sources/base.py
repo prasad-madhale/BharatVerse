@@ -17,15 +17,29 @@ Example:
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, List
+from typing import Awaitable, Callable, Optional, Dict, List
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from datetime import datetime, timezone
 import logging
 import asyncio
 
 from scrapper.models.article import ScrapedContent
+from scrapper.user_agent import USER_AGENT
 
 logger = logging.getLogger(__name__)
+
+# Whether robots.txt lets the pipeline fetch a URL; WebScraper.check_robots_txt is the real one.
+UrlCheck = Callable[[str], Awaitable[bool]]
+
+
+class RobotsDisallowed(Exception):
+    """robots.txt does not let the pipeline fetch this page."""
+
+
+async def ensure_allowed(url: str, allowed: Optional[UrlCheck]) -> None:
+    """Raise RobotsDisallowed unless `allowed` (None skips the check) lets the pipeline fetch `url`."""
+    if allowed is not None and not await allowed(url):
+        raise RobotsDisallowed(f"robots.txt disallows {url}")
 
 
 class ContentSource(ABC):
@@ -83,18 +97,12 @@ class ContentSource(ABC):
         Get browser configuration for this source.
         Override to customize browser behavior.
         """
-        config = BrowserConfig(
+        return BrowserConfig(
             headless=True,
             java_script_enabled=True,
-            verbose=False
+            verbose=False,
+            user_agent=USER_AGENT,
         )
-        # BrowserConfig.__init__ hardcodes chrome_channel="chrome" whenever browser_type is
-        # "chromium" (its default), ignoring any chrome_channel passed in -- which needs a
-        # separately installed Google Chrome binary, not just Playwright's own bundled
-        # Chromium (`playwright install chromium`). Clear it after construction so the
-        # launch omits `channel` entirely and falls back to that bundled Chromium.
-        config.chrome_channel = ""
-        return config
 
     def get_crawler_config(self) -> CrawlerRunConfig:
         """
@@ -107,19 +115,26 @@ class ContentSource(ABC):
             word_count_threshold=100,  # Minimum words
         )
 
-    async def extract(self, topic: str, max_pages: int = 1) -> List[ScrapedContent]:
+    async def extract(
+        self,
+        topic: str,
+        max_pages: int = 1,
+        allowed: Optional[UrlCheck] = None
+    ) -> List[ScrapedContent]:
         """
         Extract content from this source for the given topic.
 
         Default implementation:
         1. Calls search_topic() to get results
-        2. Scrapes each result URL with Crawl4AI
+        2. Scrapes each result URL that robots.txt allows with Crawl4AI
 
-        Override this method if you need custom extraction logic.
+        Override this method if you need custom extraction logic; check every page it fetches with
+        ensure_allowed().
 
         Args:
             topic: The topic to scrape
             max_pages: Maximum number of pages to extract (default: 1)
+            allowed: Whether robots.txt allows a URL; None fetches without checking
 
         Returns:
             List of ScrapedContent with extracted data
@@ -137,7 +152,7 @@ class ContentSource(ABC):
         logger.info(f"Extracting content from {len(results)} page(s) for {self.name}")
 
         # Extract content from each result
-        tasks = [self._scrape_url(result) for result in results]
+        tasks = [self._scrape_url(result, allowed) for result in results]
         contents = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Filter out exceptions
@@ -151,17 +166,26 @@ class ContentSource(ABC):
         logger.info(f"Successfully extracted {len(valid_contents)} page(s)")
         return valid_contents
 
-    async def _scrape_url(self, result: Dict[str, str]) -> ScrapedContent:
+    async def _scrape_url(
+        self,
+        result: Dict[str, str],
+        allowed: Optional[UrlCheck] = None
+    ) -> ScrapedContent:
         """
         Helper method to scrape a single URL.
 
         Args:
             result: Dict with at minimum 'url', 'title', 'summary'
+            allowed: Whether robots.txt allows a URL; None fetches without checking
 
         Returns:
             ScrapedContent
+
+        Raises:
+            RobotsDisallowed: If robots.txt does not allow the URL
         """
         url = result['url']
+        await ensure_allowed(url, allowed)
 
         logger.info(f"Scraping {self.name}: {url}")
 
@@ -171,15 +195,10 @@ class ContentSource(ABC):
             if not crawl_result.success:
                 raise Exception(f"Failed to scrape {url}: {crawl_result.error_message}")
 
-            # Extract markdown - handle different Crawl4AI response formats
-            if hasattr(crawl_result.markdown, 'raw_markdown'):
-                # Crawl4AI 0.4.x+ returns MarkdownGenerationResult object
-                markdown_text = crawl_result.markdown.raw_markdown
-            elif isinstance(crawl_result.markdown, str):
-                # Older versions or simple string response
-                markdown_text = crawl_result.markdown
-            else:
+            # A str of the raw markdown that also carries Crawl4AI's other variants (None if none was made).
+            if not isinstance(crawl_result.markdown, str):
                 raise Exception(f"Unexpected markdown format: {type(crawl_result.markdown)}")
+            markdown_text = str(crawl_result.markdown)
 
             # Extract images
             images = []

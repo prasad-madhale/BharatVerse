@@ -8,9 +8,11 @@ AsyncWebCrawler so no real browser/network activity happens.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from crawl4ai.models import MarkdownGenerationResult, StringCompatibleMarkdown
 
 from scrapper.models.article import ScrapedContent
-from scrapper.sources.base import ContentSource
+from scrapper.sources.base import ContentSource, RobotsDisallowed
+from scrapper.user_agent import USER_AGENT
 
 
 class _StubSource(ContentSource):
@@ -35,7 +37,11 @@ class TestScrapeUrl:
     async def test_scrape_url_with_markdown_generation_result(self):
         crawl_result = MagicMock()
         crawl_result.success = True
-        crawl_result.markdown = MagicMock(raw_markdown="# Heading\n\nSome content.")
+        crawl_result.markdown = StringCompatibleMarkdown(MarkdownGenerationResult(
+            raw_markdown="# Heading\n\nSome content.",
+            markdown_with_citations="# Heading\n\nSome content.",
+            references_markdown="",
+        ))
         crawl_result.media = {}
         crawl_result.metadata = {}
 
@@ -67,7 +73,7 @@ class TestScrapeUrl:
     async def test_scrape_url_unexpected_markdown_type_raises(self):
         crawl_result = MagicMock()
         crawl_result.success = True
-        crawl_result.markdown = 12345  # neither an object with raw_markdown nor a str
+        crawl_result.markdown = None  # Crawl4AI made no markdown
         crawl_result.media = {}
         crawl_result.metadata = {}
 
@@ -144,7 +150,7 @@ class TestExtract:
             {"title": "Bad", "url": "https://example.com/bad"},
         ]
 
-        async def fake_scrape_url(result):
+        async def fake_scrape_url(result, allowed=None):
             if result["title"] == "Bad":
                 raise Exception("scrape failed")
             return ScrapedContent(source_url=result["url"], title=result["title"], raw_text="text")
@@ -154,3 +160,46 @@ class TestExtract:
 
         assert len(contents) == 1
         assert contents[0].title == "Good"
+
+    async def test_extract_skips_pages_robots_txt_disallows(self):
+        crawl_result = MagicMock()
+        crawl_result.success = True
+        crawl_result.markdown = "content"
+        crawl_result.media = {}
+        crawl_result.metadata = {}
+        crawler_class = _make_crawler_class(crawl_result)
+        source = _StubSource()
+        source.search_topic = lambda topic, max_results=5: [
+            {"title": "Open", "url": "https://example.com/open"},
+            {"title": "Private", "url": "https://example.com/private"},
+        ]
+        checked = []
+
+        async def allowed(url):
+            checked.append(url)
+            return "private" not in url
+
+        with patch('scrapper.sources.base.AsyncWebCrawler', crawler_class):
+            contents = await source.extract("Some Topic", max_pages=2, allowed=allowed)
+
+        assert [c.title for c in contents] == ["Open"]
+        assert sorted(checked) == ["https://example.com/open", "https://example.com/private"]
+        crawler = crawler_class.return_value
+        assert [c.kwargs["url"] for c in crawler.arun.call_args_list] == ["https://example.com/open"]
+
+    async def test_scrape_url_raises_before_fetching_a_disallowed_page(self):
+        crawler_class = _make_crawler_class(MagicMock())
+
+        async def allowed(url):
+            return False
+
+        with patch('scrapper.sources.base.AsyncWebCrawler', crawler_class):
+            with pytest.raises(RobotsDisallowed, match="robots.txt disallows https://example.com/stub"):
+                await _StubSource()._scrape_url({"title": "Stub Title", "url": "https://example.com/stub"}, allowed)
+
+        crawler_class.assert_not_called()
+
+
+class TestBrowserConfig:
+    def test_browser_introduces_itself_with_our_user_agent(self):
+        assert _StubSource().browser_config.user_agent == USER_AGENT
