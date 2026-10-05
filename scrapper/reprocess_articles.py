@@ -6,6 +6,8 @@ first articles were published.
 
 Usage (from the repo root or from scrapper/):
     python scrapper/reprocess_articles.py
+    python scrapper/reprocess_articles.py --ids art_20260705_001 art_20260709_001   # only these articles
+    python scrapper/reprocess_articles.py --eras-only    # only give an era to articles without a listed one
     python reprocess_articles.py           # if already inside scrapper/
 
 Re-scrapes using the article's own Wikipedia citation as the topic (see topic_recovery.py -- the
@@ -15,8 +17,12 @@ run_critic_loop the daily pipeline uses, starting from the article's current ima
 sourcing blind, so a cohesion failure replaces them the same way a freshly-generated article's
 would. Idempotent per article (ArticleService.save_article overwrites), so a failed run can just
 be re-run.
+
+--eras-only skips all of that: one short LLM call per article picks its era from common.eras, judged
+from its title and summary, for articles published before the era list.
 """
 
+import argparse
 import asyncio
 import logging
 import os
@@ -32,7 +38,9 @@ for _path in (_SCRAPPER_DIR, _REPO_ROOT):
         sys.path.insert(0, str(_path))
 
 from backend.services.article_service import ArticleService  # noqa: E402
+from common.eras import ERAS  # noqa: E402
 from common.logging_config import configure_logging  # noqa: E402
+from common.models import Article  # noqa: E402
 from scrapper import scheduler  # noqa: E402
 from scrapper.article_critic import ArticleCritic  # noqa: E402
 from scrapper.article_generator import ArticleGenerator  # noqa: E402
@@ -49,7 +57,58 @@ from scrapper.web_scraper import WebScraper  # noqa: E402
 logger = logging.getLogger("reprocess_articles")
 
 
-async def reprocess() -> int:
+async def _load_articles(article_service: ArticleService, ids: list[str] | None) -> list[Article]:
+    """The articles named by `ids`, or every article when it is None."""
+    if ids is not None:
+        articles = []
+        for article_id in ids:
+            article = await article_service.get_article_by_id(article_id)
+            if article is None:
+                logger.warning(f"No article {article_id}, skipping")
+            else:
+                articles.append(article)
+        return articles
+
+    articles = []
+    offset = 0
+    while batch := await article_service.list_recent_articles(limit=100, offset=offset):
+        articles.extend(batch)
+        offset += 100
+    return articles
+
+
+async def assign_eras(ids: list[str] | None = None) -> int:
+    """Gives every article whose era is not on the list one; returns how many were saved."""
+    article_service = ArticleService()
+    generator = ArticleGenerator()
+
+    articles = await _load_articles(article_service, ids)
+    logger.info(f"Checking the era of {len(articles)} article(s)")
+    updated = 0
+    for article in articles:
+        if article.era in ERAS:
+            logger.info(f"{article.id} already has a listed era: {article.era}")
+            continue
+        try:
+            era = await generator.choose_era(article)
+        except Exception:
+            logger.warning(f"Choosing an era failed for {article.id} ('{article.title}')", exc_info=True)
+            continue
+
+        previous = article.era
+        article.era = era
+        try:
+            await article_service.save_article(article)
+        except Exception:
+            logger.warning(f"Saving the era of {article.id} failed -- leaving it unchanged", exc_info=True)
+            continue
+        logger.info(f"{article.id}: era '{previous}' -> '{era}' ({article.title})")
+        updated += 1
+
+    return updated
+
+
+async def reprocess(ids: list[str] | None = None) -> int:
     """Returns how many articles were successfully reprocessed and saved."""
     article_service = ArticleService()
     scraper = WebScraper()
@@ -58,11 +117,7 @@ async def reprocess() -> int:
     critic = ArticleCritic()
     image_sourcer = ImageSourcer()
 
-    articles = []
-    offset = 0
-    while batch := await article_service.list_recent_articles(limit=100, offset=offset):
-        articles.extend(batch)
-        offset += 100
+    articles = await _load_articles(article_service, ids)
 
     logger.info(f"Reprocessing {len(articles)} article(s)")
     updated = 0
@@ -78,10 +133,9 @@ async def reprocess() -> int:
             reprocessed, review, rounds = await scheduler.run_critic_loop(
                 article, scraped, topic, generator, validator, critic,
                 image_sourcer=image_sourcer,
-                # An empty list here (a pre-image-era article, or one left imageless by a
-                # previous save that failed partway through -- see ArticleService.save_article's
-                # non-atomic content-then-row write) must source fresh, not be taken as "this
-                # article intentionally has no images, leave it that way".
+                # An empty list here (a pre-image-era article, or one left imageless by a save
+                # that failed part way before save_article became crash-safe) must source fresh,
+                # not be taken as "this article intentionally has no images, leave it that way".
                 initial_images=article.images or None,
             )
         except Exception:
@@ -117,9 +171,23 @@ async def reprocess() -> int:
     return updated
 
 
-def main() -> int:
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run published articles back through the current pipeline.")
+    parser.add_argument("--ids", nargs="+", metavar="ID", help="Only these articles (default: every article).")
+    parser.add_argument(
+        "--eras-only", action="store_true",
+        help="Only give an era from the list to articles that lack one: one short LLM call each, no re-scrape.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
     configure_logging(os.environ.get("LOG_LEVEL", "INFO").upper(), "reprocess_articles", "scrapper", "backend", "common")
-    updated = asyncio.run(reprocess())
+    if args.eras_only:
+        logger.info(f"Gave an era to {asyncio.run(assign_eras(args.ids))} article(s)")
+        return 0
+    updated = asyncio.run(reprocess(args.ids))
     logger.info(f"Reprocessed {updated} article(s)")
     return 0
 

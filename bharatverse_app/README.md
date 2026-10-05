@@ -69,6 +69,7 @@ machine out of memory.
 | `smoke_test.dart` | sign up, read today's story, save it and find it in Library, search for it, sign out and back in, delete the account |
 | `onboarding_test.dart` | no slide puts Skip under the status bar or the button under the navigation bar (#30) |
 | `delete_account_test.dart` | deleting an account, and that it can no longer sign in |
+| `era_browse_test.dart` | tapping an era card in Search lists that era's story |
 | `report_article_test.dart` | a guest reports a story (`--dart-define=REPORT_NOTE=...` names the row to look for) |
 
 ### Before each release

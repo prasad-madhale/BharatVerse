@@ -4,6 +4,7 @@ Unit tests for ContentValidator.
 
 from datetime import date, datetime, timezone
 
+from common.eras import ERAS
 from common.models import Article, Citation, Section
 from scrapper.content_validator import ContentValidator, article_metrics
 
@@ -29,6 +30,7 @@ def _make_article(**overrides):
         ],
         publication_date=date(2026, 7, 5),
         reading_time_minutes=13,
+        era="Maurya Empire",
     )
     defaults.update(overrides)
     return Article(**defaults)
@@ -50,6 +52,23 @@ class TestValidate:
 
         assert valid is False
         assert any("title is empty" in issue for issue in issues)
+
+    def test_empty_era_fails(self):
+        valid, issues = ContentValidator().validate(_make_article(era=""))
+
+        assert valid is False
+        assert "era is empty" in issues
+
+    def test_era_not_on_the_list_fails(self):
+        """A date range like Nalanda's "427 CE - 1400 CE" is what search read poorly."""
+        valid, issues = ContentValidator().validate(_make_article(era="427 CE - 1400 CE"))
+
+        assert valid is False
+        assert "era '427 CE - 1400 CE' is not on the era list" in issues
+
+    def test_every_listed_era_passes(self):
+        for era in ERAS:
+            assert ContentValidator().validate(_make_article(era=era)) == (True, [])
 
     def test_empty_summary_fails(self):
         validator = ContentValidator()

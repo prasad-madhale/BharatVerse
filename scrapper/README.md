@@ -55,10 +55,10 @@ reasoning parts. A failed run opens an issue labelled `pipeline-failure`, or com
    Encyclopedia and the Indian Culture Portal, as Markdown through Crawl4AI (or, for the Portal, a real browser
    session directly -- see `sources/indian_culture.py`) and paced by a rate limiter (0.5 requests a second). A source
    that fails is logged and skipped; a topic with no content at all is skipped.
-3. **Write** (`article_generator.py`): the LLM produces the title, summary, sections and tags from up to 15,000
-   characters of source text. Citations and reading time come from the sources, not the LLM.
-4. **Check** (`content_validator.py`): a title and summary, 1,300 to 2,200 words, at least 3 sections and 1 citation --
-   cheap and structural; it cannot check facts.
+3. **Write** (`article_generator.py`): the LLM produces the title, summary, sections, tags and era (one of
+   `common/eras.py`'s) from up to 15,000 characters of source text. Citations and reading time come from the sources, not the LLM.
+4. **Check** (`content_validator.py`): a title and summary, 1,300 to 2,200 words, at least 3 sections and 1 citation,
+   an era from the list -- cheap and structural; it cannot check facts.
 5. **Images** (`image_sourcing.py`, skipped if `IMAGE_SOURCING_ENABLED=false`): sources up to 3 images (1 featured,
    2 inline) from the topic's own Wikipedia page, which is already curated for relevance since every topic is chosen
    to match a real Wikipedia title, before the critic reviews the draft -- so the critic can actually judge them (see
@@ -86,8 +86,9 @@ scrapper/backfill_images.py` (imageless articles only) or `--all` to re-source e
 re-hosts each article's own images at Wikimedia's 1600px version (`HOSTED_IMAGE_WIDTH`): the same pictures, a fraction
 of the size, no LLM call. `reprocess_articles.py` re-runs every already-published article through the current critic and
 generator (grounding and image cohesion both), for ones published before a critic or prompt fix landed: `python
-scrapper/reprocess_articles.py`. It only overwrites when the critic ends up approving, so a rejected reprocess just
-leaves the article as it was.
+scrapper/reprocess_articles.py`, or `--ids ID ...` for only some. It only overwrites when the critic ends up approving,
+so a rejected reprocess just leaves the article as it was. `--eras-only` instead gives each article without a listed era
+one, picked from its title and summary in one short LLM call, with no re-scrape or review.
 
 Up to 3 attempts per topic: a failed generation waits 5 s, then 10 s; a failed structural check or a critic that never
 approves retries with a fresh generation at once. Every attempt logs its word, section and citation counts, and (once

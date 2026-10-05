@@ -7,6 +7,7 @@ Checks structural/quality properties that are cheap to verify
 automatically; it cannot verify factual accuracy.
 """
 
+from common.eras import ERAS
 from common.models import Article
 
 MIN_WORD_COUNT = 1500
@@ -60,5 +61,10 @@ class ContentValidator:
 
         if metrics["citation_count"] < MIN_CITATIONS:
             issues.append(f"only {metrics['citation_count']} citation(s), need at least {MIN_CITATIONS}")
+
+        if not article.era:
+            issues.append("era is empty")
+        elif article.era not in ERAS:
+            issues.append(f"era '{article.era}' is not on the era list")
 
         return (len(issues) == 0, issues)
