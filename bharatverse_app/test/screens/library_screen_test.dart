@@ -9,6 +9,7 @@ import 'package:bharatverse_app/screens/library_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/services/reading_history.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
+import 'package:bharatverse_app/state/save_state.dart';
 
 import '../support/article_fixtures.dart';
 import '../support/like_fixtures.dart';
@@ -49,7 +50,7 @@ void main() {
     final client = MockSavesClient();
     when(() =>
             client.getSavedArticleIds(accessToken: any(named: 'accessToken')))
-        .thenAnswer((_) async => <String>{});
+        .thenAnswer((_) async => {'a1', 'a2'});
     when(() =>
             client.getSavedArticleRows(accessToken: any(named: 'accessToken')))
         .thenAnswer((_) async => [
@@ -116,7 +117,7 @@ void main() {
     final client = MockSavesClient();
     when(() =>
             client.getSavedArticleIds(accessToken: any(named: 'accessToken')))
-        .thenAnswer((_) async => <String>{});
+        .thenAnswer((_) async => {'art_20260703_001'});
     when(() =>
             client.getSavedArticleRows(accessToken: any(named: 'accessToken')))
         .thenAnswer((_) async => [sampleArticleRow()]);
@@ -130,5 +131,84 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ArticleDetailScreen), findsOneWidget);
+  });
+
+  // Library stays built behind Today, so what happens on other screens must
+  // reach it without reopening it -- the "saves don't persist" report.
+  group('changes made elsewhere', () {
+    late MockSavesClient client;
+    late List<Map<String, dynamic>> serverRows;
+
+    setUp(() {
+      serverRows = [];
+      client = stubSavesClient();
+      when(() => client.getSavedArticleRows(
+              accessToken: any(named: 'accessToken')))
+          .thenAnswer((_) async => serverRows);
+    });
+
+    testWidgets('a story saved on another screen appears in Saved',
+        (tester) async {
+      final apiClient = ApiClient(
+          client: articlesMockClient(
+              () => [sampleArticleRow(id: 'art_x', title: 'Saved Elsewhere')]));
+      await tester.pumpWidget(
+          await _wrap(apiClient, signedIn: true, savesClient: client));
+      await tester.pumpAndSettle();
+      expect(find.text('Nothing saved yet'), findsOneWidget);
+
+      // The server has not caught up yet: it still lists nothing.
+      await tester
+          .element(find.byType(LibraryScreen))
+          .read<SaveState>()
+          .toggleSave('art_x');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Saved · 1'), findsOneWidget);
+      expect(find.text('Saved Elsewhere'), findsOneWidget);
+    });
+
+    testWidgets('a story unsaved on another screen leaves Saved',
+        (tester) async {
+      serverRows = [sampleArticleRow(id: 'a1', title: 'Was Saved')];
+      when(() =>
+              client.getSavedArticleIds(accessToken: any(named: 'accessToken')))
+          .thenAnswer((_) async => {'a1'});
+      final apiClient =
+          ApiClient(client: articlesMockClient(() => [sampleArticleRow()]));
+      await tester.pumpWidget(
+          await _wrap(apiClient, signedIn: true, savesClient: client));
+      await tester.pumpAndSettle();
+      expect(find.text('Was Saved'), findsOneWidget);
+
+      // The server still lists it a moment after the unsave.
+      await tester
+          .element(find.byType(LibraryScreen))
+          .read<SaveState>()
+          .toggleSave('a1');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Was Saved'), findsNothing);
+      expect(find.text('Nothing saved yet'), findsOneWidget);
+    });
+
+    testWidgets('a story read on another screen appears in Recently read',
+        (tester) async {
+      final apiClient = ApiClient(
+          client: articlesMockClient(
+              () => [sampleArticleRow(id: 'art_r', title: 'Read On Today')]));
+      await tester.pumpWidget(await _wrap(apiClient));
+      await tester.pumpAndSettle();
+      expect(find.text('Recently read'), findsNothing);
+
+      await tester
+          .element(find.byType(LibraryScreen))
+          .read<ReadingHistory>()
+          .recordOpened('art_r');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Recently read'), findsOneWidget);
+      expect(find.text('Read On Today'), findsOneWidget);
+    });
   });
 }
