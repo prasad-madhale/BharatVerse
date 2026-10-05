@@ -7,6 +7,7 @@
 | `phone_urls.py` | Used by `run-device.sh`: the addresses a phone can open, a QR code, the firewall rule |
 | `doctor.sh` | Reports what is missing from your setup; it never installs anything |
 | `check_lcov_coverage.sh` | The coverage gate CI applies to the Flutter app |
+| `e2e.sh` | Runs the app's end-to-end tests on an Android emulator against the local Supabase stand-in (see `bharatverse_app/README.md`) |
 | `report_pipeline_failure.sh` | Used by the daily pipeline workflow: opens a `pipeline-failure` issue for a failed run, or comments on the open one |
 | `git-hooks/pre-push` | Runs `./build.sh --check` before every push: `git config core.hooksPath scripts/git-hooks` |
 

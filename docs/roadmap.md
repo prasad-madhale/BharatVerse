@@ -160,6 +160,11 @@ migrations, and the redesigned app has run against it on an Android phone.
   1.4x so its labels still fit, era cards keep a dark gradient under their label (readable on a bright photo or before
   it loads), and an article keeps a page-coloured strip under the status bar so the story never scrolls beneath the
   clock. TalkBack-level output was checked on an Android 15 emulator through its accessibility tree.
+- **End-to-end tests**: `scripts/e2e.sh` runs every `integration_test/` on the Android emulator against
+  `tools/local-stack`, each build in a memory-capped scope. `smoke_test.dart` walks the reader's journey: sign up,
+  read and save today's story, find it in Library and in Search, sign out and back in, delete the account. It found
+  that Library, kept built behind Today, never saw a save or a read made elsewhere; it now rebuilds from `SaveState`
+  and `ReadingHistory` as they change, showing a just-saved story before the server lists it.
 - **Search**: `search_articles` in `schema.sql` ranks a weighted `search_vector` over title, tags, era and summary (not
   article bodies, which live in Storage), so a tag- or era-only match is found too. PostgREST's `text_search` takes a
   column name, not an expression, which is why the vector is a stored column with a GIN index. Tags are stored as

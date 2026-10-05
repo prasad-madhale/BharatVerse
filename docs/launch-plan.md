@@ -55,8 +55,8 @@ Not in 1.0: iOS, a hosted web app, push notifications, Google sign-in and semant
    SDK at `~/flutter/flutter`. Not `./build.sh`: even with `--check` it reinstalls both requirements files, which breaks
    that venv, and runs `playwright install --with-deps`, which needs sudo. Don't run the scraper, the daily pipeline or
    `integration` tests, and don't call a paid API, unless the owner asks in that session.
-   Then prove the change end to end: for the app, an `integration_test` on the Android emulator plus screenshots
-   (see `bharatverse_app/README.md`); for SQL, `tools/local-stack`. Never run the emulator and a build at once
+   Then prove the change end to end: for the app, `scripts/e2e.sh` (the integration tests on the Android emulator)
+   plus screenshots of what changed; for SQL, `tools/local-stack`. Never run the emulator and a build at once
    outside memory-capped scopes: together they ran this 14 GB machine out of memory.
 6. Schema changes go in `schema.sql` plus a dated file in `backend/database/migrations/`, tested in
    `tools/local-stack/tests/`. Never change the hosted project; the task's person step applies the file.
@@ -325,7 +325,7 @@ poorly.
 | L20 | Scraper dependencies and politeness | agent | L | | todo |
 | L21 | Python test pins | agent | S | | done |
 | L22 | Accessibility pass | agent | M | | done |
-| L23 | Release checklist and smoke test | agent | M | L08 | todo |
+| L23 | Release checklist and smoke test | agent | M | L08 | done |
 
 ### L15 Scheduled publishing and takedown
 
