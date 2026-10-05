@@ -254,7 +254,7 @@ Per D2.
     it for grounding, neutrality and fitting images, every article cites its sources, image credits show under each
     image (`lib/widgets/article_image.dart`), and mistakes are still possible (report them, L04).
   - The privacy policy and terms: L11's URLs, kept in one constant, opened with `url_launcher`.
-  - Open-source licenses: `showLicensePage` (with the font licenses, if L19 lands first).
+  - Open-source licenses: `showLicensePage` (L19 already registers the two font licences).
   - Help and feedback: a `mailto:` to the D3 support address with the app version filled in.
 - Done: `grep -rn "Coming soon" bharatverse_app/lib` finds nothing; widget tests cover each row.
 
@@ -267,10 +267,9 @@ Per D2.
   `actions/deploy-pages`).
 - The privacy policy describes what the app actually does: the email and password Supabase Auth holds; likes and saves;
   preferences and reading history kept on the device; problem reports (L04: a reason, an optional note, and the user id
-  when signed in); crash reports once L17 lands; fonts fetched from Google until L19
-  lands; no ads, no selling, no tracking; where Supabase hosts the data (the project's region); deletion in the app
-  (L03) or by emailing support, which the owner carries out in the Supabase dashboard; not directed at children under
-  13 (D9); the contact from D3.
+  when signed in); crash reports once L17 lands; no ads, no selling, no tracking; where Supabase hosts the data (the
+  project's region); deletion in the app (L03) or by emailing support, which the owner carries out in the Supabase
+  dashboard; not directed at children under 13 (D9); the contact from D3.
 - Terms: articles are AI-written and may contain mistakes; how sources are credited and licensed (Wikipedia text is
   CC BY-SA, and each image shows its own license); no warranty.
 - Person: P4, and review the text.
@@ -322,7 +321,7 @@ poorly.
 | L16 | Launch content | person, agent | M | L05, L06, L13, L15 | todo |
 | L17 | Crash reporting | agent, person | M | D6 | todo |
 | L18 | Offline: the last 7 days | agent | M | | done |
-| L19 | Bundle the fonts | agent | S | | todo |
+| L19 | Bundle the fonts | agent | S | | done |
 | L20 | Scraper dependencies and politeness | agent | L | | todo |
 | L21 | Python test pins | agent | S | | todo |
 | L22 | Accessibility pass | agent | M | | todo |

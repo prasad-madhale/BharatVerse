@@ -40,6 +40,7 @@ flutter:
   assets:
     - assets/icon/
     - assets/onboarding/
+    - assets/google_fonts/
 
 # Regenerate with `dart run flutter_launcher_icons` after changing assets/icon/*.png -- see
 # README.md. The mark and colors match the web app's icons (web/icons/, not managed by this tool).

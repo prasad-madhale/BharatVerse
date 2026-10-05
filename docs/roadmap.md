@@ -85,11 +85,13 @@ migrations, and the redesigned app has run against it on an Android phone.
   `ApiClient.saveRecentForOffline` saves every article from the last 7 days, and at least the 7 most recent, refreshing
   them on each load; Settings' "Download for offline" also saves their pictures; opened articles stay too, up to 50). It
   reads Supabase directly, so it works on a real phone without a local server. The palette (parchment, saffron and India
-  green) and the fonts (Newsreader and Work Sans) are in `lib/theme/`, the shared widgets in `lib/widgets/`; the
-  redesign below replaced the earlier "Vintage Broadsheet" styling. The Android, iOS and web launcher icons are the same
-  saffron "B" mark (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README). Every app change merged
-  to `main` builds a release APK and publishes it as a GitHub Release (`.github/workflows/android-release.yml`). It is
-  still debug-signed, so a CI build and a locally built one cannot update each other: uninstall to switch.
+  green) and the fonts (Newsreader and Work Sans, bundled in `assets/google_fonts/` so a first launch offline still
+  shows them and no font request goes to Google; `bundleFonts()` turns off google_fonts' runtime fetching and lists
+  their OFL licences) are in `lib/theme/`, the shared widgets in `lib/widgets/`; the redesign below replaced the earlier
+  "Vintage Broadsheet" styling. The Android, iOS and web launcher icons are the same saffron "B" mark
+  (`bharatverse_app/assets/icon/`, `flutter_launcher_icons`; see its README). Every app change merged to `main` builds a
+  release APK and publishes it as a GitHub Release (`.github/workflows/android-release.yml`). It is still debug-signed,
+  so a CI build and a locally built one cannot update each other: uninstall to switch.
 - **App redesign, done** ("Milestone 1", an Apple Podcasts-inspired reimagine from a Claude Design handoff): all
   four phases (theme + navigation, onboarding + auth, Home/Article/Library/Search, Settings sheet) are done.
   `lib/theme/app_colors.dart`/
