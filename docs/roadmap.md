@@ -26,7 +26,9 @@ migrations, and the redesigned app has run against it on an Android phone.
   Encyclopedia and the Indian Culture Portal are scraped (the Portal's search sits behind bot-detection that blocks
   plain HTTP requests, so it goes through a real browser session, retried with backoff since that interaction is
   measurably flaky; most of its catalog is archival-record metadata with no body text, so only results with real content
-  are kept); an LLM writes the article; `ContentValidator`'s structural checks (length, sections, citations) gate it,
+  are kept). Every request carries one descriptive User-Agent (`scrapper/user_agent.py`), and a page is fetched only if
+  its site's robots.txt allows that agent (requirement 1.5); a robots.txt that answers with a server error or not at all
+  allows nothing for that run, as RFC 9309 says. Then an LLM writes the article; `ContentValidator`'s structural checks (length, sections, citations) gate it,
   `image_sourcing.py` attaches up to 3 images (1 featured, 2 inline) from the topic's own Wikipedia page (already
   curated for relevance, since topics are chosen to match real Wikipedia titles), falling back to a Wikimedia Commons
   keyword search -- vision-checked for relevance, unlike the Wikipedia-sourced images -- when that page has too few,
@@ -246,8 +248,6 @@ section records the state of the hosted project and of the content runs.
 
 ## Not built
 
-- robots.txt is not checked before scraping: `WebScraper.check_robots_txt` exists, but `respect_robots` is accepted and
-  ignored.
 - Alerting on critical errors (requirement 11.5) beyond a GitHub issue for a failed pipeline run (no email or chat
   integration of its own), and a rate limit shared across backend workers (it would need something like Redis).
 - Native deep links for password reset: a phone app has to register a link scheme first. On the web, the link must be

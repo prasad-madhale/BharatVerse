@@ -322,7 +322,7 @@ poorly.
 | L17 | Crash reporting | agent, person | M | D6 | todo |
 | L18 | Offline: the last 7 days | agent | M | | done |
 | L19 | Bundle the fonts | agent | S | | done |
-| L20 | Scraper dependencies and politeness | agent | L | | todo |
+| L20 | Scraper dependencies and politeness | agent | L | | done |
 | L21 | Python test pins | agent | S | | done |
 | L22 | Accessibility pass | agent | M | | done |
 | L23 | Release checklist and smoke test | agent | M | L08 | done |

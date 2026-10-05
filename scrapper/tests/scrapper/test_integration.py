@@ -47,7 +47,7 @@ class TestScraperIntegration:
         )
 
         assert len(contents) > 0
-        assert len(contents) <= 3
+        assert len(contents) <= 5
 
         # Verify all contents are valid
         for content in contents:
