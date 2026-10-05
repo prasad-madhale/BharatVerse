@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/article.dart';
 import '../services/api_client.dart';
+import '../state/settings_state.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_spacing.dart';
 import '../theme/app_typography.dart';
@@ -42,13 +44,22 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _recentArticles = widget.apiClient.getRecentArticles(limit: _recentLimit);
+    _load();
   }
 
-  void _retry() {
-    setState(() {
-      _recentArticles = widget.apiClient.getRecentArticles(limit: _recentLimit);
-    });
+  void _retry() => setState(_load);
+
+  /// Loads Home, then quietly saves the week's articles for reading offline
+  /// (their pictures too when Settings' "Download for offline" is on).
+  void _load() {
+    _recentArticles = widget.apiClient.getRecentArticles(limit: _recentLimit);
+    _recentArticles.then((_) {
+      if (!mounted) return;
+      final withImages = context.read<SettingsState?>()?.offlineOn ?? false;
+      widget.apiClient
+          .saveRecentForOffline(withImages: withImages)
+          .catchError((Object _) => <Article>[]);
+    }, onError: (Object _) {});
   }
 
   void _requireAuth(BuildContext context) => Navigator.of(context).push(

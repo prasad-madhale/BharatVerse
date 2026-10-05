@@ -75,7 +75,7 @@ Write the answer in the last column. Agents skip tasks whose decision has none.
 | ID | Decision | Recommendation | Answer |
 |---|---|---|---|
 | D1 | Android application id and iOS bundle id. Play never lets it change after the first upload. | `io.github.prasadmadhale.bharatverse`, or `<reversed domain>.bharatverse` if you will own a domain | |
-| D2 | Hide controls with nothing behind them until they have it: "Continue with Apple" outside iOS, the notification toggles, "Download for offline", Home's category chips | Yes | |
+| D2 | Hide controls with nothing behind them until they have it: "Continue with Apple" outside iOS, the notification toggles, Home's category chips ("Download for offline" works now, L18) | Yes | |
 | D3 | Publisher name, support email and country for the legal pages and the store listing | A dedicated support address, not a personal one | |
 | D4 | The era list. One label per article, searched as typed, so no dates or dashes | Indus Valley, Vedic Age, Maurya Empire, Sangam Age, Gupta Empire, Early Medieval Kingdoms, Delhi Sultanate, Vijayanagara Empire, Mughal Empire, Maratha Empire, Colonial India, Freedom Struggle, Independent India | |
 | D5 | When to turn on the daily cron | After 7 clean manual runs on the production config, with a scheduled backlog (L15) as a buffer; 03:30 UTC (09:00 IST) as drafted | |
@@ -240,8 +240,8 @@ disagree: that is how Mohenjo-daro lost its images during the reprocess.
 Per D2.
 - `auth_screen.dart`: show "Continue with Apple" only on iOS, and only in a build made with
   `--dart-define=APPLE_SIGN_IN=true`.
-- `settings_sheet.dart`: hide the three notification toggles and "Download for offline"; keep their `SettingsState`
-  fields for later (L18 may bring the offline switch back).
+- `settings_sheet.dart`: hide the three notification toggles; keep their `SettingsState` fields for later.
+  ("Download for offline" stays: L18 made it save the week's pictures.)
 - `home_screen.dart`: hide the category chips until L28. They filter the 5 loaded articles by hard-coded words, so most
   show nothing.
 - The About card's "Coming soon" rows: L10 replaces them; hide them too if L10 is not done first.
@@ -321,7 +321,7 @@ poorly.
 | L15 | Scheduled publishing and takedown | agent, person | L | L13 | todo |
 | L16 | Launch content | person, agent | M | L05, L06, L13, L15 | todo |
 | L17 | Crash reporting | agent, person | M | D6 | todo |
-| L18 | Offline: the last 7 days | agent | M | | todo |
+| L18 | Offline: the last 7 days | agent | M | | done |
 | L19 | Bundle the fonts | agent | S | | todo |
 | L20 | Scraper dependencies and politeness | agent | L | | todo |
 | L21 | Python test pins | agent | S | | todo |

@@ -5,11 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:bharatverse_app/screens/archive_screen.dart';
 import 'package:bharatverse_app/screens/home_screen.dart';
 import 'package:bharatverse_app/services/api_client.dart';
 import 'package:bharatverse_app/state/auth_state.dart';
+import 'package:bharatverse_app/state/settings_state.dart';
 import 'package:bharatverse_app/widgets/account_avatar.dart';
 import 'package:bharatverse_app/widgets/article_card.dart';
 import '../support/like_fixtures.dart'
@@ -70,6 +72,40 @@ void main() {
 
     expect(tester.getRect(find.byType(AccountAvatar)).top,
         greaterThanOrEqualTo(45));
+  });
+
+  testWidgets('after loading, saves the week for reading offline',
+      (tester) async {
+    final queries = <String>[];
+    final apiClient = ApiClient(
+        client: articlesMockClient(() => [sampleArticleRow()],
+            onRequest: (request) => queries.add(request.url.query)));
+
+    await tester.pumpWidget(_wrapWithProviders(apiClient));
+    await tester.pumpAndSettle();
+
+    expect(queries.where((q) => q.contains('limit=50')), hasLength(1));
+  });
+
+  testWidgets('with "Download for offline" on, saves the pictures too',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({'settings_offline_v1': true});
+    final settings = await SettingsState.open();
+    final downloaded = <String>[];
+    final apiClient = ApiClient(
+      client: MockClient((request) async =>
+          request.url.path.contains('/storage/')
+              ? jsonResponse(sampleArticleContent(
+                  images: [sampleImage(url: 'https://s/stupa.jpg')]))
+              : jsonResponse([sampleArticleRow()])),
+      downloadImage: (url) async => downloaded.add(url),
+    );
+
+    await tester.pumpWidget(ChangeNotifierProvider.value(
+        value: settings, child: _wrapWithProviders(apiClient)));
+    await tester.pumpAndSettle();
+
+    expect(downloaded, ['https://s/stupa.jpg']);
   });
 
   testWidgets('shows up to 5 articles, the first one featured', (tester) async {
