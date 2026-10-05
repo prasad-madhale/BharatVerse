@@ -1,5 +1,5 @@
 # Core dependencies
-python-dotenv==1.0.1
+python-dotenv==1.2.4
 pydantic>=2.10.0  # Required by crawl4ai
 pydantic-settings>=2.6.0  # Used by common/config.py (shared LLM settings)
 
@@ -20,8 +20,8 @@ groq==0.4.1                  # Groq (optional)
 json-repair==0.61.2          # Tolerates the malformed JSON LLMs commonly produce in prose responses
 
 # Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
+pytest==9.1.1
+pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 
 # Code quality
