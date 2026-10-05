@@ -10,7 +10,8 @@ own:
 
 - Articles come from Supabase's PostgREST and Storage HTTP APIs with the anon key (`lib/services/api_client.dart`).
   Search calls the same `search_articles` database function as the API, and titles and tags are suggested while the
-  reader types through `autocomplete_suggestions`.
+  reader types through `autocomplete_suggestions`. A story whose content file the server will not give (missing or not
+  JSON) is left out of a list rather than failing it.
 - Sign-in, sign-up and password reset use `supabase_flutter`. Likes are read and written with the signed-in user's token,
   and row-level security limits each user to their own.
 - The 50 most recently opened articles are saved on the device (`shared_preferences`). When the server cannot be reached,

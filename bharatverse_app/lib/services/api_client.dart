@@ -72,10 +72,11 @@ class ApiClient {
   Future<Article> getDailyArticle() => _liveOrSaved(
         () async {
           final rows = await _fetchRows('select=*&order=date.desc&limit=1');
-          if (rows.isEmpty) {
+          final articles = await loadArticles(rows);
+          if (articles.isEmpty) {
             throw ApiException('No articles available', statusCode: 404);
           }
-          return (await loadArticles(rows)).first;
+          return articles.first;
         },
         () async => (await _cache?.getCachedArticles())?.firstOrNull,
       );
@@ -83,10 +84,11 @@ class ApiClient {
   Future<Article> getArticleById(String id) => _liveOrSaved(
         () async {
           final rows = await _fetchRows('select=*&id=eq.$id&limit=1');
-          if (rows.isEmpty) {
+          final articles = await loadArticles(rows);
+          if (articles.isEmpty) {
             throw ApiException('Article not found', statusCode: 404);
           }
-          return (await loadArticles(rows)).first;
+          return articles.first;
         },
         () async => _cache?.getCachedArticle(id),
       );
@@ -201,11 +203,25 @@ class ApiClient {
   }
 
   /// Builds full articles from `articles` rows, fetching each one's content,
-  /// and saves them for offline reading.
+  /// and saves them for offline reading. A row whose content the server will
+  /// not give (a missing or unreadable file) is left out, so one bad article
+  /// never hides the rest; losing the connection still fails the whole load.
   Future<List<Article>> loadArticles(List<Map<String, dynamic>> rows) async {
-    final articles = await Future.wait(rows.map(_loadArticle));
+    final articles =
+        (await Future.wait(rows.map(_loadArticleIfServed))).nonNulls.toList();
     await _remember(articles);
     return articles;
+  }
+
+  Future<Article?> _loadArticleIfServed(Map<String, dynamic> row) async {
+    try {
+      return await _loadArticle(row);
+    } on ApiException catch (e) {
+      if (e.statusCode == null) rethrow;
+    } on FormatException {
+      // Content that is not JSON: leave the article out like a missing file.
+    }
+    return null;
   }
 
   /// Notes that [article] was just opened, so it is the last to leave the

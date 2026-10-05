@@ -131,6 +131,71 @@ void main() {
     });
   });
 
+  group('ApiClient.loadArticles', () {
+    /// Rows for art_0 to art_2, where [content] answers each one's content
+    /// request by its article id.
+    MockClient contentClient(
+            Future<http.Response> Function(String id) content) =>
+        MockClient((request) async {
+          if (request.url.path.contains('/storage/')) {
+            return content(request.url.pathSegments.last.split('.').first);
+          }
+          return jsonResponse([
+            for (var i = 0; i < 3; i++)
+              sampleArticleRow(id: 'art_$i', title: 'Article $i'),
+          ]);
+        });
+
+    test('leaves out an article whose content file is missing', () async {
+      final client = ApiClient(
+          client: contentClient((id) async => id == 'art_1'
+              ? http.Response('not found', 404)
+              : jsonResponse(sampleArticleContent())));
+
+      final articles = await client.getRecentArticles();
+
+      expect(articles.map((a) => a.id), ['art_0', 'art_2']);
+    });
+
+    test('leaves out an article whose content is not JSON', () async {
+      final client = ApiClient(
+          client: contentClient((id) async => id == 'art_0'
+              ? http.Response('<html>', 200)
+              : jsonResponse(sampleArticleContent())));
+
+      final articles = await client.getRecentArticles();
+
+      expect(articles.map((a) => a.id), ['art_1', 'art_2']);
+    });
+
+    test(
+        'still fails, so the saved copies are shown, when content cannot be '
+        'reached', () async {
+      final client = ApiClient(
+          client: contentClient((id) async => id == 'art_2'
+              ? throw Exception('network down')
+              : jsonResponse(sampleArticleContent())));
+
+      expect(
+        client.getRecentArticles(),
+        throwsA(isA<ApiException>()
+            .having((e) => e.statusCode, 'statusCode', isNull)),
+      );
+    });
+
+    test('an article whose content is missing is not found by id', () async {
+      final client = ApiClient(
+          client: contentClient((_) async => http.Response('not found', 404)));
+
+      expect(
+        client.getArticleById('art_0'),
+        throwsA(isA<ApiException>()
+            .having((e) => e.statusCode, 'statusCode', 404)
+            .having((e) => e.message, 'message', 'Article not found')),
+      );
+    });
+  });
+
   group('ApiClient.getEras', () {
     test('returns each distinct era once, newest article first', () async {
       final mockClient = articlesMockClient(() => [
