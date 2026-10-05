@@ -34,13 +34,13 @@ def run_settings(monkeypatch):
     return settings
 
 
-def test_writing_runs_on_gemma_and_both_reviews_on_a_different_vision_model(run_settings):
+def test_gemma_writes_flash_reviews_and_flash_lite_checks_the_images(run_settings):
     critic = ArticleCritic()
     generator = ArticleGenerator()
 
     assert (generator.llm_provider.provider, generator.llm_provider.model) == ("gemini", "gemma-4-31b-it")
     assert (critic.llm_provider.provider, critic.llm_provider.model) == ("gemini", "gemini-3.8-flash")
-    assert (critic.image_llm_provider.provider, critic.image_llm_provider.model) == ("gemini", "gemini-3.8-flash")
+    assert (critic.image_llm_provider.provider, critic.image_llm_provider.model) == ("gemini", "gemini-3.5-flash-lite")
 
 
 def test_the_key_comes_from_secrets_and_no_other_provider_is_configured():

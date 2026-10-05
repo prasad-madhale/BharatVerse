@@ -50,27 +50,28 @@ migrations, and the redesigned app has run against it on an Android phone.
   and one bad topic never stops the batch. The daily GitHub Actions workflow runs on demand only: its schedule stays
   commented out until the output is trusted over more unattended runs, so do not enable it without deciding that first.
   The daily workflow runs on Google AI Studio's free tier with the owner's own key (Gemma 4 writes; Gemini Flash, a
-  different vision model, reviews the text and every image; OpenRouter's paid models are the fallback), and a failed run
-  opens or comments on a `pipeline-failure` issue; a local run uses the provider `.env` names, Gemini if it names none.
-  `GENERATION_MAX_TOKENS`/`CRITIC_MAX_TOKENS` (16000 each) cap a call's output, since OpenRouter reserves credit for the
-  whole ceiling up front. Groq's free tier, and two local Ollama models tried for generation and review (`qwen3.5:9b`,
-  `qwen2.5:7b-instruct`), were rejected for weak word-count adherence -- Groq and `qwen2.5:7b-instruct` undershot,
-  `qwen3.5:9b` overshot by as much as 65% in a real run; local inference stays scoped to the free, per-image cohesion
-  check (`IMAGE_COHESION_LLM_PROVIDER`), not generation or the text critic. An `openrouter` provider (any model it
-  routes to; `common/llm_provider.py` reuses the `openai` SDK against OpenRouter's OpenAI-compatible API, including its
-  OpenAI-style vision message format) was added and wired to `google/gemma-4-31b-it` for generation. It has since
-  rewritten three published articles that passed the validator and the critic (see "Needs a person"), but left `era`
-  empty on two of them, which the controlled era list (launch plan L13) fixes. `LLMProvider` also gained a `model`
-  constructor override (alongside the existing `provider` one), and `ArticleCritic` gained matching
-  `CRITIC_LLM_PROVIDER`/`CRITIC_LLM_MODEL` settings (mirroring `IMAGE_COHESION_LLM_PROVIDER`, which also gained an
-  `_LLM_MODEL` pair) -- both the critic's text review and the image-cohesion check are wired to OpenRouter's
-  `qwen/qwen2.5-vl-72b-instruct` -- a different, larger vision model than generation's Gemma, chosen for those two
-  review roles specifically -- each confirmed with a real call (a text round-trip, and a vision call that correctly
-  named a test shape's color), then used for those three articles. One OpenRouter API key authenticates the account and
-  covers every model it routes to, not just one. Claude Sonnet 5 runs adaptive thinking by default, which shares
-  `max_tokens` with the response and had caused the critic and revision calls to occasionally return empty text on long
-  prompts; both now pass `effort="medium"` to cap thinking depth, and their prompts use XML-tag structuring with source
-  material placed first, per Anthropic's current prompt-engineering guidance.
+  different model, reviews the text; Flash-Lite checks every image, since one call per image ran into Flash's free rate
+  limit; OpenRouter's paid models are the fallback), and a failed run opens or comments on a `pipeline-failure` issue; a
+  local run uses the provider `.env` names, Gemini if it names none. `GENERATION_MAX_TOKENS`/`CRITIC_MAX_TOKENS` (16000
+  each) cap a call's output, since OpenRouter reserves credit for the whole ceiling up front. Groq's free tier, and two
+  local Ollama models tried for generation and review (`qwen3.5:9b`, `qwen2.5:7b-instruct`), were rejected for weak
+  word-count adherence -- Groq and `qwen2.5:7b-instruct` undershot, `qwen3.5:9b` overshot by as much as 65% in a real
+  run; local inference stays scoped to the free, per-image cohesion check (`IMAGE_COHESION_LLM_PROVIDER`), not
+  generation or the text critic. An `openrouter` provider (any model it routes to; `common/llm_provider.py` reuses the
+  `openai` SDK against OpenRouter's OpenAI-compatible API, including its OpenAI-style vision message format) was added
+  and wired to `google/gemma-4-31b-it` for generation. It has since rewritten three published articles that passed the
+  validator and the critic (see "Needs a person"), but left `era` empty on two of them, which the controlled era list
+  (launch plan L13) fixes. `LLMProvider` also gained a `model` constructor override (alongside the existing `provider`
+  one), and `ArticleCritic` gained matching `CRITIC_LLM_PROVIDER`/`CRITIC_LLM_MODEL` settings (mirroring
+  `IMAGE_COHESION_LLM_PROVIDER`, which also gained an `_LLM_MODEL` pair) -- both the critic's text review and the
+  image-cohesion check are wired to OpenRouter's `qwen/qwen2.5-vl-72b-instruct` -- a different, larger vision model than
+  generation's Gemma, chosen for those two review roles specifically -- each confirmed with a real call (a text
+  round-trip, and a vision call that correctly named a test shape's color), then used for those three articles. One
+  OpenRouter API key authenticates the account and covers every model it routes to, not just one. Claude Sonnet 5 runs
+  adaptive thinking by default, which shares `max_tokens` with the response and had caused the critic and revision calls
+  to occasionally return empty text on long prompts; both now pass `effort="medium"` to cap thinking depth, and their
+  prompts use XML-tag structuring with source material placed first, per Anthropic's current prompt-engineering
+  guidance.
 - **API** (`backend/`): articles (`daily`, by id, paged list), full-text search and autocomplete, sign-up, login and
   logout, likes and saves, rate limiting and JSON request logs.
 - **App** (`bharatverse_app/`): home with recent articles, article, archive, search with highlighted terms (matched by
