@@ -156,6 +156,9 @@ migrations, and the redesigned app has run against it on an Android phone.
   care about text size don't need to wire one up, the same tradeoff as `ReadingHistory` above); three notification
   toggles (daily story, weekly digest, product news); and an offline-download toggle. Both are documented in "Not
   built" below, since neither does anything beyond persisting a preference.
+- **Crash reports**: `sentry_flutter`, on only in a build given `--dart-define=SENTRY_DSN=...`, which the release
+  workflow passes from the `SENTRY_DSN` secret (see the app README for what a report holds). Session tracking is off:
+  D6 chose crash reports only, and Play Console's Android vitals already give a crash rate.
 - **Accessibility**: `test/accessibility_test.dart` holds Today, an article, Search, sign-up and Settings, in both
   themes and at double the system text size, to Flutter's guidelines: 48dp tap targets, a label on everything tappable,
   readable text contrast, and no overflow. Settings' switches merge with their label (a screen reader hears "Daily
@@ -199,6 +202,10 @@ migrations, and the redesigned app has run against it on an Android phone.
 
 The launch plan's [person checklist](launch-plan.md#person-checklist) lists what launch needs from the owner. This
 section records the state of the hosted project and of the content runs.
+
+- **Sentry.** Crash reporting is built but sends nothing until a Sentry project (platform Flutter) exists, its DSN is
+  added as the `SENTRY_DSN` Actions secret, and the next release build runs. Turn on "Prevent Storing of IP Addresses"
+  in the project's Security & Privacy settings.
 
 - **Hosted Supabase project.** Apply schema changes by hand, as a file in `backend/database/migrations/`. Every file
   there has been run on it, as of 2026-10-04: the `era` column, `saved_articles`, search with autocomplete (era included

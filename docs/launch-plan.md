@@ -92,7 +92,7 @@ Only the owner can do these. Longest lead time first.
   account must run a closed test with at least 12 opted-in testers for 14 days in a row before it can publish to
   production (check the current numbers in Play Console; an organization account, which needs a D-U-N-S number, is
   exempt). Start recruiting testers now; the tester behind #30 is a good first one.
-- [ ] **P2 Answer D1 to D9.**
+- [ ] **P2 Answer D1 to D9.** D2, D4 and D6 are answered; D1 waits for a domain.
 - [ ] **P3 Signing (L08).** Create the upload keystore, back it up with its passwords somewhere other than this
   machine, add the secrets L08 lists, and opt in to Play App Signing on the first upload.
 - [ ] **P4 GitHub Pages (L11).** Settings > Pages > Source: GitHub Actions. Review the legal text: the agent's draft is
@@ -108,6 +108,7 @@ Only the owner can do these. Longest lead time first.
 - [ ] **P8 Housekeeping.** Close #30 once L02 merges; close the stale #2, #3 and #5; merge or close PR #12. Delete
   `ONBOARDING.md` or fold what is right in it into `README.md`: AGENTS.md allows no other markdown at the root, and
   parts of it are wrong (it puts `scheduler.py` and `image_sourcing.py` in `scrapper/`, not `scrapper/scrapper/`).
+- [ ] **P9 Sentry (L17).** Create the project, add the `SENTRY_DSN` secret, and stop it storing IP addresses.
 
 ## A. Closed test on Google Play
 
@@ -267,7 +268,8 @@ Dropped: the owner chose to keep these controls visible (D2). As planned, per D2
   `actions/deploy-pages`).
 - The privacy policy describes what the app actually does: the email and password Supabase Auth holds; likes and saves;
   preferences and reading history kept on the device; problem reports (L04: a reason, an optional note, and the user id
-  when signed in); crash reports once L17 lands; no ads, no selling, no tracking; where Supabase hosts the data (the
+  when signed in); crash reports (L17: the error and stack trace, the device model, OS, memory, locale and timezone, and a random
+  per-install id, kept by Sentry; no email or IP address); no ads, no selling, no tracking; where Supabase hosts the data (the
   project's region); deletion in the app (L03) or by emailing support, which the owner carries out in the Supabase
   dashboard; not directed at children under 13 (D9); the contact from D3.
 - Terms: articles are AI-written and may contain mistakes; how sources are credited and licensed (Wikipedia text is
@@ -320,7 +322,7 @@ poorly.
 |---|---|---|---|---|---|
 | L15 | Scheduled publishing and takedown | agent, person | L | L13 | todo |
 | L16 | Launch content | person, agent | M | L05, L06, L13, L15 | todo |
-| L17 | Crash reporting | agent, person | M | D6 | todo |
+| L17 | Crash reporting | agent, person | M | D6 | done |
 | L18 | Offline: the last 7 days | agent | M | | done |
 | L19 | Bundle the fonts | agent | S | | done |
 | L20 | Scraper dependencies and politeness | agent | L | | done |
@@ -361,7 +363,8 @@ Per D6 (recommended: Sentry).
   nothing; `sendDefaultPii` off; the release named after the version and build number.
 - The release workflow passes the DSN from a secret.
 - Update the privacy policy (L11) and the Data safety draft (L14).
-- Person: create the Sentry project and add the secret.
+- Person: create the Sentry project (platform Flutter), add its DSN as the `SENTRY_DSN` Actions secret, and turn on
+  "Prevent Storing of IP Addresses" (Settings > Security & Privacy). Until then release builds send nothing.
 
 ### L18 Offline: the last 7 days
 
