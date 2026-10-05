@@ -8,6 +8,7 @@ development means the actual storage/table API shapes used here have not
 yet been confirmed against the real Supabase Python SDK.
 """
 
+import hashlib
 import json
 from datetime import date, datetime, timezone
 
@@ -53,56 +54,108 @@ def mock_supabase_client():
     return client
 
 
+class FakeStore:
+    """The admin client's articles table and Storage bucket, recording each step of a save in order."""
+
+    def __init__(self, previous_path=None, fail_upsert=False, fail_remove=False):
+        self.steps = []
+        self.client = MagicMock()
+        bucket = self.client.storage.from_.return_value
+        bucket.upload.side_effect = lambda path, body, file_options: self._record("upload", path, body)
+        bucket.remove.side_effect = lambda paths: self._record("remove", paths, fail=fail_remove)
+        table = self.client.table.return_value
+        table.select.return_value.eq.return_value.execute.return_value.data = (
+            [{"content_file_path": previous_path}] if previous_path else [])
+        table.upsert.side_effect = lambda row: self._upsert(row, fail_upsert)
+
+    def _record(self, step, *args, fail=False):
+        self.steps.append((step, *args))
+        if fail:
+            raise RuntimeError(f"{step} failed")
+
+    def _upsert(self, row, fail):
+        self._record("upsert", row, fail=fail)
+        return MagicMock()
+
+    def step_names(self):
+        return [step[0] for step in self.steps]
+
+
+@pytest.fixture
+def store(mock_settings):
+    """save_article against a FakeStore; call it with the FakeStore's options to replace the default."""
+    with patch("backend.services.article_service.get_settings", return_value=mock_settings), \
+            patch("backend.services.article_service.get_supabase") as mock_get_supabase:
+        def use(**options):
+            fake = FakeStore(**options)
+            mock_get_supabase.return_value.get_admin_client.return_value = fake.client
+            return fake
+        yield use
+
+
 class TestSaveArticle:
     @pytest.mark.asyncio
-    @patch("backend.services.article_service.get_supabase")
-    @patch("backend.services.article_service.get_settings")
-    async def test_uploads_content_and_upserts_metadata(
-        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
-    ):
-        mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_admin_client.return_value = mock_supabase_client
-
-        service = ArticleService()
+    async def test_writes_the_content_to_a_file_named_by_its_hash_then_points_the_row_at_it(self, store):
+        fake = store()
         article = make_article()
-        result = await service.save_article(article)
+
+        result = await ArticleService().save_article(article)
 
         assert result is article
-
-        # Storage upload called with the right bucket and path
-        mock_supabase_client.storage.from_.assert_called_with("articles")
-        upload_call = mock_supabase_client.storage.from_.return_value.upload
-        upload_call.assert_called_once()
-        path_arg, body_arg = upload_call.call_args.args[0], upload_call.call_args.args[1]
-        assert path_arg == "articles/2026-07-03/art_20260703_001.json"
-        blob = json.loads(body_arg)
+        assert fake.step_names() == ["upload", "upsert"]
+        _, path, body = fake.steps[0]
+        assert path == f"articles/2026-07-03/art_20260703_001-{hashlib.sha256(body).hexdigest()[:12]}.json"
+        blob = json.loads(body)
         assert blob["content"] == article.content
         assert blob["sections"][0]["heading"] == "Origins"
         assert blob["citations"][0]["source_url"] == article.citations[0].source_url
-
-        # Postgres upsert called with metadata-only row (no content/sections/citations)
-        mock_supabase_client.table.assert_called_with("articles")
-        upsert_call = mock_supabase_client.table.return_value.upsert
-        upsert_call.assert_called_once()
-        row = upsert_call.call_args.args[0]
-        assert row["id"] == "art_20260703_001"
-        assert row["title"] == article.title
-        assert row["date"] == "2026-07-03"
-        assert row["content_file_path"] == "articles/2026-07-03/art_20260703_001.json"
-        assert "content" not in row
-        assert "sections" not in row
-        assert "created_at" not in row
-        assert "updated_at" not in row
+        row = fake.steps[1][1]
+        assert row["id"] == "art_20260703_001" and row["date"] == "2026-07-03" and row["title"] == article.title
+        assert row["content_file_path"] == path
+        assert not {"content", "sections", "created_at", "updated_at"} & set(row)
 
     @pytest.mark.asyncio
-    @patch("backend.services.article_service.get_supabase")
-    @patch("backend.services.article_service.get_settings")
-    async def test_uploads_images_in_content_blob(
-        self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
-    ):
-        mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_admin_client.return_value = mock_supabase_client
+    async def test_deletes_the_previous_file_only_after_the_row_points_at_the_new_one(self, store):
+        fake = store(previous_path="articles/2026-07-03/art_20260703_001.json")
 
+        await ArticleService().save_article(make_article())
+
+        assert fake.step_names() == ["upload", "upsert", "remove"]
+        assert fake.steps[2][1] == ["articles/2026-07-03/art_20260703_001.json"]
+
+    @pytest.mark.asyncio
+    async def test_a_failed_row_write_leaves_the_previous_file_in_place(self, store):
+        fake = store(previous_path="articles/2026-07-03/art_20260703_001.json", fail_upsert=True)
+
+        with pytest.raises(RuntimeError, match="upsert failed"):
+            await ArticleService().save_article(make_article())
+
+        assert "remove" not in fake.step_names()
+
+    @pytest.mark.asyncio
+    async def test_saving_unchanged_content_keeps_its_own_file(self, store):
+        first = store()
+        await ArticleService().save_article(make_article())
+        same_path = first.steps[0][1]
+
+        again = store(previous_path=same_path)
+        await ArticleService().save_article(make_article())
+
+        assert again.step_names() == ["upload", "upsert"]
+        assert again.steps[0][1] == same_path
+
+    @pytest.mark.asyncio
+    async def test_a_failed_delete_of_the_previous_file_does_not_fail_the_save(self, store, caplog):
+        store(previous_path="articles/2026-07-03/old.json", fail_remove=True)
+
+        result = await ArticleService().save_article(make_article())
+
+        assert result.id == "art_20260703_001"
+        assert "could not delete its previous content articles/2026-07-03/old.json" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_the_images_travel_in_the_content_and_the_first_on_the_row(self, store):
+        fake = store()
         article = make_article()
         article.images = [ArticleImage(
             url="https://storage.example/art_20260703_001/0.jpg",
@@ -117,13 +170,10 @@ class TestSaveArticle:
 
         await ArticleService().save_article(article)
 
-        upload_call = mock_supabase_client.storage.from_.return_value.upload
-        blob = json.loads(upload_call.call_args.args[1])
+        blob = json.loads(fake.steps[0][2])
         assert blob["images"][0]["url"] == article.images[0].url
         assert blob["images"][0]["license"] == "CC BY-SA 4.0"
-
-        row = mock_supabase_client.table.return_value.upsert.call_args.args[0]
-        assert row["image_url"] == article.images[0].url
+        assert fake.steps[1][1]["image_url"] == article.images[0].url
 
 
 class TestGetArticleById:

@@ -2,12 +2,9 @@
 Article storage and retrieval, backed by Supabase: metadata in the
 `articles` Postgres table, full content (body/sections/citations) as a
 JSON file in Supabase Storage referenced by content_file_path.
-
-NOTE: the table calls here have been exercised against a local Postgres and
-PostgREST; Storage and Auth were local stand-ins, so none of this has run
-against the hosted Supabase project yet.
 """
 
+import hashlib
 import json
 import logging
 from datetime import date as date_type
@@ -28,28 +25,37 @@ class ArticleService:
 
     async def save_article(self, article: Article) -> Article:
         """
-        Persist an article: full content to Supabase Storage, metadata to
-        Postgres. Idempotent -- re-saving an article with the same id
-        overwrites both the storage file and the Postgres row.
+        Persist an article: full content to Supabase Storage, metadata to Postgres. Re-saving an article with the same
+        id replaces both.
+
+        Each version of the content goes to a new file named by its own hash; the row is pointed at it, and only then is
+        the previous file deleted. A failure part way leaves the row on its previous, intact file -- never on content it
+        doesn't match, which is how a failed reprocess once left Mohenjo-daro without its images -- and a new name per
+        version means a CDN can never serve the previous content in its place.
         """
         client = get_supabase().get_admin_client()
-        record = self._record_from_article(article)
-
-        content_blob = {
+        bucket = client.storage.from_(self.settings.articles_storage_bucket)
+        content = json.dumps({
             "content": article.content,
             "sections": [s.model_dump(mode="json") for s in article.sections],
             "citations": [c.model_dump(mode="json") for c in article.citations],
             "images": [i.model_dump(mode="json") for i in article.images],
-        }
-        client.storage.from_(self.settings.articles_storage_bucket).upload(
-            record.content_file_path,
-            json.dumps(content_blob).encode("utf-8"),
-            file_options={"content-type": "application/json", "upsert": "true"},
-        )
+        }).encode("utf-8")
+        content_path = self._content_file_path(article.id, article.publication_date, content)
+        previous = client.table("articles").select("content_file_path").eq("id", article.id).execute().data
+        previous_path = previous[0]["content_file_path"] if previous else None
 
+        bucket.upload(content_path, content, file_options={"content-type": "application/json", "upsert": "true"})
+        record = self._record_from_article(article, content_path)
         client.table("articles").upsert(
             record.model_dump(mode="json", exclude={"created_at", "updated_at"})
         ).execute()
+
+        if previous_path and previous_path != content_path:
+            try:
+                bucket.remove([previous_path])
+            except Exception:
+                logger.warning(f"Saved {article.id} but could not delete its previous content {previous_path}", exc_info=True)
 
         logger.info(f"Saved article {article.id}")
         return article
@@ -120,7 +126,7 @@ class ArticleService:
             return None
         return self.load_article(client, response.data[0])
 
-    def _record_from_article(self, article: Article) -> ArticleRecord:
+    def _record_from_article(self, article: Article, content_file_path: str) -> ArticleRecord:
         return ArticleRecord(
             id=article.id,
             title=article.title,
@@ -131,11 +137,11 @@ class ArticleService:
             tags=article.tags,
             era=article.era,
             image_url=article.image_url,
-            content_file_path=self._content_file_path(article.id, article.publication_date),
+            content_file_path=content_file_path,
         )
 
-    def _content_file_path(self, article_id: str, publication_date: date_type) -> str:
-        return f"articles/{publication_date.isoformat()}/{article_id}.json"
+    def _content_file_path(self, article_id: str, publication_date: date_type, content: bytes) -> str:
+        return f"articles/{publication_date.isoformat()}/{article_id}-{hashlib.sha256(content).hexdigest()[:12]}.json"
 
     def load_article(self, client, row: dict) -> Article:
         """Reassemble an Article from its Postgres row and Storage content blob."""

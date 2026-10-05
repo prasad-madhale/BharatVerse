@@ -263,6 +263,18 @@ async def storage(request: Request, rest: str):
     return {"Key": rest}
 
 
+@app.delete("/storage/v1/object/{bucket}")
+async def remove_objects(bucket: str, request: Request):
+    """Supabase's remove(): the body names the paths to delete; missing ones are skipped, as Supabase does."""
+    removed = []
+    for path in (await request.json()).get("prefixes", []):
+        target = object_path(bucket, path)
+        if target.is_file():
+            target.unlink()
+            removed.append({"name": path, "bucket_id": bucket})
+    return removed
+
+
 @app.api_route("/rest/v1/{path:path}", methods=["GET", "POST", "PATCH", "PUT", "DELETE", "HEAD"])
 async def rest(request: Request, path: str):
     headers = {k: v for k, v in request.headers.items() if k.lower() not in HOP_BY_HOP}

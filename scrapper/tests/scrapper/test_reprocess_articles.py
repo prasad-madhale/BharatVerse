@@ -85,9 +85,9 @@ class TestReprocess:
     async def test_an_article_with_no_images_sources_fresh_instead_of_staying_imageless(
         self, services
     ):
-        """A pre-image-era article, or one left imageless by a previous save that failed
-        partway through (ArticleService.save_article's content-then-row write isn't atomic),
-        must get a real sourcing attempt -- not be treated as "no images" being the answer."""
+        """A pre-image-era article, or one left imageless by a save that failed part way before
+        save_article became crash-safe, must get a real sourcing attempt -- not be treated as "no
+        images" being the answer."""
         services.article.images = []
 
         await reprocess_articles.reprocess()

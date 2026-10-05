@@ -1,4 +1,4 @@
-"""Tests for the stand-in's own logic: the SQL statement splitter and the gateway's tokens and passwords. No database."""
+"""Tests for the stand-in's own logic: the SQL statement splitter, and the gateway's tokens, passwords and Storage. No database."""
 
 import sys
 import time
@@ -52,3 +52,26 @@ def test_passwords_are_salted_and_only_the_right_one_matches():
     assert gateway.password_matches("secret123", stored)
     assert not gateway.password_matches("secret124", stored)
     assert gateway.hash_password("secret123") != stored
+
+
+def test_storage_removes_the_named_objects_and_skips_missing_ones(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(gateway, "STORAGE_DIR", tmp_path)
+    (tmp_path / "articles" / "a").mkdir(parents=True)
+    (tmp_path / "articles" / "a" / "old.json").write_text("{}")
+    (tmp_path / "articles" / "a" / "keep.json").write_text("{}")
+
+    response = TestClient(gateway.app).request(
+        "DELETE", "/storage/v1/object/articles", json={"prefixes": ["a/old.json", "a/missing.json"]})
+
+    assert response.json() == [{"name": "a/old.json", "bucket_id": "articles"}]
+    assert sorted(f.name for f in (tmp_path / "articles" / "a").iterdir()) == ["keep.json"]
+
+
+def test_storage_refuses_a_path_outside_its_directory(tmp_path, monkeypatch):
+    import pytest
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(gateway, "STORAGE_DIR", tmp_path)
+
+    with pytest.raises(ValueError, match="escapes"):
+        TestClient(gateway.app).request("DELETE", "/storage/v1/object/articles", json={"prefixes": ["../../etc/passwd"]})
