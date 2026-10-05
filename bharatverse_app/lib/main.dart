@@ -21,10 +21,12 @@ import 'state/save_state.dart';
 import 'state/settings_state.dart';
 import 'state/theme_mode_state.dart';
 import 'theme/app_theme.dart';
+import 'theme/app_typography.dart';
 import 'widgets/recovery_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  bundleFonts();
   await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
   final cache = await ArticleCache.open();
   final pendingLikes = await PendingLikes.open();

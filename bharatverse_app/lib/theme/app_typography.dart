@@ -1,5 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+/// Serves Newsreader and Work Sans from the app's own assets
+/// (`assets/google_fonts/`, the exact files google_fonts would fetch) instead
+/// of downloading them from Google on first use, so a first launch offline
+/// shows the right type and no font request leaves the device. Also lists
+/// their licences (SIL OFL) on the licences page. Call once, before runApp.
+void bundleFonts() {
+  GoogleFonts.config.allowRuntimeFetching = false;
+  LicenseRegistry.addLicense(() async* {
+    for (final (family, file) in [
+      ('Newsreader', 'newsreader-OFL.txt'),
+      ('Work Sans', 'worksans-OFL.txt'),
+    ]) {
+      yield LicenseEntryWithLineBreaks(
+          [family], await rootBundle.loadString('assets/google_fonts/$file'));
+    }
+  });
+}
 
 /// Mirrors the BharatVerse Design System's tokens/typography.css -- an
 /// editorial serif/sans pairing. Newsreader (serif) for headlines and
