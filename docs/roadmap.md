@@ -177,12 +177,21 @@ migrations, and the redesigned app has run against it on an Android phone.
   lowercase, hyphenated slugs whatever the model writes (`common.models.Article` normalises them on every load and save,
   so one topic is one tag and one suggestion). A tag like `covid-19` is indexed as typed and with the hyphen read as a
   space, so both `covid-19` and `covid 19` find it.
+- **Scheduled publishing and takedown**: the public sees an article from its `date` in India on, unless its `status`
+  is `withdrawn` (the read policy on `articles`, with `ist_today()`; search and suggestions follow it). The pipeline
+  writes with the service role, which sees everything: `scrapper_main.py --publish-on YYYY-MM-DD` schedules a day,
+  `--backlog N` fills the next N days after today that have no article, and a day's articles are numbered after the ones
+  it has, so a second run never overwrites the first. The workflow takes both as inputs when run by hand. Reprocessing
+  and image backfill reach scheduled articles too, and the saves and likes lists leave out what the public cannot
+  read. A scheduled article's Storage files stay public, but each is named by its content's hash, so it cannot be
+  guessed before its day.
 - **Autocomplete**: `search_suggestions` holds every phrase a reader may type (the parts of each title split at a colon
   or dash, as they are and without a leading "the", "a" or "an", and the tags with hyphens read as spaces) with the
   number of articles that carry it. A phrase is kept only if searching for it finds the article it came from, so every
   suggestion leads to a result, and it is at most 200 characters. A trigger rebuilds the table after every change to
   `articles` (about 0.4 s at 2,000 articles, which suits one article a day) and a failed rebuild only warns, so it never
-  stops a write. `autocomplete_suggestions` returns the ones that start with what was typed, the phrases more articles
+  stops a write. It is built from live articles only, and pg_cron rebuilds it at midnight IST, when a scheduled one
+  goes live. `autocomplete_suggestions` returns the ones that start with what was typed, the phrases more articles
   carry first, then tags before titles, then shorter ones, at most 20; a lookup takes about 3 ms through PostgREST at
   2,000 articles (about a millisecond in the database), against the design's 50 ms. The app asks 200 ms after typing
   pauses and shows the suggestions in place of the results, which stay mounted underneath.
@@ -209,7 +218,9 @@ section records the state of the hosted project and of the content runs.
 
 - **Hosted Supabase project.** Apply schema changes by hand, as a file in `backend/database/migrations/`. Every file
   there has been run on it, as of 2026-10-04: the `era` column, `saved_articles`, search with autocomplete (era included
-  in `search_vector`), account deletion and `article_reports`. Read reports in the table editor (`article_reports`),
+  in `search_vector`), account deletion and `article_reports`. Not yet: `2026-10-scheduled-publishing.sql`, which needs
+  pg_cron enabled under Database > Extensions first; after it, withdraw an article by setting its `status` to
+  `withdrawn` in the table editor. Read reports in the table editor (`article_reports`),
   newest first. An era label with a dash, like Nalanda's "427 CE - 1400 CE", still finds nothing from "Browse by era":
   search reads " - 1400" as "not 1400". `python scrapper/reprocess_articles.py --eras-only` gives every article an
   era from the controlled list (launch plan L16 runs it on the hosted project). Supabase permanently

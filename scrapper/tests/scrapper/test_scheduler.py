@@ -19,6 +19,8 @@ from scrapper import scheduler
 from scrapper.article_critic import CriticIssue, CriticReview
 from scrapper.article_generator import ArticleGenerationError
 
+TODAY = date(2026, 10, 6)  # in India
+
 
 def _make_article(article_id="art_20260705_001", title="Some Article"):
     article = MagicMock()
@@ -80,9 +82,11 @@ def pipeline():
             patch("scrapper.scheduler.ContentValidator") as validator_cls, \
             patch("scrapper.scheduler.ArticleCritic") as critic_cls, \
             patch("scrapper.scheduler.ImageSourcer") as image_sourcer_cls, \
-            patch("scrapper.scheduler.sleep", new_callable=AsyncMock) as sleep:
+            patch("scrapper.scheduler.sleep", new_callable=AsyncMock) as sleep, \
+            patch("scrapper.scheduler.ist_today", return_value=TODAY):
         service = service_cls.return_value
         service.list_recent_titles = AsyncMock(return_value=[])
+        service.list_schedule = AsyncMock(return_value=[])
         service.save_article = AsyncMock()
         topics = topics_cls.return_value
         topics.generate_topics = AsyncMock(return_value=["Topic"])
@@ -102,6 +106,66 @@ def pipeline():
                               validator=validator, critic=critic, image_sourcer=image_sourcer, sleep=sleep)
 
 
+def _row(article_id, status="published"):
+    """A list_schedule row for an art_YYYYMMDD_NNN id."""
+    return {"id": article_id, "date": datetime.strptime(article_id[4:12], "%Y%m%d").date(), "status": status}
+
+
+def _published_on(pipeline):
+    return [(call.kwargs["publication_date"], call.kwargs["sequence"])
+            for call in pipeline.generator.generate_article.await_args_list]
+
+
+class TestScheduling:
+    async def test_publishes_today_in_india_by_default(self, pipeline):
+        await scheduler.run_daily_pipeline(count=1)
+
+        pipeline.service.list_schedule.assert_awaited_once_with(TODAY)
+        assert _published_on(pipeline) == [(TODAY, 1)]
+
+    async def test_a_second_run_on_the_same_day_never_overwrites_the_first(self, pipeline):
+        pipeline.service.list_schedule.return_value = [_row("art_20261006_001"), _row("art_20261007_001")]
+        pipeline.topics.generate_topics.return_value = ["A", "B"]
+
+        await scheduler.run_daily_pipeline(count=2)
+
+        assert _published_on(pipeline) == [(TODAY, 2), (TODAY, 3)]
+
+    async def test_publish_on_a_later_day_schedules_it(self, pipeline):
+        await scheduler.run_daily_pipeline(count=1, publish_on=date(2026, 10, 20))
+
+        pipeline.service.list_schedule.assert_awaited_once_with(TODAY)
+        assert _published_on(pipeline) == [(date(2026, 10, 20), 1)]
+
+    async def test_publish_on_an_earlier_day_numbers_after_that_days_articles(self, pipeline):
+        pipeline.service.list_schedule.return_value = [_row("art_20261001_001")]
+
+        await scheduler.run_daily_pipeline(count=1, publish_on=date(2026, 10, 1))
+
+        pipeline.service.list_schedule.assert_awaited_once_with(date(2026, 10, 1))
+        assert _published_on(pipeline) == [(date(2026, 10, 1), 2)]
+
+    async def test_a_backlog_fills_the_next_days_with_no_published_article(self, pipeline):
+        pipeline.service.list_schedule.return_value = [
+            _row("art_20261006_001"),               # today: not part of a backlog
+            _row("art_20261007_001"),               # taken
+            _row("art_20261008_001", "withdrawn"),  # free again, but its number is used
+        ]
+        pipeline.topics.generate_topics.return_value = ["A", "B", "C"]
+
+        published = await scheduler.run_daily_pipeline(backlog=3)
+
+        pipeline.topics.generate_topics.assert_awaited_once_with(count=3, exclude_titles=[])
+        assert _published_on(pipeline) == [(date(2026, 10, 8), 2), (date(2026, 10, 9), 1), (date(2026, 10, 10), 1)]
+        assert published == 3
+
+    async def test_a_scheduled_article_says_when_it_goes_live(self, pipeline, caplog):
+        with caplog.at_level(logging.INFO, logger="scrapper.scheduler"):
+            await scheduler.run_daily_pipeline(backlog=1)
+
+        assert any("scheduled for 2026-10-07" in r.getMessage() for r in caplog.records)
+
+
 class TestRunDailyPipeline:
     async def test_happy_path_generates_and_publishes_one_article(self, pipeline):
         pipeline.service.list_recent_titles.return_value = ["Old Topic"]
@@ -113,7 +177,8 @@ class TestRunDailyPipeline:
 
         pipeline.topics.generate_topics.assert_awaited_once_with(count=1, exclude_titles=["Old Topic"])
         pipeline.scraper.search_and_scrape.assert_awaited_once_with("New Topic", sources=scheduler.SOURCES)
-        pipeline.generator.generate_article.assert_awaited_once_with(["scraped content"], topic="New Topic", sequence=1)
+        pipeline.generator.generate_article.assert_awaited_once_with(
+            ["scraped content"], topic="New Topic", sequence=1, publication_date=TODAY)
         pipeline.service.save_article.assert_awaited_once_with(article)
         assert published == 1
 

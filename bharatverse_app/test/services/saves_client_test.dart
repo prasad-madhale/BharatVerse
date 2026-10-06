@@ -171,7 +171,7 @@ void main() {
       expect(request.method, 'GET');
       expect(request.url.path, '/rest/v1/saved_articles');
       expect(request.url.queryParameters, {
-        'select': 'articles(*)',
+        'select': 'articles!inner(*)',
         'order': 'created_at.desc',
         'limit': '5',
       });

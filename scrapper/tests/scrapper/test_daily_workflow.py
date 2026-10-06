@@ -20,7 +20,7 @@ WORKFLOW = Path(__file__).resolve().parents[3] / ".github" / "workflows" / "dail
 def pipeline_env():
     """The env block of the step that runs scrapper_main.py, as {NAME: value}."""
     text = WORKFLOW.read_text()
-    step = text[text.index("run: python scrapper/scrapper_main.py"):]
+    step = text[text.index("name: Run the daily content pipeline"):]
     block = step[step.index("env:"):].split("\n\n")[0]
     return dict(re.findall(r"^\s+([A-Z_]+): (.+)$", block, re.M))
 

@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS articles (
     era TEXT NOT NULL DEFAULT '',  -- short label, e.g. 'Gupta Empire'; '' for pre-era articles
     image_url TEXT,
     content_file_path TEXT NOT NULL,
+    -- The public sees an article from its `date` in India on (a later date schedules it) unless it is 'withdrawn'
+    status TEXT NOT NULL DEFAULT 'published' CHECK (status IN ('published', 'withdrawn')),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
@@ -134,10 +136,17 @@ ALTER TABLE likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE saved_articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE search_suggestions ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies for articles (public read, service role write)
-CREATE POLICY "Articles are viewable by everyone" 
-    ON articles FOR SELECT 
-    USING (true);
+-- Today's date in India, where the day turns for readers
+CREATE OR REPLACE FUNCTION ist_today()
+RETURNS date
+LANGUAGE sql STABLE
+AS $$ SELECT (now() AT TIME ZONE 'Asia/Kolkata')::date $$;
+
+-- RLS Policies for articles (public read of what is live, service role write). The service role bypasses RLS, so the
+-- pipeline still sees scheduled and withdrawn articles.
+CREATE POLICY "Published articles are viewable by everyone"
+    ON articles FOR SELECT
+    USING (status = 'published' AND date <= ist_today());
 
 CREATE POLICY "Articles are insertable by service role" 
     ON articles FOR INSERT 
@@ -213,7 +222,7 @@ ALTER TABLE articles ADD COLUMN IF NOT EXISTS search_vector tsvector
 CREATE INDEX IF NOT EXISTS idx_articles_search_vector ON articles USING GIN(search_vector);
 
 -- Search ranked by relevance, called as rpc/search_articles by the backend and the app (a PostgREST
--- filter cannot rank). The vector's weights make a title match beat a tag match, and a tag match beat a
+-- filter cannot rank), over what is live only, whoever calls it. The vector's weights make a title match beat a tag match, and a tag match beat a
 -- few passing mentions in the summary; date, then created_at and id, break ties so the order is stable.
 CREATE OR REPLACE FUNCTION search_articles(search_query TEXT, match_limit INT DEFAULT 20)
 RETURNS SETOF articles
@@ -221,7 +230,7 @@ LANGUAGE sql STABLE
 AS $$
     SELECT a.*
     FROM articles a, websearch_to_tsquery('english', search_query) AS q
-    WHERE a.search_vector @@ q
+    WHERE a.search_vector @@ q AND a.status = 'published' AND a.date <= ist_today()
     ORDER BY ts_rank_cd(a.search_vector, q) DESC, a.date DESC, a.created_at DESC, a.id DESC
     LIMIT match_limit
 $$;
@@ -235,12 +244,16 @@ BEGIN
     LOCK TABLE search_suggestions IN EXCLUSIVE MODE;  -- one rebuild at a time; readers are not held up
     DELETE FROM search_suggestions;
     INSERT INTO search_suggestions (term_key, term, category, article_count)
-    WITH parts AS (
+    WITH visible AS (
+        -- what the public can read (the policy on articles; this runs as the owner, who bypasses it), so a
+        -- scheduled or withdrawn title is never suggested
+        SELECT id, title, tags, search_vector FROM articles WHERE status = 'published' AND date <= ist_today()
+    ), parts AS (
         SELECT a.id, part
-        FROM articles a, LATERAL regexp_split_to_table(a.title, '\s*[:\u2013\u2014]+\s*|\s+-\s+') AS part
+        FROM visible a, LATERAL regexp_split_to_table(a.title, '\s*[:\u2013\u2014]+\s*|\s+-\s+') AS part
     ), tags AS (
         SELECT a.id, tag #>> '{}' AS slug
-        FROM articles a,
+        FROM visible a,
              LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(a.tags) = 'array' THEN a.tags ELSE '[]'::jsonb END) AS tag
         WHERE jsonb_typeof(tag) = 'string'
     ), raw AS (
@@ -256,7 +269,7 @@ BEGIN
            (array_agg(p.phrase ORDER BY (p.phrase = upper(p.phrase)), (p.phrase = lower(p.phrase)), p.phrase COLLATE "C"))[1],
            min(p.category),
            count(DISTINCT p.id)
-    FROM phrases p JOIN articles a ON a.id = p.id
+    FROM phrases p JOIN visible a ON a.id = p.id
     WHERE char_length(p.phrase) <= 200 AND a.search_vector @@ websearch_to_tsquery('english', p.phrase)
     GROUP BY lower(p.phrase);
 END;
@@ -323,3 +336,16 @@ CREATE TRIGGER update_articles_updated_at BEFORE UPDATE ON articles
 
 -- Fill the suggestions from the articles already there (nothing to do on a new database)
 SELECT rebuild_search_suggestions();
+
+-- A scheduled article goes public when the day turns in India, with no write to `articles` to rebuild the suggestions:
+-- pg_cron rebuilds them then, at 00:00 IST (18:30 UTC). Supabase: enable it under Database > Extensions first.
+-- Without it, they catch up when the next article is written.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+        PERFORM cron.schedule('rebuild-search-suggestions', '30 18 * * *', 'SELECT public.rebuild_search_suggestions()');
+    ELSE
+        RAISE NOTICE 'pg_cron is not installed: search suggestions will catch up with each day''s article when the next one is written';
+    END IF;
+END
+$$;

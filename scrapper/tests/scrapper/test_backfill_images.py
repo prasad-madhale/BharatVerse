@@ -60,6 +60,9 @@ class TestBackfill:
 
         services.service.list_ids_missing_images.assert_not_awaited()
         assert services.service.get_article_by_id.await_count == 100
+        # scheduled articles too, so one gets its images before its day
+        assert services.service.list_recent_articles.await_args.kwargs["include_unpublished"] is True
+        assert services.service.get_article_by_id.await_args.kwargs["include_unpublished"] is True
 
     async def test_an_article_that_disappears_is_skipped_not_a_crash(self, services):
         services.service.get_article_by_id.return_value = None

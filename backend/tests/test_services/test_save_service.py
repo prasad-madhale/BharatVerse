@@ -9,6 +9,7 @@ from postgrest.exceptions import APIError
 
 from backend.services.save_service import ArticleNotFoundError, SaveService
 from backend.tests.wire import article_blob, article_row, reply, rows, use_wire
+from common.publishing import ist_today
 
 use_admin_wire = partial(use_wire, admin=True)
 
@@ -123,8 +124,11 @@ class TestGetUserSaves:
         (request,) = wire.requests
         assert request.method == "GET"
         assert request.url.path == "/rest/v1/saved_articles"
-        assert request.url.params["select"] == "created_at,articles(*)"
+        assert request.url.params["select"] == "created_at,articles!inner(*)"
         assert request.url.params["user_id"] == "eq.user-1"
+        # The service role bypasses the policy on articles, so the list leaves out what the public cannot read itself
+        assert request.url.params["articles.status"] == "eq.published"
+        assert request.url.params["articles.date"] == f"lte.{ist_today().isoformat()}"
         assert request.url.params["order"] == "created_at.desc"
         assert request.url.params["limit"] == "20"
 

@@ -12,10 +12,12 @@ import hashlib
 import json
 from datetime import date, datetime, timezone
 
+import httpx
 import pytest
 from unittest.mock import MagicMock, patch
 
 from backend.services.article_service import ArticleService
+from backend.tests.wire import use_wire
 from common.models import Article, ArticleImage, Citation, Section
 
 
@@ -284,7 +286,7 @@ class TestListRecentTitles:
         self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
     ):
         mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        mock_get_supabase.return_value.get_admin_client.return_value = mock_supabase_client
         query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
         query.execute.return_value.data = [{"title": "Battle of Plassey"}, {"title": "Rani Lakshmibai"}]
 
@@ -300,7 +302,7 @@ class TestListRecentTitles:
         self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
     ):
         mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        mock_get_supabase.return_value.get_admin_client.return_value = mock_supabase_client
         query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
         query.execute.return_value.data = []
 
@@ -321,7 +323,7 @@ class TestListRecentTitles:
         self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
     ):
         mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        mock_get_supabase.return_value.get_admin_client.return_value = mock_supabase_client
         query = mock_supabase_client.table.return_value.select.return_value.order.return_value.limit.return_value
         query.execute.return_value.data = []
 
@@ -339,7 +341,7 @@ class TestListIdsMissingImages:
         self, mock_get_settings, mock_get_supabase, mock_settings, mock_supabase_client
     ):
         mock_get_settings.return_value = mock_settings
-        mock_get_supabase.return_value.get_client.return_value = mock_supabase_client
+        mock_get_supabase.return_value.get_admin_client.return_value = mock_supabase_client
         query = mock_supabase_client.table.return_value.select.return_value.is_.return_value
         query.execute.return_value.data = [{"id": "art_1"}, {"id": "art_2"}]
 
@@ -347,3 +349,62 @@ class TestListIdsMissingImages:
 
         mock_supabase_client.table.return_value.select.return_value.is_.assert_called_with("image_url", "null")
         assert ids == ["art_1", "art_2"]
+
+
+class TestPublicAndPipelineReads:
+    """The public key sees what row-level security lets through (live articles); the pipeline sees everything."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("include_unpublished, client", [(False, "get_client"), (True, "get_admin_client")])
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_get_article_by_id(self, mock_get_settings, mock_get_supabase, mock_settings,
+                                     include_unpublished, client):
+        mock_get_settings.return_value = mock_settings
+        wire = use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[]),
+                        admin=include_unpublished)
+
+        assert await ArticleService().get_article_by_id("art_1", include_unpublished=include_unpublished) is None
+
+        (request,) = wire.requests
+        assert request.url.params["id"] == "eq.art_1"
+        getattr(mock_get_supabase.return_value, client).assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("include_unpublished", [False, True])
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_list_recent_articles(self, mock_get_settings, mock_get_supabase, mock_settings,
+                                        include_unpublished):
+        mock_get_settings.return_value = mock_settings
+        wire = use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[]),
+                        admin=include_unpublished)
+
+        await ArticleService().list_recent_articles(limit=100, include_unpublished=include_unpublished)
+
+        assert len(wire.requests) == 1
+
+
+class TestListSchedule:
+    @pytest.mark.asyncio
+    @patch("backend.services.article_service.get_supabase")
+    @patch("backend.services.article_service.get_settings")
+    async def test_lists_every_article_from_a_day_on_with_the_service_role(
+        self, mock_get_settings, mock_get_supabase, mock_settings
+    ):
+        mock_get_settings.return_value = mock_settings
+        wire = use_wire(mock_get_supabase, lambda request: httpx.Response(200, json=[
+            {"id": "art_20261006_001", "date": "2026-10-06", "status": "published"},
+            {"id": "art_20261007_001", "date": "2026-10-07", "status": "withdrawn"},
+        ]), admin=True)
+
+        schedule = await ArticleService().list_schedule(date(2026, 10, 6))
+
+        assert schedule == [
+            {"id": "art_20261006_001", "date": date(2026, 10, 6), "status": "published"},
+            {"id": "art_20261007_001", "date": date(2026, 10, 7), "status": "withdrawn"},
+        ]
+        (request,) = wire.requests
+        assert request.url.params["select"] == "id,date,status"
+        assert request.url.params["date"] == "gte.2026-10-06"
+        assert request.url.params["order"] == "date,id"

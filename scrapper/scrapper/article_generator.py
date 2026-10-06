@@ -17,6 +17,7 @@ from common.config import get_llm_settings
 from common.eras import ERAS, canonical_era
 from common.llm_provider import LLMProvider, get_llm_provider
 from common.models import Article, Citation, Section
+from common.publishing import ist_today
 from scrapper.article_critic import CriticReview
 from scrapper.models.article import ScrapedContent
 from scrapper.source_text import build_source_text
@@ -176,6 +177,7 @@ class ArticleGenerator:
         scraped_content: list[ScrapedContent],
         topic: str,
         sequence: int = 1,
+        publication_date: date | None = None,
     ) -> Article:
         """
         Generate a structured Article from scraped source content.
@@ -183,9 +185,9 @@ class ArticleGenerator:
         Args:
             scraped_content: Raw content scraped from one or more sources.
             topic: The topic that was scraped (used for the prompt and id).
-            sequence: Sequence number for today's article id (art_YYYYMMDD_NNN).
-                      Defaults to 1; multi-article-per-day sequencing is a
-                      Phase 4 (scheduler) concern, not handled here.
+            sequence: Sequence number in the article id (art_YYYYMMDD_NNN); the
+                      scheduler numbers a day's articles. Defaults to 1.
+            publication_date: The day it goes live (default: today in India).
 
         Returns:
             A fully populated Article, ready for validation/storage.
@@ -212,7 +214,7 @@ class ArticleGenerator:
         content = "\n\n".join(f"## {s.heading}\n\n{s.content}" for s in sections)
         word_count = len(content.split())
 
-        publication_date = date.today()
+        publication_date = publication_date or ist_today()
         return Article(
             id=f"art_{publication_date.strftime('%Y%m%d')}_{sequence:03d}",
             title=parsed["title"],

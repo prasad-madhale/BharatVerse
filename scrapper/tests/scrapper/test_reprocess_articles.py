@@ -65,6 +65,8 @@ class TestReprocess:
     async def test_reprocesses_and_saves_each_article(self, services):
         updated = await reprocess_articles.reprocess()
 
+        # scheduled articles too, so one can be fixed before its day
+        assert services.service.list_recent_articles.await_args.kwargs["include_unpublished"] is True
         services.scraper.search_and_scrape.assert_awaited_once()
         services.run_critic_loop.assert_awaited_once()
         services.service.save_article.assert_awaited_once_with(services.article)
@@ -170,7 +172,7 @@ class TestReprocess:
 
 class TestIds:
     async def test_reprocesses_only_the_named_articles(self, services):
-        services.service.get_article_by_id = AsyncMock(side_effect=lambda article_id: (
+        services.service.get_article_by_id = AsyncMock(side_effect=lambda article_id, include_unpublished: (
             services.article if article_id == services.article.id else None))
 
         updated = await reprocess_articles.reprocess(ids=[services.article.id, "art_missing"])
@@ -230,7 +232,7 @@ class TestAssignEras:
         await reprocess_articles.assign_eras(ids=[services.article.id])
 
         services.service.list_recent_articles.assert_not_awaited()
-        services.service.get_article_by_id.assert_awaited_once_with(services.article.id)
+        services.service.get_article_by_id.assert_awaited_once_with(services.article.id, include_unpublished=True)
 
 
 class TestMain:
