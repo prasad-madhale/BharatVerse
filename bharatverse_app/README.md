@@ -65,10 +65,15 @@ the hosted project. One command does it all:
 ../scripts/e2e.sh integration_test/smoke_test.dart   # or just some
 ```
 
-It starts the stand-in, boots the emulator if none is running (AVD `bv_api35`), switches it to 3-button navigation,
-runs each test with the stand-in's URL and key, prints what passed and failed, and stops the emulator it started. The
-emulator and each build run in their own memory-capped scope: uncapped, an emulator beside a Gradle build ran a 14 GB
-machine out of memory.
+It starts the stand-in (`BV_PYTHON` must have its requirements), builds one APK per test with the stand-in's URL and
+key, then boots the emulator (AVD `bv_api35`), switches it to 3-button navigation, runs each APK with `flutter drive`
+(`test_driver/integration_test.dart`), prints what passed and failed, and stops the emulator.
+
+An emulator beside Gradle builds twice froze a 14 GB machine, RAM and swap full, although each process had its own cap,
+so the script keeps the total down: everything runs in one systemd slice with one budget (`E2E_MEMORY`, default 7G) and
+no swap, so going over kills a test rather than the desktop; the builds run before the emulator starts and leave no
+Gradle daemon behind; and it refuses to start without that budget plus 1 GB free. Don't run the emulator by hand
+beside a build.
 
 | Test | Covers |
 |---|---|

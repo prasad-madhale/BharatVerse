@@ -56,8 +56,8 @@ Not in 1.0: iOS, a hosted web app, push notifications, Google sign-in and semant
    that venv, and runs `playwright install --with-deps`, which needs sudo. Don't run the scraper, the daily pipeline or
    `integration` tests, and don't call a paid API, unless the owner asks in that session.
    Then prove the change end to end: for the app, `scripts/e2e.sh` (the integration tests on the Android emulator)
-   plus screenshots of what changed; for SQL, `tools/local-stack`. Never run the emulator and a build at once
-   outside memory-capped scopes: together they ran this 14 GB machine out of memory.
+   plus screenshots of what changed; for SQL, `tools/local-stack`. Never run the emulator beside a build outside
+   `scripts/e2e.sh`, which keeps both in one memory budget: together they twice froze this 14 GB machine.
 6. Schema changes go in `schema.sql` plus a dated file in `backend/database/migrations/`, tested in
    `tools/local-stack/tests/`. Never change the hosted project; the task's person step applies the file.
 7. Commit locally with a one-line conventional subject. In the same branch, set the task's status here to `done` (or
