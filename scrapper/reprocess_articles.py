@@ -62,7 +62,7 @@ async def _load_articles(article_service: ArticleService, ids: list[str] | None)
     if ids is not None:
         articles = []
         for article_id in ids:
-            article = await article_service.get_article_by_id(article_id)
+            article = await article_service.get_article_by_id(article_id, include_unpublished=True)
             if article is None:
                 logger.warning(f"No article {article_id}, skipping")
             else:
@@ -71,7 +71,7 @@ async def _load_articles(article_service: ArticleService, ids: list[str] | None)
 
     articles = []
     offset = 0
-    while batch := await article_service.list_recent_articles(limit=100, offset=offset):
+    while batch := await article_service.list_recent_articles(limit=100, offset=offset, include_unpublished=True):
         articles.extend(batch)
         offset += 100
     return articles

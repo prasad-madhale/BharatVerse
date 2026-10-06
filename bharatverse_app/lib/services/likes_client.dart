@@ -35,7 +35,13 @@ class LikesClient {
   }) async {
     final response = await _send(
       'GET',
-      {'select': 'articles(*)', 'order': 'created_at.desc', 'limit': '$limit'},
+      // !inner leaves out a row whose article the reader may not see (scheduled or
+      // withdrawn), instead of returning it with no article.
+      {
+        'select': 'articles!inner(*)',
+        'order': 'created_at.desc',
+        'limit': '$limit'
+      },
       accessToken: accessToken,
     );
     return (jsonDecode(response.body) as List<dynamic>)

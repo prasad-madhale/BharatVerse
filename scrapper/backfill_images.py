@@ -46,7 +46,7 @@ async def resize() -> int:
     image_sourcer = ImageSourcer()
     updated = 0
     offset = 0
-    while batch := await article_service.list_recent_articles(limit=100, offset=offset):
+    while batch := await article_service.list_recent_articles(limit=100, offset=offset, include_unpublished=True):
         offset += 100
         for article in batch:
             if not article.images:
@@ -70,7 +70,7 @@ async def backfill(all_articles: bool = False) -> int:
     if all_articles:
         ids = []
         offset = 0
-        while batch := await article_service.list_recent_articles(limit=100, offset=offset):
+        while batch := await article_service.list_recent_articles(limit=100, offset=offset, include_unpublished=True):
             ids.extend(a.id for a in batch)
             offset += 100
     else:
@@ -79,7 +79,7 @@ async def backfill(all_articles: bool = False) -> int:
     logger.info(f"Backfilling images for {len(ids)} article(s)")
     updated = 0
     for article_id in ids:
-        article = await article_service.get_article_by_id(article_id)
+        article = await article_service.get_article_by_id(article_id, include_unpublished=True)
         if article is None:
             logger.warning(f"{article_id} disappeared, skipping")
             continue

@@ -5,7 +5,9 @@
 -- so it must be kept in step with them (tools/local-stack/tests/test_migration.py checks that it is). Whole-file runs of
 -- schema.sql only suit a new project: the SQL editor runs a file as one transaction, and it stops at the first policy or
 -- trigger that exists. The search_vector expression below reads the `era` column, so run
--- 2026-09-era-field.sql first if this project does not have it yet.
+-- 2026-09-era-field.sql first if this project does not have it yet. Its search_articles and rebuild_search_suggestions
+-- predate scheduled publishing, which shows the public only what is live: after running this file again, run
+-- 2026-10-scheduled-publishing.sql again too.
 
 -- Full-text search: drop the earlier title-and-summary version of the column, if any, then add the weighted one
 ALTER TABLE articles DROP COLUMN IF EXISTS search_vector;

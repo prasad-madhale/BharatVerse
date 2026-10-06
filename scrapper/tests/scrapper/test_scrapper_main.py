@@ -1,5 +1,6 @@
 """Unit tests for the pipeline's command-line entry point: its arguments, its logging setup and its exit status."""
 
+from datetime import date
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -32,17 +33,36 @@ class TestMain:
 
         assert scrapper_main.main([]) == 1
 
-    def test_publishes_one_article_unless_told_otherwise(self, run):
+    def test_publishes_one_article_today_unless_told_otherwise(self, run):
         scrapper_main.main([])
 
-        run.pipeline.assert_awaited_once_with(count=1)
+        run.pipeline.assert_awaited_once_with(count=1, publish_on=None, backlog=0)
 
     def test_passes_the_requested_count_on(self, run):
         run.pipeline.return_value = 5
 
         scrapper_main.main(["--count", "5"])
 
-        run.pipeline.assert_awaited_once_with(count=5)
+        run.pipeline.assert_awaited_once_with(count=5, publish_on=None, backlog=0)
+
+    def test_publish_on_names_the_day(self, run):
+        scrapper_main.main(["--publish-on", "2026-10-20", "--count", "2"])
+
+        run.pipeline.assert_awaited_once_with(count=2, publish_on=date(2026, 10, 20), backlog=0)
+
+    def test_a_backlog_succeeds_only_when_every_day_is_filled(self, run):
+        run.pipeline.return_value = 6
+
+        assert scrapper_main.main(["--backlog", "7"]) == 1
+        run.pipeline.assert_awaited_once_with(count=1, publish_on=None, backlog=7)
+
+    @pytest.mark.parametrize("argv", [["--backlog", "3", "--count", "2"], ["--backlog", "3", "--publish-on", "2026-10-20"],
+                                      ["--backlog", "0"], ["--publish-on", "20 Oct"]])
+    def test_rejects_conflicting_or_malformed_choices(self, run, argv):
+        with pytest.raises(SystemExit):
+            scrapper_main.main(argv)
+
+        run.pipeline.assert_not_awaited()
 
     def test_logs_the_pipeline_backend_and_common_at_info_by_default(self, run, monkeypatch):
         monkeypatch.delenv("LOG_LEVEL", raising=False)

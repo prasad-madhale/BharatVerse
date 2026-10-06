@@ -6,7 +6,14 @@ on:
   # Re-enable by uncommenting below once satisfied.
   # schedule:
   #   - cron: '30 3 * * *'  # 03:30 UTC / ~9AM IST
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      backlog:
+        description: "Schedule this many articles, one on each of the next days with none (0: one for today)"
+        default: "0"
+      publish_on:
+        description: "Or publish one on this day, YYYY-MM-DD (empty: today in India)"
+        default: ""
 
 permissions:
   contents: read
@@ -33,8 +40,18 @@ jobs:
       run: playwright install --with-deps chromium
 
     - name: Run the daily content pipeline
-      run: python scrapper/scrapper_main.py --count 1
+      # A scheduled run has no inputs, so it publishes one article for today
+      run: |
+        if [ "${BACKLOG:-0}" != "0" ]; then
+          python scrapper/scrapper_main.py --backlog "$BACKLOG"
+        elif [ -n "$PUBLISH_ON" ]; then
+          python scrapper/scrapper_main.py --count 1 --publish-on "$PUBLISH_ON"
+        else
+          python scrapper/scrapper_main.py --count 1
+        fi
       env:
+        BACKLOG: ${{ inputs.backlog }}
+        PUBLISH_ON: ${{ inputs.publish_on }}
         # Google AI Studio's free tier, on the owner's own key: Gemma 4 writes, Gemini Flash (a
         # different model) reviews the text, and Flash-Lite checks every image -- one call per image
         # per round, which on Flash itself ran into its free rate limit and went unchecked. Every

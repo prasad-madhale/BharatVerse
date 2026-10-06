@@ -12,6 +12,7 @@ from postgrest.exceptions import APIError
 from backend.database import get_supabase
 from backend.services.article_service import ArticleService
 from common.models import Article
+from common.publishing import PUBLISHED, ist_today
 
 logger = logging.getLogger(__name__)
 
@@ -65,11 +66,14 @@ class LikeService:
     async def get_user_likes(self, user_id: str, limit: int = 20) -> list[Article]:
         """Full articles this user has liked, most recently liked first."""
         client = get_supabase().get_admin_client()
-        # articles(*) embeds each liked article's row through the foreign key.
+        # articles!inner(*) embeds each liked article's row through the foreign key, and leaves out the ones the
+        # public cannot read: the service role bypasses that policy, so it is repeated here.
         response = (
             client.table("likes")
-            .select("created_at", "articles(*)")
+            .select("created_at", "articles!inner(*)")
             .eq("user_id", user_id)
+            .eq("articles.status", PUBLISHED)
+            .lte("articles.date", ist_today().isoformat())
             .order("created_at", desc=True)
             .limit(limit)
             .execute()

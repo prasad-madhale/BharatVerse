@@ -32,7 +32,9 @@ Put these in the `.env` at the repo root (template: [`.env.example`](../.env.exa
 ## Run
 
 ```bash
-python scrapper/scrapper_main.py --count 1     # from the repo root
+python scrapper/scrapper_main.py --count 1                 # from the repo root: one article for today (India)
+python scrapper/scrapper_main.py --publish-on 2026-10-20   # live that day, not before
+python scrapper/scrapper_main.py --backlog 7               # one on each of the next 7 days with no article
 ```
 
 Each run calls the LLM at least three times per article (topic, writing, one editorial review), more if the critic
@@ -41,7 +43,7 @@ asks for a revision, so on a paid provider it costs money -- set `CRITIC_ENABLED
 JSON lines on stdout.
 
 [`daily-pipeline.yml`](../.github/workflows/daily-pipeline.yml) runs the same command on demand in GitHub Actions
-(`workflow_dispatch`) with the secrets `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
+(`workflow_dispatch`, whose `backlog` and `publish_on` inputs pass those options) with the secrets `GEMINI_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
 `SUPABASE_SERVICE_ROLE_KEY`, on Google AI Studio's free tier: Gemma 4 writes, Gemini Flash reviews the text, and
 Flash-Lite checks the images. The `gemini` provider calls Google's REST API directly and drops a thinking model's
 reasoning parts. A failed run opens an issue labelled `pipeline-failure`, or comments on the open one

@@ -99,7 +99,7 @@ Only the owner can do these. Longest lead time first.
   not legal advice.
 - [ ] **P5 Supabase.** Set up custom SMTP: the built-in sender is for testing, tightly rate limited, and may only
   deliver to the project team's own addresses (check Authentication > Emails). Add L12's redirect URL. Apply each
-  migration a task adds (L03, L04, L15) and re-run `2026-09-search-and-autocomplete.sql` for era search. Act on D7.
+  migration a task adds (L03, L04, L15; for L15, enable pg_cron under Database > Extensions first). Act on D7.
 - [ ] **P6 Pipeline key.** Add `GEMINI_API_KEY` (Google AI Studio, free tier) to the repository's Actions secrets,
   then run "Daily article pipeline" once by hand (L05). OpenRouter credits are only needed to fall back to its paid
   models.
@@ -320,7 +320,7 @@ poorly.
 
 | ID | Task | Owner | Size | Needs | Status |
 |---|---|---|---|---|---|
-| L15 | Scheduled publishing and takedown | agent, person | L | L13 | todo |
+| L15 | Scheduled publishing and takedown | agent, person | L | L13 | done |
 | L16 | Launch content | person, agent | M | L05, L06, L13, L15 | todo |
 | L17 | Crash reporting | agent, person | M | D6 | done |
 | L18 | Offline: the last 7 days | agent | M | | done |
@@ -339,11 +339,15 @@ A reviewed backlog means a failed day goes unnoticed by readers, and a takedown 
 - Suggestions: a `SECURITY DEFINER` trigger rebuilds `search_suggestions` from every row, which would leak scheduled
   titles. Build it from visible rows only, and rebuild it when the day turns (a `pg_cron` job, or the daily run calling
   the rebuild).
-- Backend: its service-role client bypasses RLS, so add the same filter to its public article queries.
+- Backend: its service-role client bypasses RLS, so add the same filter to its public article queries. (As built: its
+  article reads use the public key, which RLS already filters, so the filter went on the saves and likes lists, the
+  queries that do use the service role; the pipeline's own reads moved to the service role so they still see scheduled
+  articles.)
 - Pipeline: `scrapper_main.py --publish-on YYYY-MM-DD`, and `--backlog N` to fill the next free dates.
 - Storage blobs stay public, so a scheduled article is readable by anyone who guesses its path. Acceptable; note it in
   the roadmap.
-- Person: apply the migration (P5); withdraw an article by setting its `status` in the table editor.
+- Person: enable pg_cron (Database > Extensions), then apply `2026-10-scheduled-publishing.sql` (P5); withdraw an
+  article by setting its `status` to `withdrawn` in the table editor.
 - Done: local-stack tests for visibility by date and status and for suggestions, wire tests for the backend filter,
   and tests for the pipeline's date assignment.
 

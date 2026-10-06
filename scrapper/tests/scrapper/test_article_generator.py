@@ -14,6 +14,7 @@ import pytest
 
 from common.eras import ERAS
 from common.models import Article
+from common.publishing import ist_today
 from scrapper.article_critic import CriticIssue, CriticReview
 from scrapper.article_generator import ArticleGenerationError, ArticleGenerator
 from scrapper.models.article import ScrapedContent
@@ -72,8 +73,8 @@ class TestGenerateArticle:
         assert "Origins" in article.content
         assert "Legacy" in article.content
         assert article.tags == ["mauryan-empire", "ancient-india"]
-        assert article.publication_date == date.today()
-        assert article.id == f"art_{date.today().strftime('%Y%m%d')}_001"
+        assert article.publication_date == ist_today()  # the day turns for readers in India
+        assert article.id == f"art_{ist_today().strftime('%Y%m%d')}_001"
 
     @pytest.mark.asyncio
     async def test_reading_time_derived_from_word_count(self):
@@ -139,7 +140,17 @@ class TestGenerateArticle:
 
         article = await generator.generate_article([make_scraped_content()], topic="Mauryan Empire", sequence=7)
 
-        assert article.id == f"art_{date.today().strftime('%Y%m%d')}_007"
+        assert article.id == f"art_{ist_today().strftime('%Y%m%d')}_007"
+
+    @pytest.mark.asyncio
+    async def test_a_scheduled_article_carries_its_day_in_date_and_id(self):
+        generator = ArticleGenerator(llm_provider=FakeLLMProvider(VALID_LLM_RESPONSE))
+
+        article = await generator.generate_article(
+            [make_scraped_content()], topic="Mauryan Empire", sequence=2, publication_date=date(2026, 10, 20))
+
+        assert article.publication_date == date(2026, 10, 20)
+        assert article.id == "art_20261020_002"
 
     @pytest.mark.asyncio
     async def test_raises_on_empty_scraped_content(self):

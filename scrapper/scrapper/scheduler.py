@@ -9,12 +9,15 @@ checks and ArticleCritic's editorial review stand in for it for now.
 """
 
 import logging
+import re
 from asyncio import sleep
+from datetime import date, timedelta
 from time import perf_counter
 
 from backend.services.article_service import ArticleService
 from common.config import get_llm_settings
 from common.models import Article, ArticleImage
+from common.publishing import PUBLISHED, ist_today
 from scrapper.article_critic import ArticleCritic, CriticIssue, CriticReview, critic_metrics
 from scrapper.article_generator import ArticleGenerator
 from scrapper.content_validator import ContentValidator, article_metrics
@@ -31,10 +34,11 @@ GENERATION_BACKOFF_SECONDS = 5  # doubles after each failed attempt: 5 s, then 1
 CRITIC_MAX_ROUNDS = 4  # up to 3 revisions per generation attempt, before falling back to a fresh attempt
 
 
-async def run_daily_pipeline(count: int = 1) -> int:
+async def run_daily_pipeline(count: int = 1, publish_on: date | None = None, backlog: int = 0) -> int:
     """
-    Generate and publish `count` new article(s), each on a topic not
-    already covered by an existing article. Returns how many were published.
+    Generate and publish `count` new article(s) on `publish_on` (default: today in India; a later day schedules them),
+    or with `backlog`, one on each of the next `backlog` days after today that have no published article. Each is on a
+    topic not already covered by an existing article. Returns how many were published.
 
     A single topic failing (unscrapable, generation or validation failing on
     every attempt, or anything else going wrong) is logged with its traceback
@@ -48,14 +52,18 @@ async def run_daily_pipeline(count: int = 1) -> int:
     critic = ArticleCritic() if get_llm_settings().critic_enabled else None
     image_sourcer = ImageSourcer() if get_llm_settings().image_sourcing_enabled else None
 
+    today = ist_today()
+    schedule = await article_service.list_schedule(min(publish_on or today, today))
+    slots = _backlog_slots(schedule, today, backlog) if backlog else _day_slots(schedule, publish_on or today, count)
+
     existing_titles = await article_service.list_recent_titles()
-    topics = await topic_generator.generate_topics(count=count, exclude_titles=existing_titles)
+    topics = await topic_generator.generate_topics(count=len(slots), exclude_titles=existing_titles)
 
     published = 0
-    for i, topic in enumerate(topics, start=1):
+    for topic, (day, sequence) in zip(topics, slots):
         try:
             published += await _generate_and_publish_one(
-                topic, sequence=i, scraper=scraper, generator=generator,
+                topic, day=day, sequence=sequence, scraper=scraper, generator=generator,
                 validator=validator, critic=critic, image_sourcer=image_sourcer,
                 article_service=article_service,
             )
@@ -64,8 +72,34 @@ async def run_daily_pipeline(count: int = 1) -> int:
     return published
 
 
+def _day_slots(schedule: list[dict], day: date, count: int) -> list[tuple[date, int]]:
+    """`count` articles on `day`, numbered after any it already has, so none is overwritten."""
+    first = _next_sequence(schedule, day)
+    return [(day, sequence) for sequence in range(first, first + count)]
+
+
+def _backlog_slots(schedule: list[dict], today: date, count: int) -> list[tuple[date, int]]:
+    """One article on each of the next `count` days after `today` with no published article (a withdrawn one leaves
+    its day free)."""
+    taken = {row["date"] for row in schedule if row["status"] == PUBLISHED}
+    slots, day = [], today
+    while len(slots) < count:
+        day += timedelta(days=1)
+        if day not in taken:
+            slots.append((day, _next_sequence(schedule, day)))
+    return slots
+
+
+def _next_sequence(schedule: list[dict], day: date) -> int:
+    """One past the highest NNN among `day`'s ids (art_YYYYMMDD_NNN), whatever their status."""
+    pattern = re.compile(rf"art_{day:%Y%m%d}_(\d+)")
+    used = [int(match.group(1)) for row in schedule if (match := pattern.fullmatch(row["id"]))]
+    return max(used, default=0) + 1
+
+
 async def _generate_and_publish_one(
     topic: str,
+    day: date,
     sequence: int,
     scraper: WebScraper,
     generator: ArticleGenerator,
@@ -83,20 +117,22 @@ async def _generate_and_publish_one(
     logger.info(f"Scraped {len(scraped)} page(s) for '{topic}'")
 
     article = await _generate_valid_article(
-        scraped, topic, sequence, generator, validator, critic, image_sourcer
+        scraped, topic, day, sequence, generator, validator, critic, image_sourcer
     )
     if article is None:
         logger.error(f"Giving up on '{topic}' after {MAX_GENERATION_ATTEMPTS} attempt(s)")
         return False
 
     await article_service.save_article(article)
-    logger.info(f"Published {article.id}: {article.title} ({len(article.images)} image(s))")
+    when = "" if day <= ist_today() else f", scheduled for {day.isoformat()}"
+    logger.info(f"Published {article.id}: {article.title} ({len(article.images)} image(s){when})")
     return True
 
 
 async def _generate_valid_article(
     scraped: list[ScrapedContent],
     topic: str,
+    day: date,
     sequence: int,
     generator: ArticleGenerator,
     validator: ContentValidator,
@@ -117,7 +153,7 @@ async def _generate_valid_article(
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
         started = perf_counter()
         try:
-            article = await generator.generate_article(scraped, topic=topic, sequence=sequence)
+            article = await generator.generate_article(scraped, topic=topic, sequence=sequence, publication_date=day)
         except Exception as e:
             logger.warning(
                 f"Generation failed for '{topic}' (attempt {attempt} of {MAX_GENERATION_ATTEMPTS}): {e}",

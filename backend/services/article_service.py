@@ -60,9 +60,12 @@ class ArticleService:
         logger.info(f"Saved article {article.id}")
         return article
 
-    async def get_article_by_id(self, article_id: str) -> Article | None:
-        """Retrieve a full article (metadata + content) by id, or None if not found."""
-        client = get_supabase().get_client()
+    async def get_article_by_id(self, article_id: str, include_unpublished: bool = False) -> Article | None:
+        """
+        Retrieve a full article (metadata + content) by id, or None if not found. The public key finds only a live
+        article; `include_unpublished`, for the pipeline, also finds a scheduled or withdrawn one.
+        """
+        client = self._reader(include_unpublished)
         response = client.table("articles").select("*").eq("id", article_id).execute()
         if not response.data:
             return None
@@ -70,12 +73,12 @@ class ArticleService:
 
     async def list_recent_titles(self, limit: int = 200) -> list[str]:
         """
-        Titles of the most recently published articles, most recent first.
+        Titles of the most recent articles, most recent first: scheduled and withdrawn ones too.
 
         Used by the topic generator to avoid proposing a topic that
-        duplicates something already published.
+        duplicates something already written.
         """
-        client = get_supabase().get_client()
+        client = get_supabase().get_admin_client()
         response = (
             client.table("articles")
             .select("title")
@@ -86,14 +89,19 @@ class ArticleService:
         return [row["title"] for row in response.data]
 
     async def list_ids_missing_images(self) -> list[str]:
-        """Ids of published articles with no featured image -- used by backfill_images.py."""
-        client = get_supabase().get_client()
+        """Ids of articles with no featured image, scheduled ones too -- used by backfill_images.py."""
+        client = get_supabase().get_admin_client()
         response = client.table("articles").select("id").is_("image_url", "null").execute()
         return [row["id"] for row in response.data]
 
-    async def list_recent_articles(self, limit: int = 5, offset: int = 0) -> list[Article]:
-        """Full, recently-published articles (metadata + content), most recent first. `offset` pages through them."""
-        client = get_supabase().get_client()
+    async def list_recent_articles(
+        self, limit: int = 5, offset: int = 0, include_unpublished: bool = False
+    ) -> list[Article]:
+        """
+        Full, recently-published articles (metadata + content), most recent first. `offset` pages through them, and
+        `include_unpublished`, for the pipeline, takes in scheduled and withdrawn ones too.
+        """
+        client = self._reader(include_unpublished)
         response = (
             client.table("articles")
             .select("*")
@@ -125,6 +133,25 @@ class ArticleService:
         if not response.data:
             return None
         return self.load_article(client, response.data[0])
+
+    async def list_schedule(self, start: date_type) -> list[dict]:
+        """The id, date and status of every article dated `start` or later, earliest first: the days already taken."""
+        client = get_supabase().get_admin_client()
+        response = (
+            client.table("articles")
+            .select("id,date,status")
+            .gte("date", start.isoformat())
+            .order("date")
+            .order("id")
+            .execute()
+        )
+        return [{**row, "date": date_type.fromisoformat(row["date"])} for row in response.data]
+
+    @staticmethod
+    def _reader(include_unpublished: bool):
+        """The public key, which row-level security limits to live articles, or the service role, which sees them all."""
+        supabase = get_supabase()
+        return supabase.get_admin_client() if include_unpublished else supabase.get_client()
 
     def _record_from_article(self, article: Article, content_file_path: str) -> ArticleRecord:
         return ArticleRecord(

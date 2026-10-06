@@ -1,6 +1,6 @@
 """
 backend/database/migrations/2026-09-search-and-autocomplete.sql brings an older project up to date, can be run twice, and
-matches schema.sql. Needs the stand-in's Postgres running (see pgscratch.py); skipped without it.
+matches schema.sql, but for the two functions 2026-10-scheduled-publishing.sql has since replaced. Needs the stand-in's Postgres running (see pgscratch.py); skipped without it.
 """
 
 import json
@@ -107,14 +107,20 @@ def test_the_migration_brings_an_older_project_to_what_schema_sql_makes_and_can_
 
 
 def test_the_migration_holds_the_same_statements_as_schema_sql():
-    """Each function, the trigger and the table it sets up are copied from schema.sql word for word."""
+    """Each function, the trigger and the table it sets up are copied from schema.sql word for word, as are the two
+    functions the scheduled-publishing migration replaced, there."""
     schema, migration = SCHEMA.read_text(), MIGRATION.read_text()
+    scheduled = (MIGRATION.parent / "2026-10-scheduled-publishing.sql").read_text()
 
     def block(text, start, end):
         return text[text.index(start):text.index(end, text.index(start)) + len(end)]
 
-    for start, end in [("CREATE OR REPLACE FUNCTION search_articles", "LIMIT match_limit\n$$;"),
-                       ("DROP TABLE IF EXISTS search_suggestions;", "(term_key text_pattern_ops);"),
-                       ("CREATE OR REPLACE FUNCTION rebuild_search_suggestions()", "LIMIT least(greatest(coalesce(match_limit, 10), 0), 20)\n$$;"),
-                       ("ALTER TABLE articles ADD COLUMN IF NOT EXISTS search_vector", "USING GIN(search_vector);")]:
-        assert block(schema, start, end) in migration, start
+    for start, end, source in [
+        ("CREATE OR REPLACE FUNCTION search_articles", "LIMIT match_limit\n$$;", scheduled),
+        ("DROP TABLE IF EXISTS search_suggestions;", "(term_key text_pattern_ops);", migration),
+        ("CREATE OR REPLACE FUNCTION rebuild_search_suggestions()", "END;\n$$;", scheduled),
+        ("CREATE OR REPLACE FUNCTION refresh_search_suggestions()",
+         "LIMIT least(greatest(coalesce(match_limit, 10), 0), 20)\n$$;", migration),
+        ("ALTER TABLE articles ADD COLUMN IF NOT EXISTS search_vector", "USING GIN(search_vector);", migration),
+    ]:
+        assert block(schema, start, end) in source, start
